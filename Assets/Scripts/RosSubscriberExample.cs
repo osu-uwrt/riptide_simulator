@@ -11,7 +11,7 @@ public class RosSubscriberExample : MonoBehaviour
     void Start()
     {
         ROSConnection.GetOrCreateInstance().Subscribe<PuddlePos>("puddles/position", PositionChange);
-        ROSConnection.GetOrCreateInstance().Subscribe<PuddlesImuData>("puddles/imu/data", ImuDataChange);
+        // ROSConnection.GetOrCreateInstance().Subscribe<PuddlesImuData>("puddles/imu/data", ImuDataChange);
         ROSConnection.GetOrCreateInstance().Subscribe<PuddlesThrustData>("puddles/thruster_forces", ThrustChange);
         
 
@@ -22,10 +22,10 @@ public class RosSubscriberExample : MonoBehaviour
         Debug.Log(PositionMessage);
     }
     
-    void ImuDataChange(PuddlesImuData ImuDataMessage)
-    {
-        Debug.Log(ImuDataMessage);
-    }
+    // void ImuDataChange(PuddlesImuData ImuDataMessage)
+    // {
+    //     Debug.Log(ImuDataMessage);
+    // }
     
     void ThrustChange(PuddlesThrustData ThrustDataMessage)
     {

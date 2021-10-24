@@ -9,6 +9,13 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.editorcoroutines": {
+      "version": "1.0.0",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
     "com.unity.ext.nunit": {
       "version": "1.0.6",
       "depth": 1,
@@ -61,6 +68,15 @@
       "source": "git",
       "dependencies": {},
       "hash": "7f055108f43ab11ff297175a52af5d30fbac9d57"
+    },
+    "com.unity.robotics.urdf-importer": {
+      "version": "https://github.com/Unity-Technologies/URDF-Importer.git?path=/com.unity.robotics.urdf-importer#v0.5.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.editorcoroutines": "1.0.0"
+      },
+      "hash": "e9859c4becda48194e153356afc0a802516b1488"
     },
     "com.unity.sysroot": {
       "version": "0.1.19-preview",
