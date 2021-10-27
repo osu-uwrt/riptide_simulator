@@ -1,8 +1,5 @@
 using UnityEngine;
 using Unity.Robotics.ROSTCPConnector;
-// using PuddlePos = RosMessageTypes.UnityRoboticsDemo.Vector3Msg;
-// using PuddlesImuData = RosMessageTypes.UnityRoboticsDemo.ImuMsg;
-// using PuddlesThrustData = RosMessageTypes.UnityRoboticsDemo.Float32MultiArrayMsg;
 using GazeboModel = RosMessageTypes.UnityRoboticsDemo.ModelStatesMsg;
 using GazeboPose = RosMessageTypes.Geometry.PoseMsg;
 using GazeboQuaternion = RosMessageTypes.Geometry.QuaternionMsg;
