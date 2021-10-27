@@ -7,37 +7,23 @@ using GazeboModel = RosMessageTypes.RiptideGazebo.ModelStatesMsg;
 using GazeboPose = RosMessageTypes.Geometry.PoseMsg;
 using GazeboQuaternion = RosMessageTypes.Geometry.QuaternionMsg;
 
-public class RosSubscriberExample : MonoBehaviour
-{   
+public class VehiclePoseSubscriber : MonoBehaviour
+{
     // Vehicle to update
     public GameObject vehicle;
     
     void Start()
     {
-        // ROSConnection.GetOrCreateInstance().Subscribe<PuddlePos>("puddles/position", PositionChange);
-        // ROSConnection.GetOrCreateInstance().Subscribe<PuddlesImuData>("puddles/imu/data", ImuDataChange);
-        // ROSConnection.GetOrCreateInstance().Subscribe<PuddlesThrustData>("puddles/thruster_forces", ThrustChange);
         // Subcription to gazebo/model_states, used to retrieve the physical position and orientation of the vehicle.
         ROSConnection.GetOrCreateInstance().Subscribe<GazeboModel>("gazebo/model_states", UpdateVehicle);
     }
 
-    // void PositionChange(PuddlePos positionMessage)
-    // {
-    //     Debug.Log(positionMessage);
-    // }
-    
-    // void ImuDataChange(PuddlesImuData imuDataMessage)
-    // {
-    //     Debug.Log(imuDataMessage);
-    // }
-    
-    // void ThrustChange(PuddlesThrustData thrustDataMessage)
-    // {
-        
-    // }
-
     void UpdateVehicle(GazeboModel modelMessage)
     {
+        // TODO: We should NOT be looping through all of the game objects being simulated by gazebo.
+        // Instead, we should just be publishing the vehicle's position from gazebo and using it here 
+        // to update the model in unity.
+
         for(int i = 0; i <= modelMessage.name.Length-1; i++) {
             if (modelMessage.name[i].Equals("puddles")) {
                 // Get the vehicles pose information
@@ -45,9 +31,7 @@ public class RosSubscriberExample : MonoBehaviour
 
                 // Translation between reference frames
                 Vector3 rectifiedPosition = new Vector3(-(float)pose.position.y, (float)pose.position.z, (float)pose.position.x); 
-                
-                GazeboQuaternion modelOrientation = pose.orientation;
-                Quaternion rectifiedOrientation = new Quaternion(-(float)pose.orientation.y,(float)pose.orientation.z,(float)pose.orientation.x,(float)pose.orientation.w);
+                Quaternion rectifiedOrientation = new Quaternion((float)pose.orientation.y,-(float)pose.orientation.z,-(float)pose.orientation.x,(float)pose.orientation.w);
 
                 // Transform the vehicle
                 vehicle.transform.position = rectifiedPosition;
