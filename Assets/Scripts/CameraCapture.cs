@@ -58,8 +58,8 @@ public class CameraCapture : MonoBehaviour {
         ros.RegisterPublisher<ImageMsg>(imageTopic);
 
         // Create necessary messages for sending images.
-        timeMsg = new TimeMsg((uint)System.DateTime.Now.Second, (uint)System.DateTime.Now.Millisecond);
-        headerMsg = new HeaderMsg(0, timeMsg, frameId);
+        timeMsg = new TimeMsg((int)System.DateTime.Now.Second, (uint)System.DateTime.Now.Millisecond);
+        headerMsg = new HeaderMsg(timeMsg, frameId);
         rawImageMsg = new ImageMsg(headerMsg, (uint)imageHeight, (uint)imageWidth, "rgb8", Convert.ToByte(false), (uint)imageWidth * (uint)3, null);
     }
 
@@ -96,10 +96,10 @@ public class CameraCapture : MonoBehaviour {
             imageBytes = imageTexture.GetRawTextureData();
 
             // Update header message with proper time stamp and sequence ID.
-            timeMsg.sec = (uint)System.DateTime.Now.Second;
+            timeMsg.sec = (int)System.DateTime.Now.Second;
             timeMsg.nanosec = (uint)System.DateTime.Now.Millisecond;
             headerMsg.stamp = timeMsg;
-            headerMsg.seq++;  
+            //headerMsg.seq++;  
 
             // Update raw image message with updated header and data.
             rawImageMsg.data = imageBytes;
