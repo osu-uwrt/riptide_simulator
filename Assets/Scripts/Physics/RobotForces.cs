@@ -23,7 +23,16 @@ namespace physics
         }
 
         void FixedUpdate()
-        {}
+        {
+            foreach(Thruster thruster in thrusters)
+            {
+                thruster.ApplyForce();
+            }
+        }
+
+        void recieveNewThrust(int[] thrust){
+
+        }
 
     }
 }
