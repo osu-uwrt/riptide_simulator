@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace physics
 {
-    public class RobotForces : MonoBehavior {
-        
+    public class RobotForces : MonoBehaviour {
+
     }
 }
