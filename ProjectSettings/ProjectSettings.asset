@@ -12,7 +12,7 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: DefaultCompany
+  companyName: OSU-UWRT
   productName: UWRT_Simulator
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
@@ -75,8 +75,8 @@ PlayerSettings:
   androidMinimumWindowHeight: 300
   androidFullscreenMode: 1
   defaultIsNativeResolution: 1
-  macRetinaSupport: 1
-  runInBackground: 0
+  macRetinaSupport: 0
+  runInBackground: 1
   captureSingleScreen: 0
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
@@ -86,7 +86,7 @@ PlayerSettings:
   submitAnalytics: 1
   usePlayerLog: 1
   bakeCollisionMeshes: 0
-  forceSingleInstance: 0
+  forceSingleInstance: 1
   useFlipModelSwapchain: 1
   resizableWindow: 0
   useMacAppStoreValidation: 0
@@ -152,7 +152,7 @@ PlayerSettings:
   androidSupportedAspectRatio: 1
   androidMaxAspectRatio: 2.1
   applicationIdentifier:
-    Standalone: com.DefaultCompany.UWRTSimulator
+    Standalone: com.OSU-UWRT.UWRTSimulator
   buildNumber:
     Standalone: 0
     iPhone: 0
@@ -327,6 +327,12 @@ PlayerSettings:
     m_Automatic: 1
   - m_BuildTarget: WebGLSupport
     m_APIs: 0b000000
+    m_Automatic: 1
+  - m_BuildTarget: LinuxStandaloneSupport
+    m_APIs: 1100000015000000
+    m_Automatic: 0
+  - m_BuildTarget: WindowsStandaloneSupport
+    m_APIs: 02000000
     m_Automatic: 1
   m_BuildTargetVRSettings:
   - m_BuildTarget: Standalone
@@ -592,7 +598,19 @@ PlayerSettings:
   webGLThreadsSupport: 0
   webGLDecompressionFallback: 0
   scriptingDefineSymbols:
-    1: CROSS_PLATFORM_INPUT
+    1: CROSS_PLATFORM_INPUT;UNITY_POST_PROCESSING_STACK_V2
+    7: UNITY_POST_PROCESSING_STACK_V2
+    13: UNITY_POST_PROCESSING_STACK_V2
+    14: UNITY_POST_PROCESSING_STACK_V2
+    19: UNITY_POST_PROCESSING_STACK_V2
+    21: UNITY_POST_PROCESSING_STACK_V2
+    25: UNITY_POST_PROCESSING_STACK_V2
+    27: UNITY_POST_PROCESSING_STACK_V2
+    28: UNITY_POST_PROCESSING_STACK_V2
+    29: UNITY_POST_PROCESSING_STACK_V2
+    30: UNITY_POST_PROCESSING_STACK_V2
+    32: UNITY_POST_PROCESSING_STACK_V2
+    33: UNITY_POST_PROCESSING_STACK_V2
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}

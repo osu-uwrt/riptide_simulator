@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Water
+  m_Shader: {fileID: -6465566751694194690, guid: 1ecb836b52d7e45ad85313a953b40654,
+    type: 3}
+  m_ShaderKeywords: 
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - Texture2D_d479de080d034bbd84b5ec399d0daf76:
+        m_Texture: {fileID: 2800000, guid: 13fce59b23af81842a87f82b12675828, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_Lightmaps:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_LightmapsInd:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_ShadowMasks:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Floats:
+    - Vector1_317c934a42fc42e7a8463056041a6f51: 0.05
+    - Vector1_5a491c850e6b44b989f05230d200d0dc: 0
+    - Vector1_5a6e555e5a0c4be696ac3d6648d6300b: 0
+    - Vector1_68bab803ef464a5386465bc996ebb477: 0.1
+    - Vector1_7e3766389a1f489ca337da26f9ec94ac: 0
+    - Vector1_926a66ea7fa042d4a1c45822620ee7b4: 0
+    - Vector1_f5974350db084807b3cb7fb08b9d510f: 5
+    - Vector1_fe6a56e058aa47fc84118af360aab887: 0.4
+    - _Shininess: 0.078125
+    - _SquashAmount: 1
+    m_Colors:
+    - Color_87a804c827744aab93f3ecdb0ddc90cd: {r: 0.3529412, g: 0.7372549, b: 0.84705883,
+        a: 0}
+    - Color_f626b17037af4902b2e41652aa1147d7: {r: 0.45490196, g: 0.8, b: 0.95686275,
+        a: 0}
+    - Vector2_bf07916564e24058aa6c1b24b5bccdca: {r: 1, g: 1, b: 0, a: 0}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _SpecColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _TreeInstanceColor: {r: 1, g: 1, b: 1, a: 1}
+    - _TreeInstanceScale: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+--- !u!114 &7931573154913646747
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 4
