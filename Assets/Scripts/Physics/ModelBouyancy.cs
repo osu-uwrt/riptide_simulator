@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 
-namespace BoatTutorial
+namespace physics
 {
     public class BoatPhysics : MonoBehaviour
     {
