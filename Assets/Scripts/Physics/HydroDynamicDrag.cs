@@ -31,8 +31,8 @@ namespace physics
             Vector3 angularTorqe = calcAngularTorques();
 
             // apply the forces about the rigidbody COM
-            vehicle.AddRelativeForce(linearForces);
-            vehicle.AddRelativeTorque(angularTorqe);
+            vehicle.AddRelativeForce(linearForces, ForceMode.Impulse);
+            vehicle.AddRelativeTorque(angularTorqe, ForceMode.Impulse);
         }
 
         // Calculate true density based on how much of the vehicle is currently submerged

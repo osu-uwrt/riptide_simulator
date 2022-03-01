@@ -9,30 +9,33 @@ namespace physics
         [Tooltip("Game object to apply thruster forces")]
         public GameObject underWaterObj;
 
+        public Vector3 robotCOM;
+
         private Rigidbody vehicle;
 
         private List<Thruster> thrusters;
+        private uint[] lastThrust;
 
         void Start()
         {
             vehicle = gameObject.GetComponent<Rigidbody>();
+            vehicle.centerOfMass = robotCOM;
 
             // grab all of the thrusters on the vehicle to get their positions and force capabilities
             thrusters = new List<Thruster>(FindObjectsOfType<Thruster>());
 
         }
 
-        void FixedUpdate()
+        async void FixedUpdate()
         {
-            foreach(Thruster thruster in thrusters)
+            for(int i = 0; i < thrusters.Count; i++)
             {
-                thruster.ApplyForce();
+                thrusters[i].ApplyForce((double)lastThrust[i]);
             }
         }
 
-        void recieveNewThrust(int[] thrust){
-
+        void recieveNewThrust(uint[] thrust){
+            lastThrust = thrust;
         }
-
     }
 }
