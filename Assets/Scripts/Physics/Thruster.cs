@@ -29,17 +29,32 @@ public class Thruster : MonoBehaviour
         vehicle = gameObject.GetComponent<Rigidbody>();
 
         // spawn an object at the location of the thuster
+        position = position * 0.01f;
+
+        //Debug.Log("" + position);
+        //Debug.Log("" + gameObject.transform.position);
         
         worldCoord = gameObject.transform.TransformPoint(position);
 
-        Debug.Log("Text");
+        //Debug.Log("" + worldCoord);
 
         if(dummyThrusterObj != null){
             GameObject tmp = Instantiate(dummyThrusterObj);
             tmp.gameObject.transform.position = worldCoord;
             tmp.gameObject.transform.rotation = Quaternion.Euler(orientation);
-            tmp.gameObject.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+            tmp.gameObject.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+            dummyThrusterObj = tmp;
         }
+    }
+
+    void Update(){
+        //Debug.Log("" + position);
+        //Debug.Log("" + gameObject.transform.position);
+        
+        worldCoord = gameObject.transform.TransformPoint(position);
+
+        //Debug.Log("" + worldCoord);
+        dummyThrusterObj.transform.position = worldCoord;
     }
 
     Boolean BelowWater(){

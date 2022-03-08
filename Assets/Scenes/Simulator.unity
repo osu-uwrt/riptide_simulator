@@ -884,10 +884,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   underWaterObj: {fileID: 461515835}
-  position: {x: -0.3683, y: 0.08255, z: 0.161925}
+  position: {x: 0.185, y: -0.08255, z: -0.3956}
   orientation: {x: -1.57079, y: 0, z: 0}
   type: T200
-  dummyThrusterObj: {fileID: 0}
+  dummyThrusterObj: {fileID: 3918459032810138482, guid: 454de7b7e3826dc0b9976061a4c5b174,
+    type: 3}
 --- !u!4 &461515838 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: bd688ee07b5e165ce8c3a05a8f32852e,
