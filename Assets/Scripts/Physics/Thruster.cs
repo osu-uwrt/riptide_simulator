@@ -14,18 +14,32 @@ public class Thruster : MonoBehaviour
 
     public string type = "T200";
 
+    public GameObject dummyThrusterObj;
+
     private Rigidbody vehicle;
 
     private float rhoWater = 1027f;
 
     private double actingForce;
 
-    private GameObject dummyThruster;
+    private Vector3 worldCoord;
 
     void Start()
     {
         vehicle = gameObject.GetComponent<Rigidbody>();
+
+        // spawn an object at the location of the thuster
         
+        worldCoord = gameObject.transform.TransformPoint(position);
+
+        Debug.Log("Text");
+
+        if(dummyThrusterObj != null){
+            GameObject tmp = Instantiate(dummyThrusterObj);
+            tmp.gameObject.transform.position = worldCoord;
+            tmp.gameObject.transform.rotation = Quaternion.Euler(orientation);
+            tmp.gameObject.transform.localScale = new Vector3(0.01f, 0.01f, 0.01f);
+        }
     }
 
     Boolean BelowWater(){
@@ -53,7 +67,7 @@ public class Thruster : MonoBehaviour
         }
 
         if(wantForce){
-            Vector3 worldCoord = gameObject.transform.TransformPoint(position);
+            worldCoord = gameObject.transform.TransformPoint(position);
             Vector3 scaledForce = Vector3.Normalize(orientation) * actingForce;
 
             vehicle.AddForceAtPosition(scaledForce, worldCoord, ForceMode.Impulse);
