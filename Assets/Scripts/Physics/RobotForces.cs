@@ -21,15 +21,20 @@ namespace physics
         private List<Thruster> thrusters;
 
         private ROSConnection ros;
-
+        
         private uint[] lastThrust;
+        [SerializeField]
+        private uint thrusterZeroValue;
 
         void Start()
         {
             vehicle = gameObject.GetComponent<Rigidbody>();
             vehicle.centerOfMass = robotCOM;
-
             lastThrust = new uint[8];
+            for(int i = 0; i<8; i++)
+            {
+                lastThrust[i] = thrusterZeroValue;
+            }
 
             // grab all of the thrusters on the vehicle to get their positions and force capabilities
             thrusters = new List<Thruster>(FindObjectsOfType<Thruster>());
