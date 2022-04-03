@@ -15,37 +15,40 @@ namespace RosMessageTypes.Riptide
 
         public bool drop_1;
         public bool drop_2;
+        public bool clear_dropper_status;
         public bool arm_torpedo;
         public bool disarm_torpedo;
         public bool fire_torpedo_1;
         public bool fire_torpedo_2;
-        public bool open_grabber;
-        public bool close_grabber;
+        public bool open_claw;
+        public bool close_claw;
         public bool reset_actuators;
 
         public ActuatorCommandMsg()
         {
             this.drop_1 = false;
             this.drop_2 = false;
+            this.clear_dropper_status = false;
             this.arm_torpedo = false;
             this.disarm_torpedo = false;
             this.fire_torpedo_1 = false;
             this.fire_torpedo_2 = false;
-            this.open_grabber = false;
-            this.close_grabber = false;
+            this.open_claw = false;
+            this.close_claw = false;
             this.reset_actuators = false;
         }
 
-        public ActuatorCommandMsg(bool drop_1, bool drop_2, bool arm_torpedo, bool disarm_torpedo, bool fire_torpedo_1, bool fire_torpedo_2, bool open_grabber, bool close_grabber, bool reset_actuators)
+        public ActuatorCommandMsg(bool drop_1, bool drop_2, bool clear_dropper_status, bool arm_torpedo, bool disarm_torpedo, bool fire_torpedo_1, bool fire_torpedo_2, bool open_claw, bool close_claw, bool reset_actuators)
         {
             this.drop_1 = drop_1;
             this.drop_2 = drop_2;
+            this.clear_dropper_status = clear_dropper_status;
             this.arm_torpedo = arm_torpedo;
             this.disarm_torpedo = disarm_torpedo;
             this.fire_torpedo_1 = fire_torpedo_1;
             this.fire_torpedo_2 = fire_torpedo_2;
-            this.open_grabber = open_grabber;
-            this.close_grabber = close_grabber;
+            this.open_claw = open_claw;
+            this.close_claw = close_claw;
             this.reset_actuators = reset_actuators;
         }
 
@@ -55,12 +58,13 @@ namespace RosMessageTypes.Riptide
         {
             deserializer.Read(out this.drop_1);
             deserializer.Read(out this.drop_2);
+            deserializer.Read(out this.clear_dropper_status);
             deserializer.Read(out this.arm_torpedo);
             deserializer.Read(out this.disarm_torpedo);
             deserializer.Read(out this.fire_torpedo_1);
             deserializer.Read(out this.fire_torpedo_2);
-            deserializer.Read(out this.open_grabber);
-            deserializer.Read(out this.close_grabber);
+            deserializer.Read(out this.open_claw);
+            deserializer.Read(out this.close_claw);
             deserializer.Read(out this.reset_actuators);
         }
 
@@ -68,12 +72,13 @@ namespace RosMessageTypes.Riptide
         {
             serializer.Write(this.drop_1);
             serializer.Write(this.drop_2);
+            serializer.Write(this.clear_dropper_status);
             serializer.Write(this.arm_torpedo);
             serializer.Write(this.disarm_torpedo);
             serializer.Write(this.fire_torpedo_1);
             serializer.Write(this.fire_torpedo_2);
-            serializer.Write(this.open_grabber);
-            serializer.Write(this.close_grabber);
+            serializer.Write(this.open_claw);
+            serializer.Write(this.close_claw);
             serializer.Write(this.reset_actuators);
         }
 
@@ -82,12 +87,13 @@ namespace RosMessageTypes.Riptide
             return "ActuatorCommandMsg: " +
             "\ndrop_1: " + drop_1.ToString() +
             "\ndrop_2: " + drop_2.ToString() +
+            "\nclear_dropper_status: " + clear_dropper_status.ToString() +
             "\narm_torpedo: " + arm_torpedo.ToString() +
             "\ndisarm_torpedo: " + disarm_torpedo.ToString() +
             "\nfire_torpedo_1: " + fire_torpedo_1.ToString() +
             "\nfire_torpedo_2: " + fire_torpedo_2.ToString() +
-            "\nopen_grabber: " + open_grabber.ToString() +
-            "\nclose_grabber: " + close_grabber.ToString() +
+            "\nopen_claw: " + open_claw.ToString() +
+            "\nclose_claw: " + close_claw.ToString() +
             "\nreset_actuators: " + reset_actuators.ToString();
         }
 
