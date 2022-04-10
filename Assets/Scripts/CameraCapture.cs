@@ -21,6 +21,8 @@ public class CameraCapture : MonoBehaviour {
     public string imageTopic = "/puddles/stereo/right/image_raw";
     [Tooltip("Time between sending image messages.")]
     public float publishMessageFrequency = 1/24f;
+    [Tooltip("Distance between cameras. ONLY SET ON RIGHT CAMERA")]
+    public float baseline = 0f;
 
     // Private vars.
     private ROSConnection ros; // ROS connection for publishing data.
@@ -77,7 +79,7 @@ public class CameraCapture : MonoBehaviour {
             yield return new WaitForEndOfFrame(); 
 
             // Create mainCamera camera info message.
-            cameraInfoMsg = CameraInfoGenerator.ConstructCameraInfoMessage(mainCamera, headerMsg, 0.0f, 0.01f);
+            cameraInfoMsg = CameraInfoGenerator.ConstructCameraInfoMessage(mainCamera, headerMsg, this.baseline, 0.01f);
 
             /* Capture mainCamera image.
                TODO: Figure out a more efficent way to capture and transfer images.

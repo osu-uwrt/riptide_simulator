@@ -31,7 +31,7 @@ public class ClockPublisher : MonoBehaviour
     void Update()
     {
         this._timeStamp = Time.time;
-        uint sec = (uint)Math.Truncate(this._timeStamp);
+        int sec = (int)Math.Truncate(this._timeStamp);
         uint nanosec = (uint)( (this._timeStamp - sec)*1e+9 );
         this._message.clock.sec = sec;
         this._message.clock.nanosec = nanosec;
