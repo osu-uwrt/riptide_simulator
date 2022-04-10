@@ -77,7 +77,7 @@ public class IMUPublisher : MonoBehaviour
                                linear_acceleration_ros.y,
                                linear_acceleration_ros.z);
             this._message.linear_acceleration = linear_acceleration;
-            this._ros.Send(this._topicName, this._message);
+            this._ros.Publish(this._topicName, this._message);
         }
     }
 }

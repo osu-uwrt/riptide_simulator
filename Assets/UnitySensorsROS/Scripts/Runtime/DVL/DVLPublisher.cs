@@ -76,7 +76,7 @@ public class DVLPublisher : MonoBehaviour
                                                             0,          0,          0,          angularVar.x, 0,          0,
                                                             0,          0,          0,          0,            angularVar.y,0,
                                                             0,          0,          0,          0,            0,          angularVar.z};
-            this._ros.Send(this._topicName, this._message);
+            this._ros.Publish(this._topicName, this._message);
         }
     }
 }
