@@ -21,6 +21,8 @@ public class CameraCapture : MonoBehaviour {
     public string imageTopic = "/puddles/stereo/right/image_raw";
     [Tooltip("Time between sending image messages.")]
     public float publishMessageFrequency = 1/24f;
+    [Tooltip("Distance between cameras. ONLY SET ON RIGHT CAMERA")]
+    public float baseline = 0f;
 
     // Private vars.
     private ROSConnection ros; // ROS connection for publishing data.
@@ -58,8 +60,8 @@ public class CameraCapture : MonoBehaviour {
         ros.RegisterPublisher<ImageMsg>(imageTopic);
 
         // Create necessary messages for sending images.
-        timeMsg = new TimeMsg((uint)System.DateTime.Now.Second, (uint)System.DateTime.Now.Millisecond);
-        headerMsg = new HeaderMsg(0, timeMsg, frameId);
+        timeMsg = new TimeMsg(System.DateTime.Now.Second, (uint)System.DateTime.Now.Millisecond);
+        headerMsg = new HeaderMsg(timeMsg, frameId);
         rawImageMsg = new ImageMsg(headerMsg, (uint)imageHeight, (uint)imageWidth, "rgb8", Convert.ToByte(false), (uint)imageWidth * (uint)3, null);
     }
 
@@ -77,7 +79,7 @@ public class CameraCapture : MonoBehaviour {
             yield return new WaitForEndOfFrame(); 
 
             // Create mainCamera camera info message.
-            cameraInfoMsg = CameraInfoGenerator.ConstructCameraInfoMessage(mainCamera, headerMsg, 0.0f, 0.01f);
+            cameraInfoMsg = CameraInfoGenerator.ConstructCameraInfoMessage(mainCamera, headerMsg, this.baseline, 0.01f);
 
             /* Capture mainCamera image.
                TODO: Figure out a more efficent way to capture and transfer images.
@@ -96,7 +98,7 @@ public class CameraCapture : MonoBehaviour {
             imageBytes = imageTexture.GetRawTextureData();
 
             // Update header message with proper time stamp and sequence ID.
-            timeMsg.sec = (uint)System.DateTime.Now.Second;
+            timeMsg.sec = System.DateTime.Now.Second;
             timeMsg.nanosec = (uint)System.DateTime.Now.Millisecond;
             headerMsg.stamp = timeMsg;
             //headerMsg.seq++;  
