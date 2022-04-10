@@ -10,20 +10,20 @@ Material:
   m_Name: Water_mat_01
   m_Shader: {fileID: -6465566751694194690, guid: f3ff61003df241e4a84f6c4962ed1e66,
     type: 3}
-  m_ShaderKeywords: _DISABLE_SSR_TRANSPARENT _ENABLE_FOG_ON_TRANSPARENT _SURFACE_TYPE_TRANSPARENT
+  m_ShaderKeywords: _DISABLE_SSR_TRANSPARENT _DOUBLESIDED_ON _ENABLE_FOG_ON_TRANSPARENT
+    _SURFACE_TYPE_TRANSPARENT _TRANSPARENT_WRITES_MOTION_VEC
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
-  m_DoubleSidedGI: 0
+  m_DoubleSidedGI: 1
   m_CustomRenderQueue: 3000
   stringTagMap:
     MotionVector: User
     RenderType: Transparent
   disabledShaderPasses:
-  - TransparentDepthPrepass
+  - MOTIONVECTORS
   - TransparentDepthPostpass
   - TransparentBackface
   - RayTracingPrepass
-  - MOTIONVECTORS
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -141,14 +141,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - Boolean_ebdbf4f311404f5fb2cd2b6927a304c1: 0
-    - Vector1_07c93c7e34df4237b5dd57255d7f857a: 0.2
-    - Vector1_3849afd7c2eb484893a68ec694cc75b3: 0.1
+    - Vector1_07c93c7e34df4237b5dd57255d7f857a: 0.36
+    - Vector1_3849afd7c2eb484893a68ec694cc75b3: 0.16
     - Vector1_4fa7de5de5304ba799341f5b9bbbf2c0: 0.5
-    - Vector1_6f56a0970372485390c6587863c2374e: -3.5
-    - Vector1_7ab1e13367ff4c17b0a4403edd3d9450: 0.1
+    - Vector1_6f56a0970372485390c6587863c2374e: -0.82
+    - Vector1_7ab1e13367ff4c17b0a4403edd3d9450: 0.135
     - Vector1_a3027f23b37c4da89592d406468d7aa8: 1
-    - Vector1_c0da6a80189144e5a45df6c62b281d57: 1
-    - Vector1_d70d07d7ef17405a961168abe8e24a3a: 10
+    - Vector1_c0da6a80189144e5a45df6c62b281d57: 0.849
+    - Vector1_d70d07d7ef17405a961168abe8e24a3a: 11.91
     - _AORemapMax: 1
     - _AORemapMin: 0
     - _ATDistance: 1
@@ -166,8 +166,8 @@ Material:
     - _Anisotropy: 0
     - _BlendMode: 0
     - _CoatMask: 0
-    - _CullMode: 2
-    - _CullModeForward: 2
+    - _CullMode: 0
+    - _CullModeForward: 0
     - _Cutoff: 0.5
     - _DepthOffsetEnable: 0
     - _DetailAlbedoScale: 1
@@ -178,7 +178,7 @@ Material:
     - _DisplacementLockObjectScale: 1
     - _DisplacementLockTilingScale: 1
     - _DisplacementMode: 0
-    - _DoubleSidedEnable: 0
+    - _DoubleSidedEnable: 1
     - _DoubleSidedNormalMode: 1
     - _DstBlend: 10
     - _EmissiveColorMode: 1
@@ -248,9 +248,9 @@ Material:
     - _TransparentBackfaceEnable: 0
     - _TransparentCullMode: 2
     - _TransparentDepthPostpassEnable: 0
-    - _TransparentDepthPrepassEnable: 0
+    - _TransparentDepthPrepassEnable: 1
     - _TransparentSortPriority: 0
-    - _TransparentWritingMotionVec: 0
+    - _TransparentWritingMotionVec: 1
     - _TransparentZWrite: 0
     - _UVBase: 0
     - _UVDetail: 0
