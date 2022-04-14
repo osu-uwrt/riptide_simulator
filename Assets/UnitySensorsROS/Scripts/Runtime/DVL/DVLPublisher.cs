@@ -29,7 +29,7 @@ public class DVLPublisher : MonoBehaviour
         this._dvl = GetComponent<FRJ.Sensor.DVL>();
 
         // setup ROS
-        this._ros = ROSConnection.instance;
+        this._ros = ROSConnection.GetOrCreateInstance() ;
         this._ros.RegisterPublisher<ImuMsg>(this._topicName);
 
         // setup ROS Message
@@ -37,14 +37,8 @@ public class DVLPublisher : MonoBehaviour
         this._message.header.frame_id = this._frameId;
     }
 
-    void Update()
+    void FixedUpdate()
     {
-        this._timeElapsed += Time.deltaTime;
-
-        if (this._timeElapsed > (1f / this._dvl.scanRate))
-        {
-            // Update time
-            this._timeElapsed = 0;
             this._timeStamp = Time.time;
 
             // Update IMU data
@@ -77,6 +71,6 @@ public class DVLPublisher : MonoBehaviour
                                                             0,          0,          0,          0,            angularVar.y,0,
                                                             0,          0,          0,          0,            0,          angularVar.z};
             this._ros.Publish(this._topicName, this._message);
-        }
+        
     }
 }

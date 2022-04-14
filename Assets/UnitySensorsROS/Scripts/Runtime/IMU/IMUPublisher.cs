@@ -29,7 +29,7 @@ public class IMUPublisher : MonoBehaviour
         this._imu = GetComponent<FRJ.Sensor.IMU>();
 
         // setup ROS
-        this._ros = ROSConnection.instance;
+        this._ros = ROSConnection.GetOrCreateInstance();
         this._ros.RegisterPublisher<ImuMsg>(this._topicName);
 
         // setup ROS Message
@@ -37,14 +37,9 @@ public class IMUPublisher : MonoBehaviour
         this._message.header.frame_id = this._frameId;
     }
 
-    void Update()
+    void FixedUpdate()
     {
-        this._timeElapsed += Time.deltaTime;
-
-        if (this._timeElapsed > (1f / this._imu.scanRate))
-        {
-            // Update time
-            this._timeElapsed = 0;
+        
             this._timeStamp = Time.time;
 
             // Update IMU data
@@ -78,6 +73,6 @@ public class IMUPublisher : MonoBehaviour
                                linear_acceleration_ros.z);
             this._message.linear_acceleration = linear_acceleration;
             this._ros.Publish(this._topicName, this._message);
-        }
+        
     }
 }
