@@ -34,7 +34,7 @@ public class DVLPublisher : MonoBehaviour
 
         // setup ROS
         this._ros = ROSConnection.GetOrCreateInstance() ;
-        this._ros.RegisterPublisher<ImuMsg>(this._topicName);
+        this._ros.RegisterPublisher<TwistWithCovarianceStampedMsg>(this._topicName);
 
         // setup ROS Message
         this._message = new TwistWithCovarianceStampedMsg();
@@ -58,38 +58,32 @@ public class DVLPublisher : MonoBehaviour
     }
     void FixedUpdate()
     { 
+        // Update DVL data
+        this._dvl.UpdateDVL();
 
-                // Update DVL data
-                this._dvl.UpdateDVL();
+        // Update ROS Message
+        this._message.header = now();
+        Vector3<FLU> angular_velocity_ros = new Vector3<FLU>(this._dvl.AngularVelocity).To<FLU>();
+        Vector3Msg angular_velocity =
+            new Vector3Msg(angular_velocity_ros.x,
+                            angular_velocity_ros.y,
+                            angular_velocity_ros.z);
+        this._message.twist.twist.angular = angular_velocity;
+        Vector3<FLU> linear_velocity_ros = new Vector3<FLU>(this._dvl.LinearVelocity).To<FLU>();
+        Vector3Msg linear_velocity =
+            new Vector3Msg(linear_velocity_ros.x,
+                            linear_velocity_ros.y,
+                            linear_velocity_ros.z);
+        this._message.twist.twist.linear = linear_velocity;
 
-                // Update ROS Message
-                this._message.header = now();
-                Vector3<FLU> angular_velocity_ros = new Vector3<FLU>(this._dvl.AngularVelocity).To<FLU>();
-                Vector3Msg angular_velocity =
-                    new Vector3Msg(angular_velocity_ros.x,
-                                   angular_velocity_ros.y,
-                                   angular_velocity_ros.z);
-                this._message.twist.twist.angular = angular_velocity;
-                Vector3<FLU> linear_velocity_ros = new Vector3<FLU>(this._dvl.LinearVelocity).To<FLU>();
-                Vector3Msg linear_velocity =
-                    new Vector3Msg(linear_velocity_ros.x,
-                                   linear_velocity_ros.y,
-                                   linear_velocity_ros.z);
-                this._message.twist.twist.linear = linear_velocity;
-
-                Vector3 angularVar = new Vector3(_dvl.setting.angVelSigma.x * _dvl.setting.angVelSigma.x, _dvl.setting.angVelSigma.y * _dvl.setting.angVelSigma.y, _dvl.setting.angVelSigma.z * _dvl.setting.angVelSigma.z);
-                Vector3 linearVar = new Vector3(_dvl.setting.linVelSigma.x * _dvl.setting.linVelSigma.x, _dvl.setting.linVelSigma.y * _dvl.setting.linVelSigma.y, _dvl.setting.linVelSigma.z * _dvl.setting.linVelSigma.z);
-                this._message.twist.covariance = new double[] {linearVar.x,0,          0,          0,            0,          0,
-                                                            0,          linearVar.y,0,          0,            0,          0,
-                                                            0,          0,          linearVar.z,0,            0,          0,
-                                                            0,          0,          0,          angularVar.x, 0,          0,
-                                                            0,          0,          0,          0,            angularVar.y,0,
-                                                            0,          0,          0,          0,            0,          angularVar.z};
-                this._ros.Publish(this._topicName, this._message);
-
-    }
-        
-            
-    
-            
+        Vector3 angularVar = new Vector3(_dvl.setting.angVelSigma.x * _dvl.setting.angVelSigma.x, _dvl.setting.angVelSigma.y * _dvl.setting.angVelSigma.y, _dvl.setting.angVelSigma.z * _dvl.setting.angVelSigma.z);
+        Vector3 linearVar = new Vector3(_dvl.setting.linVelSigma.x * _dvl.setting.linVelSigma.x, _dvl.setting.linVelSigma.y * _dvl.setting.linVelSigma.y, _dvl.setting.linVelSigma.z * _dvl.setting.linVelSigma.z);
+        this._message.twist.covariance = new double[] {linearVar.x,0,          0,          0,            0,          0,
+                                                    0,          linearVar.y,0,          0,            0,          0,
+                                                    0,          0,          linearVar.z,0,            0,          0,
+                                                    0,          0,          0,          angularVar.x, 0,          0,
+                                                    0,          0,          0,          0,            angularVar.y,0,
+                                                    0,          0,          0,          0,            0,          angularVar.z};
+        this._ros.Publish(this._topicName, this._message);
+    }        
 }
