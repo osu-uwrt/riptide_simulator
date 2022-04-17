@@ -37,9 +37,6 @@ public class IMUPublisher : MonoBehaviour
         // setup ROS Message
         this._message = new ImuMsg();
         this._message.header.frame_id = this._frameId;
-        lastUpdate = (DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds;
-        imuTh = new Thread(IMU);
-        imuTh.Start();
     }
     private readonly static DateTime UNIX_EPOCH = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
     private static RosMessageTypes.Std.HeaderMsg now()
@@ -55,12 +52,8 @@ public class IMUPublisher : MonoBehaviour
         header.stamp = time;
         return header;
     }
-    void IMU()
+    void FixedUpdate()
     {
-        while (true)
-        {
-            if((DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds-lastUpdate >= .06) {
-                lastUpdate = (DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds;
 
                 // Update IMU data
                 this._imu.UpdateIMU();
@@ -90,8 +83,7 @@ public class IMUPublisher : MonoBehaviour
                                    linear_acceleration_ros.z);
                 this._message.linear_acceleration = linear_acceleration;
                 this._ros.Publish(this._topicName, this._message);
-            }
-            
-        }
     }
+            
+        
 }

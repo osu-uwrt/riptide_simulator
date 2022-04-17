@@ -39,9 +39,6 @@ public class DVLPublisher : MonoBehaviour
         // setup ROS Message
         this._message = new TwistWithCovarianceStampedMsg();
         this._message.header.frame_id = this._frameId;
-        lastUpdate = (DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds;
-        th1 = new Thread(DVL);
-        th1.Start();
         
     }
 
@@ -59,16 +56,10 @@ public class DVLPublisher : MonoBehaviour
         header.stamp = time;
         return header;
     }
-    void DVL()
-    {
-        while (true)
-        {
-            
-            if ((DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds-lastUpdate>.06)
-            {
-               lastUpdate = (DateTime.Now.ToUniversalTime() - UNIX_EPOCH).TotalMilliseconds;
+    void FixedUpdate()
+    { 
 
-                // Update IMU data
+                // Update DVL data
                 this._dvl.UpdateDVL();
 
                 // Update ROS Message
@@ -96,9 +87,9 @@ public class DVLPublisher : MonoBehaviour
                                                             0,          0,          0,          0,            0,          angularVar.z};
                 this._ros.Publish(this._topicName, this._message);
 
-            }
-        }
-            
     }
+        
+            
+    
             
 }
