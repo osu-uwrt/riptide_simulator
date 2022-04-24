@@ -3,11 +3,6 @@ using System;
 
 public class Thruster : MonoBehaviour
 {
-    [Tooltip("Local thruster position from base link")]
-    public Vector3 position;
-
-    [Tooltip("Local thruster orientation from base link")]
-    public Vector3 orientation;
 
     public string type = "T200";
 
@@ -21,25 +16,22 @@ public class Thruster : MonoBehaviour
 
     private Vector3 worldCoord;
 
-    void Start()
+    void Awake()
     {
         vehicle = gameObject.GetComponentInParent<Rigidbody>();
 
-        // spawn an object at the location of the thuster
-        position = position * 0.01f;
 
         //Debug.Log("" + position);
         //Debug.Log("" + gameObject.transform.position);
         
-        worldCoord = gameObject.transform.TransformPoint(position);
+        worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
 
         //Debug.Log("" + worldCoord);
 
         if(thrusterVectorVisualizer != null){
-            GameObject tmp = Instantiate(thrusterVectorVisualizer);
-            tmp.gameObject.transform.position = worldCoord;
-            tmp.gameObject.transform.rotation = Quaternion.Euler(orientation);
-            tmp.gameObject.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+            GameObject tmp = Instantiate(thrusterVectorVisualizer,transform);
+            
+            tmp.gameObject.transform.localScale = new Vector3(0.001f, 0.001f, 0.001f);
             thrusterVectorVisualizer = tmp;
         }
     }
@@ -48,10 +40,8 @@ public class Thruster : MonoBehaviour
         //Debug.Log("" + position);
         //Debug.Log("" + gameObject.transform.position);
         
-        worldCoord = gameObject.transform.TransformPoint(position);
+        worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
 
-        //Debug.Log("" + worldCoord);
-        thrusterVectorVisualizer.transform.position = worldCoord;
     }
 
     Boolean BelowWater(){
@@ -79,8 +69,8 @@ public class Thruster : MonoBehaviour
         }
 
         if(wantForce){
-            worldCoord = gameObject.transform.TransformPoint(position);
-            Vector3 scaledForce = Vector3.Normalize(orientation) * actingForce;
+            worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
+            Vector3 scaledForce = transform.rotation.eulerAngles.normalized * actingForce;
 
             vehicle.AddForceAtPosition(scaledForce, worldCoord, ForceMode.Impulse);
         }
