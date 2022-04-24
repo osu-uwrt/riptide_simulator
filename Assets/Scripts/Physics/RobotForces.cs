@@ -30,7 +30,7 @@ namespace physics
         private Transform solidWorksOrigin;
 
         private ROSConnection ros;
-        
+        private List<GameObject> thrusterFab;
         private uint[] lastThrust;
         [SerializeField]
         private uint thrusterZeroValue;
@@ -38,6 +38,7 @@ namespace physics
         void Start()
         {
             thrusters = new List<Thruster>();
+            thrusterFab= new List<GameObject>();
             if(thrusterPositions.Count != thrusterRotations.Count)
             {
                 Debug.LogError("Thruster positions don't equal amount of thruster rotations!");
@@ -54,6 +55,7 @@ namespace physics
                 thr.transform.localRotation = Quaternion.Euler(thrusterRotations[i]);
 
                 thrusters.Add(thr.GetComponent<Thruster>());
+                thrusterFab.Add(thr.transform.GetChild(0).gameObject.transform.GetChild(0).gameObject);
             }
 
             
@@ -66,12 +68,17 @@ namespace physics
         {
             for (int i = 0; i < thrusters.Count; i++)
             {
-                thrusters[i].ApplyForce((double)lastThrust[i]);
+                float force = thrusters[i].ApplyForce((double)lastThrust[i], i);
+                if(force > 0){
+                    thrusterFab[i].GetComponent<Renderer>().material.color = Color.red;
+                }
             }
         }
 
-        void recieveNewThrust(PwmStampedMsg msg) {           
+        void recieveNewThrust(PwmStampedMsg msg) {   
+               
             for(int i=0; i<msg.pwm.Length; i++) {
+                //print(i+" | "+msg.pwm[i]); 
                 lastThrust[i] = msg.pwm[i];
             }
         }

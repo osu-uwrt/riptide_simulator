@@ -24,7 +24,7 @@ public class Thruster : MonoBehaviour
         //Debug.Log("" + position);
         //Debug.Log("" + gameObject.transform.position);
         
-        worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
+        //worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
 
         //Debug.Log("" + worldCoord);
 
@@ -40,7 +40,7 @@ public class Thruster : MonoBehaviour
         //Debug.Log("" + position);
         //Debug.Log("" + gameObject.transform.position);
         
-        worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
+        //worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
 
     }
 
@@ -48,14 +48,14 @@ public class Thruster : MonoBehaviour
         return true;
     }
 
-    public void ApplyForce(double force)
+    public float ApplyForce(double force, int thrusterNum)
     {
         // check if thruster is below water before applying a force
-        setForce(force, BelowWater());
+        return setForce(force, BelowWater(), thrusterNum);
     }
 
     // receieve new thrust from the robot code in demanded units
-    public void setForce(double demand, bool wantForce)
+    public float setForce(double demand, bool wantForce, int thrusterNum)
     {
         float actingForce = 0.0f;
         if (type.ToUpper().Contains("T200"))
@@ -68,12 +68,15 @@ public class Thruster : MonoBehaviour
             Debug.Log("Thruster type not set, not applying force");
         }
 
+        
         if(wantForce){
-            worldCoord = gameObject.transform.TransformPoint(transform.localPosition);
-            Vector3 scaledForce = transform.rotation.eulerAngles.normalized * actingForce;
-
+            worldCoord = transform.TransformPoint(transform.localPosition);
+            Vector3 scaledForce = transform.forward * actingForce; // this number is not correct
+            Debug.Log("Applying " + actingForce + " at thruster " + thrusterNum + " at rotation: " + scaledForce );
             vehicle.AddForceAtPosition(scaledForce, worldCoord, ForceMode.Impulse);
         }
+
+        return actingForce;
     }
 
     // An approximated thrust curve in newtons for the T200 thruster from blue robotics
@@ -86,6 +89,7 @@ public class Thruster : MonoBehaviour
             force = 366.55 * Math.Pow(adjPwm, 2) - 1084.9 * adjPwm + 804.31;
             force = force * Math.Sign(pwm - 1500);
         }
-        return (float)force;
+
+        return (float)force/50;
     }
 }
