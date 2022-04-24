@@ -26,7 +26,8 @@ namespace FRJ.Sensor
 
         public bool enableGaussianNoise;
         public bool enableBiasNoise;
-        public NoiseSetting setting = new NoiseSetting();
+
+        public NoiseSetting setting;
 
         public Vector4 GeometryQuaternion { get => _geometryQuaternion; }
         public Vector3 AngularVelocity { get => _angularVelocity; }
@@ -47,6 +48,7 @@ namespace FRJ.Sensor
             this._rb = this.GetComponent<Rigidbody>();
             this._angularVelocity = new Vector3();
             this._linearVelocity = new Vector3();
+            this.gaussianNoise = new Noise.Gaussian();
         }
 
         public void UpdateDVL()
@@ -57,14 +59,15 @@ namespace FRJ.Sensor
             this._lastVelocity = localLinearVelocity;
 
             // Raw
+            // this._angularVelocity = new Vector3();
             this._angularVelocity = -1 * this.transform.InverseTransformVector(this.GetComponent<Rigidbody>().angularVelocity);
             this._linearVelocity = localLinearVelocity;
 
             // Apply Gaussian Noise
-            //if (this.enableGaussianNoise) { this._angularVelocity = this.gaussianNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
-            //if (this.enableGaussianNoise) { this._linearVelocity = this.gaussianNoise.Apply(this._linearVelocity, this.setting.linVelSigma); }
+            // if (this.enableGaussianNoise) { this._angularVelocity = this.gaussianNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
+            // if (this.enableGaussianNoise) { this._linearVelocity = this.gaussianNoise.Apply(this._linearVelocity, this.setting.linVelSigma); }
 
-            // // Apply Bias Noise
+            // Apply Bias Noise
             // if (this.enableBiasNoise) { this._angularVelocity = this.biasNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
             // if (this.enableBiasNoise) { this._linearAcceleration = this.biasNoise.Apply(this._linearAcceleration, this.setting.linAccSigma); }
         }
@@ -80,7 +83,7 @@ namespace FRJ.Sensor
                 this.variables = target as DVL;
             }
 
-            // inspector‚ÌGUIİ’è
+            // inspectorï¿½ï¿½GUIï¿½İ’ï¿½
             public override void OnInspectorGUI()
             {
                 EditorGUI.BeginChangeCheck();
@@ -100,7 +103,7 @@ namespace FRJ.Sensor
                     this.variables.setting.linVelBias = EditorGUILayout.Vector3Field("->LinearAcceleration Bias", this.variables.setting.linVelBias);
                 }
 
-                // GUI‚ÌXV‚ª‚ ‚Á‚½‚çÀs
+                // GUIï¿½ÌXï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½s
                 if (EditorGUI.EndChangeCheck())
                 {
                     EditorUtility.SetDirty(this.variables);
