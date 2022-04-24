@@ -169,7 +169,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _topicName: /tempest/dvl_twist
-  _frameId: /tempest/dvl
+  _frameId: tempest/dvl_link
   _message:
     twist:
       twist:
@@ -337,7 +337,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   imageWidth: 640
   imageHeight: 480
-  frameId: /tempest/right_camera
+  frameId: tempest/right_camera
   infoTopic: /tempest/stereo/right/camera_info
   imageTopic: /tempest/stereo/right/image_raw
   publishMessageFrequency: 0.041666668
@@ -512,7 +512,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _topicName: /tempest/stereo/right/image_raw
-  _frameId: /tempest/right_camera
+  _frameId: tempest/right_camera
   _infoName: right
   _baseline: 0.1016
 --- !u!114 &57181730
@@ -820,8 +820,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 358839631}
-  m_LocalRotation: {x: 0.14395355, y: 0.19807841, z: -0.029422926, w: 0.96911126}
-  m_LocalPosition: {x: -43.86, y: 0.72, z: -7.1800003}
+  m_LocalRotation: {x: 0.14395358, y: 0.19807847, z: -0.029422939, w: 0.96911126}
+  m_LocalPosition: {x: -42.93, y: 0.72, z: -7.082}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -1212,12 +1212,12 @@ PrefabInstance:
     - target: {fileID: 2202853544275977920, guid: e9a4c88a81229c7f39c3b861e9b9e59b,
         type: 3}
       propertyPath: _frameId
-      value: /puddles/imu_link
+      value: tempest/imu_link
       objectReference: {fileID: 0}
     - target: {fileID: 2202853544275977920, guid: e9a4c88a81229c7f39c3b861e9b9e59b,
         type: 3}
       propertyPath: _topicName
-      value: /puddles/imu/raw_data
+      value: /tempest/imu/imu/data
       objectReference: {fileID: 0}
     - target: {fileID: 2660122142618854180, guid: e9a4c88a81229c7f39c3b861e9b9e59b,
         type: 3}
@@ -1351,8 +1351,8 @@ MonoBehaviour:
   m_StreamingVersion: 20170927
   m_Priority: 10
   m_StandbyUpdate: 2
-  m_LookAt: {fileID: 0}
-  m_Follow: {fileID: 0}
+  m_LookAt: {fileID: 7605744966678696652}
+  m_Follow: {fileID: 7605744966678696652}
   m_Lens:
     FieldOfView: 60
     OrthographicSize: 5
@@ -1382,8 +1382,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 771311052}
-  m_LocalRotation: {x: 0.14395355, y: 0.19807841, z: -0.029422926, w: 0.96911126}
-  m_LocalPosition: {x: -43.86, y: 0.72, z: -7.1800003}
+  m_LocalRotation: {x: 0.14395358, y: 0.19807847, z: -0.029422939, w: 0.96911126}
+  m_LocalPosition: {x: -42.93, y: 0.72, z: -7.082}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 1032193949}
@@ -2311,9 +2311,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   imageWidth: 640
   imageHeight: 480
-  frameId: /tempest/left_camera
+  frameId: tempest/left_camera
   infoTopic: /tempest/stereo/left/camera_info
-  imageTopic: /temepst/stereo/left/image_raw
+  imageTopic: /tempest/stereo/left/image_raw
   publishMessageFrequency: 0.041666668
   baseline: 0
 --- !u!20 &2107455224
@@ -2486,7 +2486,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _topicName: /tempest/stereo/left/image_raw
-  _frameId: /tempest/left_camera
+  _frameId: tempest/left_camera
   _infoName: left
   _baseline: 0
 --- !u!114 &2107455227
@@ -4856,6 +4856,7 @@ GameObject:
   - component: {fileID: 7605744966678696652}
   - component: {fileID: 6171481499580589932}
   - component: {fileID: 6171481499580589933}
+  - component: {fileID: 6171481499580589934}
   m_Layer: 0
   m_Name: Tempest
   m_TagString: Untagged
@@ -4916,6 +4917,23 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &6171481499580589934
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6171481499580589931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d01e7590273c36f4ca30c874a38a2765, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  underWaterObj: {fileID: 6171481499580589931}
+  linearLinearDrag: {x: 0.0001, y: 0.0001, z: 0.0001}
+  linearQuadraticDrag: {x: 0.0001, y: 0.0001, z: 0.0001}
+  angularLinearDrag: {x: 0.0001, y: 0.0001, z: 0.0001}
+  angularQuadraticDrag: {x: 0.0001, y: 0.0001, z: 0.0001}
 --- !u!23 &6247072760383018545
 MeshRenderer:
   m_ObjectHideFlags: 0

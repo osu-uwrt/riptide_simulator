@@ -63,6 +63,7 @@ public class DVLPublisher : MonoBehaviour
 
         // Update ROS Message
         this._message.header = now();
+        this._message.header.frame_id = this._frameId;
         Vector3<FLU> angular_velocity_ros = new Vector3<FLU>(this._dvl.AngularVelocity).To<FLU>();
         Vector3Msg angular_velocity =
             new Vector3Msg(angular_velocity_ros.x,

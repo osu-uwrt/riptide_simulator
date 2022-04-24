@@ -60,6 +60,7 @@ public class IMUPublisher : MonoBehaviour
 
                 // Update ROS Message
                 this._message.header = now();
+                this._message.header.frame_id = this._frameId;
                 Quaternion<FLU> orientation_ros = new Quaternion<FLU>(this._imu.GeometryQuaternion.x,
                                                                       this._imu.GeometryQuaternion.y,
                                                                       this._imu.GeometryQuaternion.z,
