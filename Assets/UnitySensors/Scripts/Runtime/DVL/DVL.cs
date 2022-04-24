@@ -61,8 +61,8 @@ namespace FRJ.Sensor
             this._linearVelocity = localLinearVelocity;
 
             // Apply Gaussian Noise
-            if (this.enableGaussianNoise) { this._angularVelocity = this.gaussianNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
-            if (this.enableGaussianNoise) { this._linearVelocity = this.gaussianNoise.Apply(this._linearVelocity, this.setting.linVelSigma); }
+            //if (this.enableGaussianNoise) { this._angularVelocity = this.gaussianNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
+            //if (this.enableGaussianNoise) { this._linearVelocity = this.gaussianNoise.Apply(this._linearVelocity, this.setting.linVelSigma); }
 
             // // Apply Bias Noise
             // if (this.enableBiasNoise) { this._angularVelocity = this.biasNoise.Apply(this._angularVelocity, this.setting.angVelSigma); }
@@ -70,7 +70,7 @@ namespace FRJ.Sensor
         }
 
 #if UNITY_EDITOR
-        [CustomEditor(typeof(IMU))]
+        [CustomEditor(typeof(DVL))]
         public class DVLEditor : Editor
         {
             private DVL variables;

@@ -4,7 +4,10 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/HDRPSimPools.unity
+    guid: 9b313cf943e47564f9b9e3d32672bb79
   m_configObjects:
     com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: d8bc6b88302d5260e88b9d38486064f5,
       type: 2}

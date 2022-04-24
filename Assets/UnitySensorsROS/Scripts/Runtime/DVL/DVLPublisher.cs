@@ -57,8 +57,7 @@ public class DVLPublisher : MonoBehaviour
         return header;
     }
     void FixedUpdate()
-    { 
-
+    {
                 // Update DVL data
                 this._dvl.UpdateDVL();
 

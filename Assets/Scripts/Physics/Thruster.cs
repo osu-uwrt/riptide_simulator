@@ -3,9 +3,6 @@ using System;
 
 public class Thruster : MonoBehaviour
 {
-    [Tooltip("Game object to apply drag to")]
-    public GameObject underWaterObj;
-
     [Tooltip("Local thruster position from base link")]
     public Vector3 position;
 
@@ -14,7 +11,7 @@ public class Thruster : MonoBehaviour
 
     public string type = "T200";
 
-    public GameObject dummyThrusterObj;
+    public GameObject thrusterVectorVisualizer;
 
     private Rigidbody vehicle;
 
@@ -38,12 +35,12 @@ public class Thruster : MonoBehaviour
 
         //Debug.Log("" + worldCoord);
 
-        if(dummyThrusterObj != null){
-            GameObject tmp = Instantiate(dummyThrusterObj);
+        if(thrusterVectorVisualizer != null){
+            GameObject tmp = Instantiate(thrusterVectorVisualizer);
             tmp.gameObject.transform.position = worldCoord;
             tmp.gameObject.transform.rotation = Quaternion.Euler(orientation);
             tmp.gameObject.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
-            dummyThrusterObj = tmp;
+            thrusterVectorVisualizer = tmp;
         }
     }
 
@@ -54,7 +51,7 @@ public class Thruster : MonoBehaviour
         worldCoord = gameObject.transform.TransformPoint(position);
 
         //Debug.Log("" + worldCoord);
-        dummyThrusterObj.transform.position = worldCoord;
+        thrusterVectorVisualizer.transform.position = worldCoord;
     }
 
     Boolean BelowWater(){
