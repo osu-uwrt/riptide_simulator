@@ -23,7 +23,7 @@ public class Thruster : MonoBehaviour
 
     void Start()
     {
-        vehicle = gameObject.GetComponent<Rigidbody>();
+        vehicle = gameObject.GetComponentInParent<Rigidbody>();
 
         // spawn an object at the location of the thuster
         position = position * 0.01f;
