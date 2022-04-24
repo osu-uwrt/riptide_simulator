@@ -28,6 +28,8 @@ namespace FRJ.Sensor
       this._texture.Apply();
       this._camera.targetTexture = new RenderTexture(this._width, this._height, 24);
 
+      this.data = new byte[this._width * this._height * 3];
+
       Camera.onPostRender += UpdateImage;
     }
 
@@ -35,7 +37,9 @@ namespace FRJ.Sensor
     {
       if (this._texture != null && _camera == this._camera) {
         this._texture.ReadPixels(this._rect, 0, 0);
-        this.data = this._texture.EncodeToJPG(this._quality);
+        this._texture.Apply();
+
+        this.data = this._texture.GetRawTextureData();
       }
     }        
   }

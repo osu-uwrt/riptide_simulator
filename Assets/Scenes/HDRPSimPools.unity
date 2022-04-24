@@ -264,16 +264,18 @@ GameObject:
   m_Component:
   - component: {fileID: 57181724}
   - component: {fileID: 57181727}
-  - component: {fileID: 57181726}
   - component: {fileID: 57181725}
   - component: {fileID: 57181728}
+  - component: {fileID: 57181730}
+  - component: {fileID: 57181729}
+  - component: {fileID: 57181726}
   m_Layer: 0
   m_Name: PuddlesRight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &57181724
 Transform:
   m_ObjectHideFlags: 0
@@ -333,11 +335,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7cdfe93c08f970e01a80664c9c93af96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  imageWidth: 1280
-  imageHeight: 720
-  frameId: odom
-  infoTopic: /puddles/stereo/right/camera_info
-  imageTopic: /puddles/stereo/right/image_raw
+  imageWidth: 640
+  imageHeight: 480
+  frameId: /tempest/right_camera
+  infoTopic: /tempest/stereo/right/camera_info
+  imageTopic: /tempest/stereo/right/image_raw
   publishMessageFrequency: 0.041666668
   baseline: 0.1016
 --- !u!20 &57181727
@@ -497,6 +499,39 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
+--- !u!114 &57181729
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 57181723}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd213003aa9dc2016a26bb3080d05265, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _topicName: /tempest/stereo/right/image_raw
+  _frameId: /tempest/right_camera
+  _infoName: right
+  _baseline: 0.1016
+--- !u!114 &57181730
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 57181723}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5036197dc42c353259078cf9a911b867, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _width: 640
+  _height: 480
+  _quality: 100
+  _scanRate: 15
+  data: 
 --- !u!1 &72685800
 GameObject:
   m_ObjectHideFlags: 0
@@ -1894,7 +1929,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1584593584}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7cdfe93c08f970e01a80664c9c93af96, type: 3}
   m_Name: 
@@ -2073,17 +2108,19 @@ GameObject:
   m_Component:
   - component: {fileID: 2107455220}
   - component: {fileID: 2107455224}
-  - component: {fileID: 2107455223}
   - component: {fileID: 2107455222}
   - component: {fileID: 2107455221}
   - component: {fileID: 2107455225}
+  - component: {fileID: 2107455227}
+  - component: {fileID: 2107455226}
+  - component: {fileID: 2107455223}
   m_Layer: 0
   m_Name: PuddlesLeft
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &2107455220
 Transform:
   m_ObjectHideFlags: 0
@@ -2160,11 +2197,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7cdfe93c08f970e01a80664c9c93af96, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  imageWidth: 1280
-  imageHeight: 720
-  frameId: odom
-  infoTopic: /puddles/stereo/left/camera_info
-  imageTopic: /puddles/stereo/left/image_raw
+  imageWidth: 640
+  imageHeight: 480
+  frameId: /tempest/left_camera
+  infoTopic: /tempest/stereo/left/camera_info
+  imageTopic: /temepst/stereo/left/image_raw
   publishMessageFrequency: 0.041666668
   baseline: 0
 --- !u!20 &2107455224
@@ -2324,6 +2361,39 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
+--- !u!114 &2107455226
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2107455219}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd213003aa9dc2016a26bb3080d05265, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _topicName: /tempest/stereo/left/image_raw
+  _frameId: /tempest/left_camera
+  _infoName: left
+  _baseline: 0
+--- !u!114 &2107455227
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2107455219}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5036197dc42c353259078cf9a911b867, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _width: 640
+  _height: 480
+  _quality: 100
+  _scanRate: 15
+  data: 
 --- !u!4 &20819749321058309
 Transform:
   m_ObjectHideFlags: 0
