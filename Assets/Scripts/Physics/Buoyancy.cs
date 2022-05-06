@@ -11,6 +11,7 @@ public class Buoyancy : MonoBehaviour
 {
     //  public Ocean ocean;
     public float density = 500;
+    public float volume = .0331f;
     public int slicesPerAxis = 2;
     public bool isConcave = false;
     public int voxelsLimit = 16;
@@ -64,7 +65,6 @@ public class Buoyancy : MonoBehaviour
         // Restore original rotation and position
         transform.rotation = originalRotation;
         transform.position = originalPosition;
-        float volume = GetComponent<Rigidbody>().mass / density;
         WeldPoints(voxels, voxelsLimit);
         float archimedesForceMagnitude = WATER_DENSITY * Mathf.Abs(Physics.gravity.y) * volume;
         localArchimedesForce = new Vector3(0, archimedesForceMagnitude, 0) / voxels.Count;
