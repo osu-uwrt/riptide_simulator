@@ -9,9 +9,9 @@ using System.Collections.Generic;
 using UnityEngine;
 public class Buoyancy : MonoBehaviour
 {
-    //  public Ocean ocean;
-    public float density = 500;
-    public float volume = .0331f;
+    [Header("Robot Specific Data")]
+    public RobotData data;
+    [Header("Voxel Splitting Settings")]
     public int slicesPerAxis = 2;
     public bool isConcave = false;
     public int voxelsLimit = 16;
@@ -66,9 +66,9 @@ public class Buoyancy : MonoBehaviour
         transform.rotation = originalRotation;
         transform.position = originalPosition;
         WeldPoints(voxels, voxelsLimit);
-        float archimedesForceMagnitude = WATER_DENSITY * Mathf.Abs(Physics.gravity.y) * volume;
+        float archimedesForceMagnitude = WATER_DENSITY * Mathf.Abs(Physics.gravity.y) * data.volume;
         localArchimedesForce = new Vector3(0, archimedesForceMagnitude, 0) / voxels.Count;
-        Debug.Log(string.Format("[Buoyancy.cs] Name=\"{0}\" volume={1:0.0}, mass={2:0.0}, density={3:0.0}", name, volume, GetComponent<Rigidbody>().mass, density));
+        Debug.Log(string.Format("[Buoyancy.cs] Name=\"{0}\" volume={1:0.0}, mass={2:0.0}, density={3:0.0}", name, data.volume, data.mass, data.density));
     }
     /// <summary>
     /// Slices the object into number of voxels represented by their center points.

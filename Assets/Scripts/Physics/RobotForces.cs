@@ -8,17 +8,16 @@ namespace physics
 {
     public class RobotForces : MonoBehaviour
     {
-        [Tooltip("Game object to apply thruster forces")]
-        public GameObject underWaterObj;
+        [Header("Robot Specitic Data")]
+        public RobotData data;
+        [Header("ROS Topic")]
+        //[Tooltip("Game object to apply thruster forces")]
+        //public GameObject underWaterObj;
 
         [Tooltip("Thruster forces topic")]
         public string forcesTopic = "/tempest/command/pwm";
 
-        public Vector3 robotCOM;
-
-        private Rigidbody vehicle;
-        public float depthBeforeSubmerged = .5f;
-        public float displacementAmt = 4f;
+        [Header("Thruster Data")]
         private List<Thruster> thrusters;
         [SerializeField]
         private GameObject thrusterPrefab;
@@ -29,12 +28,24 @@ namespace physics
         [SerializeField]
         private Transform solidWorksOrigin;
 
+        [Header("Other")]
+        private Rigidbody vehicle;
+        public float depthBeforeSubmerged = .5f;
+        public float displacementAmt = 4f;
+
         private ROSConnection ros;
         private List<GameObject> thrusterFab;
         private uint[] lastThrust;
         [SerializeField]
         private uint thrusterZeroValue;
         private GameObject test;
+        private void Awake()
+        {
+            Rigidbody rb = GetComponent<Rigidbody>();
+            rb.mass = data.mass;
+            rb.drag = data.drag;
+            rb.angularDrag = data.angularDrag;
+        }
         void Start()
         {
             thrusters = new List<Thruster>();
@@ -44,9 +55,9 @@ namespace physics
                 Debug.LogError("Thruster positions don't equal amount of thruster rotations!");
             }
             vehicle = gameObject.GetComponent<Rigidbody>();
-            vehicle.centerOfMass = robotCOM / 100 + solidWorksOrigin.localPosition;
+            vehicle.centerOfMass = data.centerOfMass / 100 + solidWorksOrigin.localPosition;
             test = Instantiate(thrusterPrefab, transform, false);
-            test.transform.localPosition = robotCOM / 100 + solidWorksOrigin.localPosition;
+            test.transform.localPosition = data.centerOfMass / 100 + solidWorksOrigin.localPosition;
 
             lastThrust = new uint[thrusterPositions.Count];
             for (int i = 0; i < thrusterPositions.Count; i++)
