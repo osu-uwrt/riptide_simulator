@@ -7,6 +7,7 @@
 // Terms of use: do whatever you like
 using System.Collections.Generic;
 using UnityEngine;
+
 public class Buoyancy : MonoBehaviour
 {
     [Header("Robot Specific Data")]
@@ -132,7 +133,7 @@ public class Buoyancy : MonoBehaviour
     /// <summary>
     /// Returns whether the point is inside the mesh collider.
     /// </summary>
-    /// <param name="c">Mesh collider.</param>
+    /// <param name="c">Mesh collideusing RobotData;r.</param>
     /// <param name="p">Point.</param>
     /// <returns>True - the point is inside the mesh collider. False - the point is outside of the mesh collider. </returns>
     private static bool PointIsInsideMeshCollider(Collider c, Vector3 p)
