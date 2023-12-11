@@ -19,6 +19,7 @@ find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(robot_localization REQUIRED)
 
 add_executable(physics_simulator src/physics_simulator.cpp src/robot_class.cpp)
 
@@ -34,6 +35,7 @@ ament_target_dependencies(physics_simulator
   tf2_ros
   std_msgs
   riptide_msgs2
+  robot_localization
   geometry_msgs
   sensor_msgs
   nav_msgs

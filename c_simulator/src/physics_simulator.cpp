@@ -2,33 +2,33 @@
 //           INCLUDES            //
 //===============================//
 #include <chrono>
-#include <functional>
 #include <memory>
 #include <string>
 #include <random>
-#include <std_msgs/msg/string.hpp>
+#include <functional>
+#include <rclcpp/rclcpp.hpp>
+#include <eigen3/Eigen/Core>
+#include <eigen3/Eigen/Dense>
 #include <std_msgs/msg/bool.hpp>
-#include <std_msgs/msg/empty.hpp>
-#include <std_msgs/msg/float32_multi_array.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <std_msgs/msg/string.hpp>
+#include "c_simulator/RobotClass.h"
+#include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include <robot_localization/srv/set_pose.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp>
+#include <riptide_msgs2/msg/kill_switch_report.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
-#include <sensor_msgs/msg/imu.hpp>
-#include <nav_msgs/msg/odometry.hpp>
-#include <riptide_msgs2/msg/kill_switch_report.hpp>
-#include "rclcpp/rclcpp.hpp"
-#include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/Core>
-#include "c_simulator/RobotClass.h"
 
 using std::placeholders::_1;
+using std::placeholders::_2;
 using namespace std::chrono_literals;
 
 //===============================//
 //            SETTINGS           //
 //===============================//
 
-#define STEP_SIZE 0.002            // Time, in seconds, between physics steps
 #define STATE_PUB_TIME 0.05        // Time, in seconds, between simulator publishing state (for RViz)
 #define SENSOR_NOISE_ENABLED false // Noise is added to sensor data when true
 
@@ -37,11 +37,12 @@ using namespace std::chrono_literals;
 //===============================//
 1) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
 2) There is no collision detection, if the robot hits an object it will just phase through it
-3) Bouyant force of robot is approximated as a sphere when robot is partially submereged
+3) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
 4) Assumes thrusters will not be running while out of water
 5) Assumes center of drag is at center of bouyancy
 6) Everything is in SI units (kg, m, s, N)
 7) Assumes robot is on Earth :P
+8) This will cook your CPU
 */
 
 class PhysicsSimNode : public rclcpp::Node
@@ -52,24 +53,22 @@ public:
     //================================//
     PhysicsSimNode() : Node("physics_simulator")
     {
-        syncNeeded = false;
-
         // Create publishers and subscribers
         imuPub = this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu", 10);
         firmwareKillPub = this->create_publisher<std_msgs::msg::Bool>("state/kill", 10);
         statePub = this->create_publisher<geometry_msgs::msg::Pose>("simulator/state", 10);
         dvlPub = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("dvl_twist", 10);
         depthPub = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("depth/pose", 10);
-        odomSub = this->create_subscription<nav_msgs::msg::Odometry>("odometry/filtered", 10, std::bind(&PhysicsSimNode::odomCallback, this, _1));
-        odomSyncSub = this->create_subscription<std_msgs::msg::Empty>("simulator/sync", 10, std::bind(&PhysicsSimNode::odomSyncCallback, this, _1));
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
 
         // Create timers
-        auto simStepSize = std::chrono::duration<double>((double)STEP_SIZE);
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
-        computeSimStep = this->create_wall_timer(simStepSize, std::bind(&PhysicsSimNode::rungeKutta4, this));
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
+
+        // Services for setting odom and simulator
+        poseClient = this->create_client<robot_localization::srv::SetPose>("/talos/set_pose");
+        poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
     }
 
     /**
@@ -83,11 +82,11 @@ public:
         bool loaded = robot.loadParams(shared_from_this());
         if (loaded)
         {
-            // Once YAML file params have been loaded, create timers to publish sensor data
-            RCLCPP_INFO(this->get_logger(), "Timers created to fake sensor data");
+            //  Once YAML file params have been loaded, create timers to publish sensor data
             auto imuRate = std::chrono::duration<double>(robot.getIMURate());
             auto dvlRate = std::chrono::duration<double>(robot.getDVLRate());
             auto depthRate = std::chrono::duration<double>(robot.getDepthRate());
+            RCLCPP_INFO(this->get_logger(), "Timers created to fake sensor data");
             imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
             dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
             depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
@@ -95,34 +94,48 @@ public:
         return loaded;
     }
 
-private:
     //================================//
     //      PHYSICS FUNCTIONS         //
     //================================//
 
     /**
      * @brief Solves system of ODEs representing robot physics using fourth order Runge-Kutta numerical method.
-     *  This function is called on a timer to simulate physics in real timme.
+     *  This function is runs in an infinite loop to run simulator, which also spins the node
      */
     void rungeKutta4()
     {
-        // For more info: https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
-        vXd state = robot.getState();
+        rclcpp::Time currentTime;
+        rclcpp::Time prevTime = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+        while (rclcpp::ok())
+        {
+            // Time since last loop, sets step size of simulation
+            currentTime = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+            double stepSize = (currentTime - prevTime).seconds();
+            prevTime = currentTime;
 
-        // Evaluate derivative vector field at key points
-        vXd K1 = calcStateDot(state);
-        vXd K2 = calcStateDot(state + STEP_SIZE / 2.0 * K1);
-        vXd K3 = calcStateDot(state + STEP_SIZE / 2.0 * K2);
-        vXd K4 = calcStateDot(state + STEP_SIZE * K3);
+            // For more info: https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
+            vXd state = robot.getState();
 
-        // Update the robots state based on weighted average of sampled points
-        vXd stateDot = STEP_SIZE / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
-        robot.setState(state + stateDot);
-        robot.setAccel(stateDot);
+            // Evaluate derivative vector field at key points
+            vXd K1 = calcStateDot(state);
+            vXd K2 = calcStateDot(state + stepSize / 2.0 * K1);
+            vXd K3 = calcStateDot(state + stepSize / 2.0 * K2);
+            vXd K4 = calcStateDot(state + stepSize * K3);
+
+            // Update the robots state based on weighted average of sampled points
+            vXd stateDot = stepSize / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
+            robot.setState(state + stateDot);
+            robot.setAccel(stateDot);
+
+            // Proccess any pending callbacks or timers
+            rclcpp::spin_some(shared_from_this());
+        }
+        RCLCPP_INFO(this->get_logger(), "Shutting down simulator");
     }
 
+private:
     /**
-     * @param state Robot's state where derivative is to be evaluated at
+     * @param state Robot's state vector where derivative is to be evaluated at
      * @return The rate of change of the robot's state vector
      */
     vXd calcStateDot(const vXd &state)
@@ -250,6 +263,11 @@ private:
             dvlMsg.twist.twist.linear.x = dvlData[0];
             dvlMsg.twist.twist.linear.y = dvlData[1];
             dvlMsg.twist.twist.linear.z = dvlData[2];
+            // Add covariance to message
+            double dvlVariance = robot.getDVLSigma() * robot.getDVLSigma();
+            dvlMsg.twist.covariance[21] = dvlVariance;
+            dvlMsg.twist.covariance[28] = dvlVariance;
+            dvlMsg.twist.covariance[35] = dvlVariance;
             // dvlMsg.twist.covariance[14] = robot.getDVLSigma();
             dvlMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
             dvlMsg.header.frame_id = "talos/dvl_link";
@@ -285,7 +303,7 @@ private:
             // a_imu = a_body + alpha x r + w x w x r
             // All vectors are in world frame
             // No Coriolis force is needed since the IMU is not moving relative to the robot
-            v3d imuAccel = robot.getLatestLinAccel() + robot.getLatestAngAccel().cross(q * robot.getDVLOffset()) + angularVel.cross(angularVel.cross(q * robot.getDVLOffset()));
+            v3d imuAccel = robot.getLatestLinAccel() + robot.getLatestAngAccel().cross(q * robot.getIMUOffset()) + angularVel.cross(angularVel.cross(q * robot.getIMUOffset()));
 
             // Transform vectors from world -> robot -> IMU
             angularVel = robot.getIMUQuat() * (q.conjugate() * angularVel);
@@ -294,12 +312,16 @@ private:
             q = q * robot.getIMUQuat();
 
             // Add nonise to sensor data if enabled, otherwise don't
+            v3d imu_sigma = robot.getIMUSigma();
             if (SENSOR_NOISE_ENABLED)
             {
-                imuAccel = randomNorm(imuAccel, robot.getIMUSigma());
-                angularVel = randomNorm(angularVel, robot.getIMUSigma());
+                imuAccel = randomNorm(imuAccel, imu_sigma[0]);
+                angularVel = randomNorm(angularVel, imu_sigma[1]);
                 // Add noise to orientation
-                // to be impleneted
+                v3d randomAxis;
+                randomAxis.setRandom().normalize();
+                Eigen::AngleAxisd randomAngle(imu_sigma[2], randomAxis);
+                q = randomAngle * q;
             }
             // Send message with IMU sensor info
             sensor_msgs::msg::Imu imuMsg;
@@ -316,6 +338,19 @@ private:
             imuMsg.orientation.x = q.x();
             imuMsg.orientation.y = q.y();
             imuMsg.orientation.z = q.z();
+            // Add covariance to message
+            double orientationVariance = imu_sigma[2] * imu_sigma[2];
+            imuMsg.orientation_covariance[0] = orientationVariance;
+            imuMsg.orientation_covariance[4] = orientationVariance;
+            imuMsg.orientation_covariance[8] = orientationVariance;
+            double angVelVariance = imu_sigma[1] * imu_sigma[1];
+            imuMsg.angular_velocity_covariance[0] = angVelVariance;
+            imuMsg.angular_velocity_covariance[4] = angVelVariance;
+            imuMsg.angular_velocity_covariance[8] = angVelVariance;
+            double accelVariance = imu_sigma[0] * imu_sigma[0];
+            imuMsg.linear_acceleration_covariance[0] = accelVariance;
+            imuMsg.linear_acceleration_covariance[4] = accelVariance;
+            imuMsg.linear_acceleration_covariance[8] = accelVariance;
             // Publish message
             imuMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
             imuMsg.header.frame_id = "talos/imu_link";
@@ -347,8 +382,7 @@ private:
         robot.setForcesTorques(convert2eigen(thrusterForces.data));
     }
 
-    // Mirrors software kill to firmware kill
-    // This is done to make RViz enable/disable buttons work
+    // Mirros software kill to firmware kill. This is done to make the enable/disable button in RViz work
     void killSwitchCallback(const riptide_msgs2::msg::KillSwitchReport &softwareKillMsg)
     {
         if (softwareKillMsg.kill_switch_id == 1)
@@ -358,32 +392,40 @@ private:
             firmwareKillPub->publish(message);
         }
     }
-    // User has published requesting they want the simulator to sync with odometry, set flag to sync on next odom message
-    void odomSyncCallback(const std_msgs::msg::Empty &msg)
-    {
-        syncNeeded = true;
-    }
-    // If a sync is requested, set the sim's robot's position to where the ekf thinks the robot is
-    void odomCallback(const nav_msgs::msg::Odometry &odom)
-    {
-        if (syncNeeded)
-        {
-            RCLCPP_INFO(this->get_logger(), "Syncing simulator position to odometery position");
 
-            vXd state(13);
-            // Updates robot's position to odom's position
-            state[0] = odom.pose.pose.position.x;
-            state[1] = odom.pose.pose.position.y;
-            state[2] = odom.pose.pose.position.z;
-            // Update robot's orientation to odom's orientation
-            state[3] = odom.pose.pose.orientation.w;
-            state[4] = odom.pose.pose.orientation.x;
-            state[5] = odom.pose.pose.orientation.y;
-            state[6] = odom.pose.pose.orientation.z;
-            // Set the state and flip flag
-            robot.setState(state);
-            syncNeeded = false;
+    // Function called by "set_sim_pose" service. Updates simulator and EKF to requested position
+    void setSim(const std::shared_ptr<robot_localization::srv::SetPose::Request> poseRequest)
+    {
+        // Create request to EKF, wait for availablility
+        auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
+        geometry_msgs::msg::Pose desiredPose = poseRequest->pose.pose.pose;
+        request->pose.pose.pose = desiredPose;
+        request->pose.pose.covariance = {0.0};
+        request->pose.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+        request->pose.header.frame_id = "odom";
+        while (!poseClient->wait_for_service(1s))
+        {
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set simulator pose service. Exiting.");
+                break;
+            }
         }
+        // Send request
+        auto result = poseClient->async_send_request(request);
+
+        // Set state in physics simulator as well
+        vXd state(13);
+        // Setting position of state to desired
+        state[0] = desiredPose.position.x;
+        state[1] = desiredPose.position.y;
+        state[2] = desiredPose.position.z;
+        // Setting orientation of state to desired
+        state[3] = desiredPose.orientation.w;
+        state[4] = desiredPose.orientation.x;
+        state[5] = desiredPose.orientation.y;
+        state[6] = desiredPose.orientation.z;
+        robot.setState(state);
     }
 
     // Called on a timer, publishes robot's true state for RViz
@@ -397,9 +439,9 @@ private:
 
         // Setting position
         // Sim uses COM for robot position, need to add offset for position relative to base link
-        message.position.x = state[0] + baseLinkOffset.x();
-        message.position.y = state[1] + baseLinkOffset.y();
-        message.position.z = state[2] + baseLinkOffset.z();
+        message.position.x = state[0] - baseLinkOffset.x();
+        message.position.y = state[1] - baseLinkOffset.y();
+        message.position.z = state[2] - baseLinkOffset.z();
         // Setting orientation
         message.orientation.w = q.w();
         message.orientation.x = q.x();
@@ -448,18 +490,16 @@ private:
     //          VARIABLES             //
     //================================//
     Robot robot;
-    bool syncNeeded;
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
     rclcpp::TimerBase::SharedPtr statePubTimer;
-    rclcpp::TimerBase::SharedPtr computeSimStep;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odomSub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
-    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr odomSyncSub;
+    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
+    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
@@ -480,7 +520,7 @@ int main(int argc, char *argv[])
     {
         // Parameters loaded sucessfully, start node
         RCLCPP_INFO(node->get_logger(), "Simulator node starting...");
-        rclcpp::spin(node);
+        node->rungeKutta4();
         rclcpp::shutdown();
     }
     else

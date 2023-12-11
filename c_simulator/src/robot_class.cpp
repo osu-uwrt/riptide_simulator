@@ -7,18 +7,8 @@
 Robot::Robot()
 {
     state.resize(13);
-
-    // INITIAL CONDITION:
-    state << 0, 0, -2, // Position
-        1, 0, 0, 0,    // Quaternion w x y z
-        0, 0, 0,       // Linear momentum
-        0, 0, 0;       // Angular momentum
-
     imuTransform = false;
     dvlTransform = false;
-    area = {0.16, 0.16, 0.3};
-    dragCoef = {2.1, 0.9, 0.9};
-    angDragCoef = {0.004, 0.001, 0.005};
 }
 
 /**
@@ -70,17 +60,20 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
     mass = config["mass"].as<double>();
     invBodyInertia = std2v3d(config["inertia"].as<std::vector<double>>()).asDiagonal().inverse();
     weightVector = {0, 0, -mass * GRAVITY};
-    // Bouyancy = rho * g * V
-    bouyancyVector = {0, 0, WATER_DENSITY * GRAVITY * config["volume"].as<double>()};
+    std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
+    bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
     v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
-    r_cob = {0.02, 0, 0.05}; // std2v3d(config["cob"].as<std::vector<double>>()) - r_com;
+    r_cob = std2v3d(config["cob"].as<std::vector<double>>()) - r_com; // v3d(-feedForward[3] / bouyancyVector[2], -feedForward[4] / bouyancyVector[2], -feedForward[5] / bouyancyVector[2]);
     r_cod = r_cob;
 
     //  Getting base link position relative to center of mass
-    r_baseLink = -r_com; //+std2v3d(config["base_link"].as<std::vector<double>>());
+    r_baseLink = std2v3d(config["base_link"].as<std::vector<double>>());
     // Getting IMU information
     r_imu = std2v3d(config["imu"]["pose"].as<std::vector<double>>()) - r_com;
     imu_rate = 1.0 / config["imu"]["rate"].as<double>();
+    imu_sigmaAccel = config["imu"]["sigma_accel"].as<double>();
+    imu_sigmaOmega = config["imu"]["sigma_omega"].as<double>() * M_PI / 180;
+    imu_sigmaAngle = config["imu"]["sigma_angle"].as<double>() * M_PI / 180;
     // Getting depth sensor information
     r_depth = std2v3d(config["depth"]["pose"].as<std::vector<double>>()) - r_com;
     depth_rate = 1.0 / config["depth"]["rate"].as<double>();
@@ -90,9 +83,14 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
     dvl_rate = 1.0 / config["dvl"]["rate"].as<double>();
     dvl_sigma = config["dvl"]["sigma"].as<double>();
 
+    // Drag information
+    std::vector<double> dragCoefStd = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
+    dragCoef = Eigen::Map<vXd>(dragCoefStd.data(), dragCoefStd.size());
+
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
     YAML::Node thrusters = config["thrusters"];
     thrusterMatrix.resize(thrusters.size(), 6);
+    // Thruster info
     int row = 0;
     for (auto thruster : thrusters)
     {
@@ -130,9 +128,12 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
  */
 v3d Robot::calcDragForces(const v3d &linVel, const double &depth)
 {
-    // F = 1/2 * rho * A * C_d * |V| * V
-    v3d dragForces = getScaleFactor(depth) * -.5 * WATER_DENSITY * (area.asDiagonal() * (dragCoef.asDiagonal() * linVel.norm() * linVel));
-    return dragForces;
+    // Drag coeffecients from YAML file, obtained experimentally
+    // drag = (k1 + k2 * abs(v) + k3 * exp(abs(v) / k4) )* sign(v)
+    double dragX = dragCoef[0] + dragCoef[1] * abs(linVel[0]) + dragCoef[2] * exp(abs(linVel[0]) / dragCoef[3]);
+    double dragY = dragCoef[4] + dragCoef[5] * abs(linVel[1]) + dragCoef[6] * exp(abs(linVel[1]) / dragCoef[7]);
+    double dragZ = dragCoef[8] + dragCoef[9] * abs(linVel[2]) + dragCoef[10] * exp(abs(linVel[2]) / dragCoef[11]);
+    return v3d(dragX, dragY, dragZ).norm() * -linVel.normalized();
 }
 
 /**
@@ -143,12 +144,15 @@ v3d Robot::calcDragForces(const v3d &linVel, const double &depth)
  */
 v3d Robot::calcDragTorques(const v3d &linVel, const v3d &angVel, const double &depth)
 {
-    // Drag torque resistin rotation
-    // T = 1/2 * rho * C_d * |w| * w
-    v3d dragTorques = getScaleFactor(depth) * -.5 * WATER_DENSITY * (angDragCoef.asDiagonal() * angVel.norm() * angVel);
-    // Adding drag torque caused by linear drag force
-    v3d linDragForceTorques = r_cod.cross(calcDragForces(linVel, depth));
-    dragTorques += linDragForceTorques;
+    // Drag coeffecients from YAML file, obtained experimentally
+    // Drag force resisting rotation
+    // drag = (k1 + k2 * abs(v) + k3 * exp(abs(v) / k4) )* sign(v)
+    double dragTorqX = dragCoef[12] + dragCoef[13] * abs(angVel[0]) + dragCoef[14] * exp(abs(angVel[0]) / dragCoef[15]);
+    double dragTorqY = dragCoef[16] + dragCoef[17] * abs(angVel[1]) + dragCoef[18] * exp(abs(angVel[1]) / dragCoef[19]);
+    double dragTorqZ = dragCoef[20] + dragCoef[21] * abs(angVel[2]) + dragCoef[22] * exp(abs(angVel[2]) / dragCoef[23]);
+    v3d dragTorques = v3d(dragTorqX, dragTorqY, dragTorqZ).norm() * -angVel.normalized();
+    // Adding drag torque caused by linear drag force caused by offset center of drag
+    dragTorques += r_cod.cross(calcDragForces(linVel, depth));
     return dragTorques;
 }
 
@@ -160,7 +164,7 @@ v3d Robot::calcDragTorques(const v3d &linVel, const v3d &angVel, const double &d
 v3d Robot::calcBouyantTorque(const quat &q, const double &depth)
 {
     // T = r x F
-    // Need to convert distance to r_COB to world cordinates first though
+    // Need to convert distance to COB to world cordinates first though
     return (q * r_cob).cross(getScaleFactor(depth) * bouyancyVector);
 }
 
@@ -239,7 +243,7 @@ bool Robot::obtainDVLTransform()
     }
     catch (const tf2::TransformException &ex)
     {
-        cout << "Could not transform to DVL frame: " << ex.what() << "\n";
+        // cout << "Could not transform to DVL frame: " << ex.what() << "\n";
         return false;
     }
     return false;
@@ -260,7 +264,7 @@ bool Robot::obtainIMUTransform()
     }
     catch (const tf2::TransformException &ex)
     {
-        cout << "Could not transform to IMU frame: " << ex.what() << "\n";
+        // cout << "Could not transform to IMU frame: " << ex.what() << "\n";
         return false;
     }
     return false;
@@ -320,9 +324,9 @@ v3d Robot::getIMUOffset()
 {
     return r_imu;
 }
-double Robot::getIMUSigma()
+v3d Robot::getIMUSigma()
 {
-    return imu_sigma;
+    return v3d(imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle);
 }
 double Robot::getIMURate()
 {
