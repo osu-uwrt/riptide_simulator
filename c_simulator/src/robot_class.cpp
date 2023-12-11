@@ -63,7 +63,7 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
     std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
     bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
     v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
-    r_cob = std2v3d(config["cob"].as<std::vector<double>>()) - r_com; // v3d(-feedForward[3] / bouyancyVector[2], -feedForward[4] / bouyancyVector[2], -feedForward[5] / bouyancyVector[2]);
+    r_cob = std2v3d(config["cob"].as<std::vector<double>>()) - r_com;
     r_cod = r_cob;
 
     //  Getting base link position relative to center of mass
@@ -133,7 +133,7 @@ v3d Robot::calcDragForces(const v3d &linVel, const double &depth)
     double dragX = dragCoef[0] + dragCoef[1] * abs(linVel[0]) + dragCoef[2] * exp(abs(linVel[0]) / dragCoef[3]);
     double dragY = dragCoef[4] + dragCoef[5] * abs(linVel[1]) + dragCoef[6] * exp(abs(linVel[1]) / dragCoef[7]);
     double dragZ = dragCoef[8] + dragCoef[9] * abs(linVel[2]) + dragCoef[10] * exp(abs(linVel[2]) / dragCoef[11]);
-    return v3d(dragX, dragY, dragZ).norm() * -linVel.normalized();
+    return getScaleFactor(depth) * v3d(dragX, dragY, dragZ).norm() * -linVel.normalized();
 }
 
 /**
@@ -150,7 +150,7 @@ v3d Robot::calcDragTorques(const v3d &linVel, const v3d &angVel, const double &d
     double dragTorqX = dragCoef[12] + dragCoef[13] * abs(angVel[0]) + dragCoef[14] * exp(abs(angVel[0]) / dragCoef[15]);
     double dragTorqY = dragCoef[16] + dragCoef[17] * abs(angVel[1]) + dragCoef[18] * exp(abs(angVel[1]) / dragCoef[19]);
     double dragTorqZ = dragCoef[20] + dragCoef[21] * abs(angVel[2]) + dragCoef[22] * exp(abs(angVel[2]) / dragCoef[23]);
-    v3d dragTorques = v3d(dragTorqX, dragTorqY, dragTorqZ).norm() * -angVel.normalized();
+    v3d dragTorques = getScaleFactor(depth) * v3d(dragTorqX, dragTorqY, dragTorqZ).norm() * -angVel.normalized();
     // Adding drag torque caused by linear drag force caused by offset center of drag
     dragTorques += r_cod.cross(calcDragForces(linVel, depth));
     return dragTorques;
