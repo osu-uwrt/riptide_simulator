@@ -53,6 +53,8 @@ public:
     //================================//
     PhysicsSimNode() : Node("physics_simulator")
     {
+        enabled = false;
+
         // Create publishers and subscribers
         imuPub = this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu", 10);
         firmwareKillPub = this->create_publisher<std_msgs::msg::Bool>("state/kill", 10);
@@ -379,7 +381,10 @@ private:
     // Once new thruster forces are available, update robot's forces/torques
     void forceCallback(const std_msgs::msg::Float32MultiArray &thrusterForces)
     {
-        robot.setForcesTorques(convert2eigen(thrusterForces.data));
+        if (enabled)
+            robot.setForcesTorques(convert2eigen(thrusterForces.data));
+        else
+            robot.setForcesTorques(vXd::Zero(6));
     }
 
     // Mirros software kill to firmware kill. This is done to make the enable/disable button in RViz work
@@ -389,6 +394,9 @@ private:
         {
             std_msgs::msg::Bool message;
             message.data = softwareKillMsg.switch_asserting_kill;
+            enabled = message.data;
+            if (!enabled)
+                robot.setForcesTorques(vXd::Zero(6));
             firmwareKillPub->publish(message);
         }
     }
@@ -490,6 +498,7 @@ private:
     //          VARIABLES             //
     //================================//
     Robot robot;
+    bool enabled;
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
