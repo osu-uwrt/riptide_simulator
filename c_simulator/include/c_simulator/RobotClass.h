@@ -34,39 +34,40 @@ public:
     //========================//
     //        GETTERS         //
     //========================//
-    double getMass();
     vXd getState();
+    double getMass();
+    quat getDVLQuat();
+    quat getIMUQuat();
+    v3d getIMUSigma();
+    v3d getIMUOffset();
+    v3d getDVLOffset();
+    double getDVLRate();
+    double getIMURate();
     m3d getInvInertia();
+    v3d getDepthOffset();
+    double getDVLSigma();
+    double getDepthRate();
+    bool hasDVLTransform();
+    double getDepthSigma();
+    bool hasIMUTransform();
+    int getThrusterCount();
     mXd getThrusterMatrix();
     v3d getThrusterForces();
-    v3d getThrusterTorques();
     v3d getLatestLinAccel();
     v3d getLatestAngAccel();
     v3d getBaseLinkOffset();
-    v3d getNetBouyantForce(const double &depth);
-    v3d getDepthOffset();
-    double getDepthSigma();
-    double getDepthRate();
-    v3d getDVLOffset();
-    quat getDVLQuat();
-    double getDVLSigma();
-    double getDVLRate();
-    bool hasDVLTransform();
-    bool obtainDVLTransform();
-    v3d getIMUOffset();
-    quat getIMUQuat();
-    bool hasIMUTransform();
+    v3d getThrusterTorques();
     bool obtainIMUTransform();
-    v3d getIMUSigma();
-    double getIMURate();
+    bool obtainDVLTransform();
+    v3d getNetBouyantForce(const double &depth);
 
     //========================//
     //        SETTERS         //
     //========================//
     void setState(vXd state_);
     void setAccel(const vXd &stateDot);
+    void setForcesTorques(vXd forcesTorques);
     bool loadParams(rclcpp::Node::SharedPtr node);
-    void setForcesTorques(const vXd &forcesTorques);
 
     //========================//
     //        MATHERS         //
@@ -115,6 +116,8 @@ private:
     v3d linAccel;       // Latest linear acceleration on robot (for faking sensor data)
     v3d angAccel;       // Latest angular acceleration on robot (for faking sensor data)
 
+    int thrusterCount;  // Number of thrusters
+    double maxThrust;   // Limit on thruster force, N
     vXd dragCoef;       // Drag coeffecients for each axis
     m3d invBodyInertia; // Inverse inertia tensor in body frame
     v3d angDragCoef;    // Angular drag coeffecients for each axis
@@ -124,7 +127,7 @@ private:
     //========================//
     //       FUNCTIONS        //
     //========================//
+    void storeConfigData(YAML::Node config);
     v3d std2v3d(std::vector<double> stdVect);
     double getScaleFactor(const double &depth);
-    void storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node);
 };

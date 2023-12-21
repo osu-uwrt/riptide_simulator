@@ -7,6 +7,12 @@
 Robot::Robot()
 {
     state.resize(13);
+
+    // INITIAL CONDITION
+    state << 0, 0, -1, // Position, X Y Z
+        1, 0, 0, 0,    // Orientation, W X Y Z
+        0, 0, 0,       // Linear momentum, X Y Z
+        0, 0, 0;       // Angular momentum, X Y Z
     imuTransform = false;
     dvlTransform = false;
 }
@@ -32,7 +38,7 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
             RCLCPP_INFO(node->get_logger(), "Opening config file: %s", config_file.c_str());
             // Loading YAML file for parsing
             YAML::Node config = YAML::LoadFile(config_file);
-            Robot::storeConfigData(config, node);
+            Robot::storeConfigData(config);
 
             // Loading params successeeded
             return true;
@@ -54,7 +60,7 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
 /**
  * @brief Unpacks YAML contents and stores them into class variables
  */
-void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
+void Robot::storeConfigData(YAML::Node config)
 {
     // Getting mass and bouyancy informtion
     mass = config["mass"].as<double>();
@@ -63,7 +69,8 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
     std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
     bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
     v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
-    r_cob = std2v3d(config["cob"].as<std::vector<double>>()) - r_com;
+    // Calculate COB from feed forward: r = T/F
+    r_cob = v3d(feedForward[4] / bouyancyVector.norm(), -feedForward[3] / bouyancyVector.norm(), 0.005);
     r_cod = r_cob;
 
     //  Getting base link position relative to center of mass
@@ -89,7 +96,9 @@ void Robot::storeConfigData(YAML::Node config, rclcpp::Node::SharedPtr node)
 
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
     YAML::Node thrusters = config["thrusters"];
-    thrusterMatrix.resize(thrusters.size(), 6);
+    maxThrust = config["thruster"]["max_force"].as<double>();
+    thrusterCount = thrusters.size();
+    thrusterMatrix.resize(thrusterCount, 6);
     // Thruster info
     int row = 0;
     for (auto thruster : thrusters)
@@ -130,9 +139,10 @@ v3d Robot::calcDragForces(const v3d &linVel, const double &depth)
 {
     // Drag coeffecients from YAML file, obtained experimentally
     // drag = (k1 + k2 * abs(v) + k3 * exp(abs(v) / k4) )* sign(v)
-    double dragX = dragCoef[0] + dragCoef[1] * abs(linVel[0]) + dragCoef[2] * exp(abs(linVel[0]) / dragCoef[3]);
-    double dragY = dragCoef[4] + dragCoef[5] * abs(linVel[1]) + dragCoef[6] * exp(abs(linVel[1]) / dragCoef[7]);
-    double dragZ = dragCoef[8] + dragCoef[9] * abs(linVel[2]) + dragCoef[10] * exp(abs(linVel[2]) / dragCoef[11]);
+    double dragX = -dragCoef[2] + dragCoef[1] * abs(linVel[0]) + dragCoef[2] * exp(abs(linVel[0]) / dragCoef[3]);
+    double dragY = -dragCoef[6] + dragCoef[5] * abs(linVel[1]) + dragCoef[6] * exp(abs(linVel[1]) / dragCoef[7]);
+    double dragZ = -dragCoef[10] + dragCoef[9] * abs(linVel[2]) + dragCoef[10] * exp(abs(linVel[2]) / dragCoef[11]);
+    // return magnitude * unit direction opposite of velocity
     return getScaleFactor(depth) * v3d(dragX, dragY, dragZ).norm() * -linVel.normalized();
 }
 
@@ -147,9 +157,9 @@ v3d Robot::calcDragTorques(const v3d &linVel, const v3d &angVel, const double &d
     // Drag coeffecients from YAML file, obtained experimentally
     // Drag force resisting rotation
     // drag = (k1 + k2 * abs(v) + k3 * exp(abs(v) / k4) )* sign(v)
-    double dragTorqX = dragCoef[12] + dragCoef[13] * abs(angVel[0]) + dragCoef[14] * exp(abs(angVel[0]) / dragCoef[15]);
-    double dragTorqY = dragCoef[16] + dragCoef[17] * abs(angVel[1]) + dragCoef[18] * exp(abs(angVel[1]) / dragCoef[19]);
-    double dragTorqZ = dragCoef[20] + dragCoef[21] * abs(angVel[2]) + dragCoef[22] * exp(abs(angVel[2]) / dragCoef[23]);
+    double dragTorqX = -dragCoef[14] + dragCoef[13] * abs(angVel[0]) + dragCoef[14] * exp(abs(angVel[0]) / dragCoef[15]);
+    double dragTorqY = -dragCoef[18] + dragCoef[17] * abs(angVel[1]) + dragCoef[18] * exp(abs(angVel[1]) / dragCoef[19]);
+    double dragTorqZ = -dragCoef[22] + dragCoef[21] * abs(angVel[2]) + dragCoef[22] * exp(abs(angVel[2]) / dragCoef[23]);
     v3d dragTorques = getScaleFactor(depth) * v3d(dragTorqX, dragTorqY, dragTorqZ).norm() * -angVel.normalized();
     // Adding drag torque caused by linear drag force caused by offset center of drag
     dragTorques += r_cod.cross(calcDragForces(linVel, depth));
@@ -221,8 +231,11 @@ void Robot::setAccel(const vXd &stateDot)
 }
 
 // Converts thruster forces into robot body forces and torques stored in class
-void Robot::setForcesTorques(const vXd &thrusterForces)
+void Robot::setForcesTorques(vXd thrusterForces)
 {
+    // Caps thruster forces to their limits
+    thrusterForces = thrusterForces.cwiseMin(maxThrust).cwiseMax(-maxThrust);
+    // Converts thruster forces to body forces
     vXd forcesTorques = thrusterMatrix.transpose() * thrusterForces;
     forces = forcesTorques.segment(0, 3);
     torques = forcesTorques.segment(3, 3);
@@ -359,6 +372,10 @@ quat Robot::getDVLQuat()
 bool Robot::hasDVLTransform()
 {
     return dvlTransform;
+}
+int Robot::getThrusterCount()
+{
+    return thrusterCount;
 }
 
 //================================//

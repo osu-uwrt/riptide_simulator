@@ -23,7 +23,6 @@
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
 using std::placeholders::_1;
-using std::placeholders::_2;
 using namespace std::chrono_literals;
 
 //===============================//
@@ -54,6 +53,8 @@ public:
     //================================//
     PhysicsSimNode() : Node("physics_simulator")
     {
+        enabled = false;
+
         // Create publishers and subscribers
         imuPub = this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu", 10);
         firmwareKillPub = this->create_publisher<std_msgs::msg::Bool>("state/kill", 10);
@@ -117,7 +118,7 @@ public:
 
     /**
      * @brief Solves system of ODEs representing robot physics using fourth order Runge-Kutta numerical method.
-     *  This function is runs in an infinite loop to run simulator, which also spins the node
+     * This function is runs in an infinite loop to run simulator, which also spins the node
      */
     void rungeKutta4()
     {
@@ -396,7 +397,11 @@ private:
     // Once new thruster forces are available, update robot's forces/torques
     void forceCallback(const std_msgs::msg::Float32MultiArray &thrusterForces)
     {
-        robot.setForcesTorques(convert2eigen(thrusterForces.data));
+        // Discard any forces if robot is disabled
+        if (enabled)
+            robot.setForcesTorques(convert2eigen(thrusterForces.data));
+        else
+            robot.setForcesTorques(vXd::Zero(robot.getThrusterCount()));
     }
 
     // Mirros software kill to firmware kill. This is done to make the enable/disable button in RViz work
@@ -406,6 +411,9 @@ private:
         {
             std_msgs::msg::Bool message;
             message.data = softwareKillMsg.switch_asserting_kill;
+            enabled = !message.data;
+            if (!enabled)
+                robot.setForcesTorques(vXd::Zero(robot.getThrusterCount()));
             firmwareKillPub->publish(message);
         }
     }
@@ -452,7 +460,6 @@ private:
         vXd state = robot.getState();
         quat q = state2quat(state);
         v3d baseLinkOffset = q * robot.getBaseLinkOffset();
-        // cout << state.transpose() << "\n";
 
         // Setting position
         // Sim uses COM for robot position, need to add offset for position relative to base link
@@ -507,6 +514,7 @@ private:
     //          VARIABLES             //
     //================================//
     Robot robot;
+    bool enabled;
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
