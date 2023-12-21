@@ -63,7 +63,7 @@ public:
         depthPub = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("depth/pose", 10);
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
-        thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thruster/telemetry", 10);
+        thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
