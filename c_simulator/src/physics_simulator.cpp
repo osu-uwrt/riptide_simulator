@@ -83,7 +83,7 @@ public:
         msgLow.disabled_flags = 0;
         msgHigh.disabled_flags = 0;
         msgLow.start_thruster_num = 0;
-        msgHigh.start_thruster_num = 0;
+        msgHigh.start_thruster_num = 4;
 
         this->thrusterTelemetryPub->publish(msgLow);
         this->thrusterTelemetryPub->publish(msgHigh);
