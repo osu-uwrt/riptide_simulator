@@ -18,6 +18,7 @@
 #include <robot_localization/srv/set_pose.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 #include <riptide_msgs2/msg/kill_switch_report.hpp>
+#include <riptide_msgs2/msg/dshot_partial_telemetry.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
@@ -61,14 +62,30 @@ public:
         depthPub = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("depth/pose", 10);
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
+        thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thruster/telemetry", 10);
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
+        this->thrusterTelemetryTimer = this->create_wall_timer(std::chrono::duration<double>((double)0.5), std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
 
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/talos/set_pose");
         poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
+    }
+
+    void pubThrusterTelemetry(){
+        // publish a telemtry message with no disabled flags
+
+        riptide_msgs2::msg::DshotPartialTelemetry msgLow;
+        riptide_msgs2::msg::DshotPartialTelemetry msgHigh;
+        msgLow.disabled_flags = 0;
+        msgHigh.disabled_flags = 0;
+        msgLow.start_thruster_num = 0;
+        msgHigh.start_thruster_num = 0;
+
+        this->thrusterTelemetryPub->publish(msgLow);
+        this->thrusterTelemetryPub->publish(msgHigh);
     }
 
     /**
@@ -495,6 +512,8 @@ private:
     rclcpp::TimerBase::SharedPtr depthTimer;
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
+    rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
+    
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
@@ -504,6 +523,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
+    rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
+    
 };
 
 //=========================//
