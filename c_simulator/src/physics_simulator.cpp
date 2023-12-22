@@ -82,6 +82,14 @@ public:
         riptide_msgs2::msg::DshotPartialTelemetry msgHigh;
         msgLow.disabled_flags = 0;
         msgHigh.disabled_flags = 0;
+        msgLow.esc_telemetry[0].thruster_ready = true;
+        msgLow.esc_telemetry[1].thruster_ready = true;
+        msgLow.esc_telemetry[2].thruster_ready = true;
+        msgLow.esc_telemetry[3].thruster_ready = true;        
+        msgHigh.esc_telemetry[0].thruster_ready = true;
+        msgHigh.esc_telemetry[1].thruster_ready = true;
+        msgHigh.esc_telemetry[2].thruster_ready = true;
+        msgHigh.esc_telemetry[3].thruster_ready = true;
         msgLow.start_thruster_num = 0;
         msgHigh.start_thruster_num = 4;
 
