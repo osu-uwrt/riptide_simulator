@@ -266,7 +266,7 @@ private:
             else
             {
                 // Failed to get transform, report error in terminal
-                RCLCPP_ERROR(this->get_logger(), "Could not publish fake DVL data, transform not obtained yet");
+                RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake DVL data, transform not obtained yet");
             }
         }
     }
@@ -332,7 +332,7 @@ private:
             else
             {
                 // Failed to get transform, report error in terminal
-                RCLCPP_ERROR(this->get_logger(), "Could not publish fake IMU data, transform not obtained yet");
+                RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake IMU data, transform not obtained yet");
             }
         }
     }
