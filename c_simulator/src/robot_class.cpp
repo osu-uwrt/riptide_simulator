@@ -25,6 +25,7 @@ Robot::Robot()
 bool Robot::loadParams(rclcpp::Node::SharedPtr node)
 {
     // Creating tf2 buffer and listener
+    this->node = node;
     tf_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
     tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
@@ -242,6 +243,7 @@ void Robot::setForcesTorques(vXd thrusterForces)
 }
 
 // Tries to obtain DVL tf2 transform, returns whether it was successful
+// Assumes that loadParams() has already been called
 bool Robot::obtainDVLTransform()
 {
     try
@@ -256,13 +258,14 @@ bool Robot::obtainDVLTransform()
     }
     catch (const tf2::TransformException &ex)
     {
-        // cout << "Could not transform to DVL frame: " << ex.what() << "\n";
+        RCLCPP_ERROR_SKIPFIRST_THROTTLE(node->get_logger(), *node->get_clock(), 500, "Could not transform to DVL frame: %s", ex.what());
         return false;
     }
     return false;
 }
 
 // Tries to obtain IMU tf2 transform, returns whether it was successful
+// Assumes that loadParams() has already been called
 bool Robot::obtainIMUTransform()
 {
     try
@@ -277,7 +280,7 @@ bool Robot::obtainIMUTransform()
     }
     catch (const tf2::TransformException &ex)
     {
-        // cout << "Could not transform to IMU frame: " << ex.what() << "\n";
+        RCLCPP_ERROR_SKIPFIRST_THROTTLE(node->get_logger(), *node->get_clock(), 500, "Could not transform to IMU frame: %s", ex.what());
         return false;
     }
     return false;

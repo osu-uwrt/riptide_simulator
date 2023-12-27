@@ -86,6 +86,7 @@ private:
     // x y z qw qx qy qz P_x P_y P_z L_x L_y L_z      <- parameter
     // where P is linear momentum, and L is angular momentum, and q is quaternion
     vXd state;
+    rclcpp::Node::SharedPtr node;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
 
