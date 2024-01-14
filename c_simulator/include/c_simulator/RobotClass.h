@@ -3,6 +3,7 @@
 //===================================//
 
 #pragma once
+#include "c_simulator/settings.h"
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
 #include <tf2_ros/buffer.h>
@@ -18,15 +19,6 @@ typedef Eigen::VectorXd vXd;
 typedef Eigen::Matrix3d m3d;
 typedef Eigen::MatrixXd mXd;
 typedef Eigen::Quaterniond quat;
-
-//========================//
-//       CONSTANTS        //
-//========================//
-
-#define THRUSTER_DELAY 0.1 // s         time from when thruster is commanded to when force is applied
-#define GRAVITY 9.80665    // m/s^2
-#define VEHICLE_HEIGHT 0.3 // m         Used for bouyancy calcs when partially submerged
-
 struct thrusterForcesStamped
 {
     vXd thrusterForces;

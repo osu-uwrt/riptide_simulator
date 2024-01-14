@@ -1,38 +1,28 @@
 //===============================//
 /*     TABLE OF CONTENTS         //
 //===============================//
-18  - Settings & constants
-27  - Notes/assumptions
-39  - Includes
-75  - Sim start up
-141 - Physics functions
-266 - Collision functions
-585 - Faking sensor data
-738 - Callback functions
-827 - Utility functions
-862 - Variables
-886 - Main
-*/
+16  - Notes/assumptions
+29  - Includes
+67  - Sim start up
+130 - Physics functions
+255 - Collision functions
+574 - Faking sensor data
+727 - Callback functions
+839 - Utility functions
+874 - Variables
+901 - Main
 
 //===============================//
-//     SETTINGS/CONSTANTS        //
+//      NOTES/ASSUMPTIONS        //
 //===============================//
-
-// Therer are some other #define in RobotClass.h too
-#define SENSOR_NOISE_ENABLED false // Noise is added to sensor data when true
-#define STATE_PUB_TIME 0.02        // Time, in seconds, between simulator publishing state (for RViz)
-#define COEF_OF_RESTITUTION 1.0    // Ratio of velocity after vs before collision https://en.wikipedia.org/wiki/Coefficient_of_restitution
-
-//===============================//
-/*      NOTES/ASSUMPTIONS        //
-//===============================//
-1) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
-2) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
-3) Collision detection only works with boxes and assumes obstacles are stationary
-4) Assumes thrusters will not be running while out of water
-5) Assumes center of drag is at center of bouyancy
-6) Everything is in SI units (kg, m, s, N)
-7) This will cook your CPU
+1) Change settings in the "setting.h" file in the include directory
+2) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
+3) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
+4) Collision detection only works with boxes and assumes obstacles are stationary
+5) Assumes thrusters will not be running while out of water
+6) Assumes center of drag is at center of bouyancy
+7) Everything is in SI units (kg, m, s, N)
+8) This will cook your CPU
 */
 
 //===============================//
@@ -43,6 +33,7 @@
 #include <memory>
 #include <string>
 #include <random>
+#include "c_simulator/settings.h"
 #include <functional>
 #include <filesystem>
 #include <rclcpp/rclcpp.hpp>
@@ -94,34 +85,11 @@ public:
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
-        this->thrusterTelemetryTimer = this->create_wall_timer(std::chrono::duration<double>((double)0.5), std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
+        thrusterTelemetryTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
 
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
         poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
-    }
-
-    void pubThrusterTelemetry()
-    {
-        // publish a telemtry message with no disabled flags
-
-        riptide_msgs2::msg::DshotPartialTelemetry msgLow;
-        riptide_msgs2::msg::DshotPartialTelemetry msgHigh;
-        msgLow.disabled_flags = 0;
-        msgHigh.disabled_flags = 0;
-        msgLow.esc_telemetry[0].thruster_ready = true;
-        msgLow.esc_telemetry[1].thruster_ready = true;
-        msgLow.esc_telemetry[2].thruster_ready = true;
-        msgLow.esc_telemetry[3].thruster_ready = true;
-        msgHigh.esc_telemetry[0].thruster_ready = true;
-        msgHigh.esc_telemetry[1].thruster_ready = true;
-        msgHigh.esc_telemetry[2].thruster_ready = true;
-        msgHigh.esc_telemetry[3].thruster_ready = true;
-        msgLow.start_thruster_num = 0;
-        msgHigh.start_thruster_num = 4;
-
-        this->thrusterTelemetryPub->publish(msgLow);
-        this->thrusterTelemetryPub->publish(msgHigh);
     }
 
     /**
@@ -130,11 +98,6 @@ public:
      */
     bool init()
     {
-        // collisionBox box1 = collisionBox("talos", 1, 1, 1, v3d(0, 0, 0), v3d(0, 0, 0), quat(1, 0, 0, 0), quat(1, 0, 0, 0));
-        // collisionBox box2 = collisionBox("obstacle", 2, 2, 2, v3d(2.5, 1.4, -2), v3d(0, 0, 0), quat(1, 0, 0, 0), quat(1, 0, 0, 0));
-        // robotBoxes.push_back(box1);
-        // obstacleBoxes.push_back(box2);
-
         // Tries to load robot parameter data
         RCLCPP_INFO(this->get_logger(), "Loading robot's parameter data from YAML..");
         bool paramsLoaded = robot.loadParams(shared_from_this());
@@ -148,9 +111,9 @@ public:
             auto dvlRate = std::chrono::duration<double>(robot.getDVLRate());
             auto depthRate = std::chrono::duration<double>(robot.getDepthRate());
             RCLCPP_INFO(this->get_logger(), "Initization successful. Timers created to fake sensor data");
-            // imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
-            // dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
-            // depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
+            imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
+            dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
+            depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
         }
         else
         {
@@ -539,8 +502,8 @@ private:
             else
             {
                 // Obstacle does not match any known obstacle
-                RCLCPP_ERROR(this->get_logger(), "Obstacle %s does not match list of known obstacles", obstacleModel->getName().c_str());
-                return false;
+                RCLCPP_ERROR(this->get_logger(), "Obstacle %s does not match list of known obstacles, skipping obstacle", obstacleModel->getName().c_str());
+                continue;
             }
         }
         if (obstacleBoxes.empty())
@@ -763,6 +726,29 @@ private:
     //================================//
     //       CALLBACK FUNCTIONS       //
     //================================//
+
+    void pubThrusterTelemetry()
+    {
+        // publish a telemtry message with no disabled flags
+
+        riptide_msgs2::msg::DshotPartialTelemetry msgLow;
+        riptide_msgs2::msg::DshotPartialTelemetry msgHigh;
+        msgLow.disabled_flags = 0;
+        msgHigh.disabled_flags = 0;
+        msgLow.esc_telemetry[0].thruster_ready = true;
+        msgLow.esc_telemetry[1].thruster_ready = true;
+        msgLow.esc_telemetry[2].thruster_ready = true;
+        msgLow.esc_telemetry[3].thruster_ready = true;
+        msgHigh.esc_telemetry[0].thruster_ready = true;
+        msgHigh.esc_telemetry[1].thruster_ready = true;
+        msgHigh.esc_telemetry[2].thruster_ready = true;
+        msgHigh.esc_telemetry[3].thruster_ready = true;
+        msgLow.start_thruster_num = 0;
+        msgHigh.start_thruster_num = 4;
+
+        this->thrusterTelemetryPub->publish(msgLow);
+        this->thrusterTelemetryPub->publish(msgHigh);
+    }
 
     // Once new thruster forces are available, update robot's forces/torques
     void forceCallback(const std_msgs::msg::Float32MultiArray &thrusterForces)

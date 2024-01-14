@@ -138,7 +138,6 @@ void Robot::storeConfigData(YAML::Node config)
         thrusterMatrix.block(row, 3, 1, 3) = bodyTorque.transpose();
         row++;
     }
-    cout << thrusterMatrix << endl;
     // Initialize thruster forces and torques to zero
     forces.Zero();
     torques.Zero();
