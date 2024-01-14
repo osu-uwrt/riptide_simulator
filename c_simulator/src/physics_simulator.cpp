@@ -1,19 +1,61 @@
 //===============================//
+/*     TABLE OF CONTENTS         //
+//===============================//
+18  - Settings & constants
+27  - Notes/assumptions
+39  - Includes
+75  - Sim start up
+141 - Physics functions
+266 - Collision functions
+585 - Faking sensor data
+738 - Callback functions
+827 - Utility functions
+862 - Variables
+886 - Main
+*/
+
+//===============================//
+//     SETTINGS/CONSTANTS        //
+//===============================//
+
+// Therer are some other #define in RobotClass.h too
+#define SENSOR_NOISE_ENABLED false // Noise is added to sensor data when true
+#define STATE_PUB_TIME 0.02        // Time, in seconds, between simulator publishing state (for RViz)
+#define COEF_OF_RESTITUTION 1.0    // Ratio of velocity after vs before collision https://en.wikipedia.org/wiki/Coefficient_of_restitution
+
+//===============================//
+/*      NOTES/ASSUMPTIONS        //
+//===============================//
+1) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
+2) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
+3) Collision detection only works with boxes and assumes obstacles are stationary
+4) Assumes thrusters will not be running while out of water
+5) Assumes center of drag is at center of bouyancy
+6) Everything is in SI units (kg, m, s, N)
+7) This will cook your CPU
+*/
+
+//===============================//
 //           INCLUDES            //
 //===============================//
+#include <set>
 #include <chrono>
 #include <memory>
 #include <string>
 #include <random>
 #include <functional>
+#include <filesystem>
 #include <rclcpp/rclcpp.hpp>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
+#include <urdf_model/model.h>
 #include <std_msgs/msg/bool.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <std_msgs/msg/string.hpp>
 #include "c_simulator/RobotClass.h"
+#include <urdf_parser/urdf_parser.h>
 #include <nav_msgs/msg/odometry.hpp>
+#include "c_simulator/collisionBox.h"
 #include <geometry_msgs/msg/pose.hpp>
 #include <robot_localization/srv/set_pose.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
@@ -22,28 +64,10 @@
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
+typedef std::string string;
 using std::placeholders::_1;
+namespace fs = std::filesystem;
 using namespace std::chrono_literals;
-
-//===============================//
-//            SETTINGS           //
-//===============================//
-
-#define STATE_PUB_TIME 0.05        // Time, in seconds, between simulator publishing state (for RViz)
-#define SENSOR_NOISE_ENABLED false // Noise is added to sensor data when true
-
-//===============================//
-/*      NOTES/ASSUMPTIONS        //
-//===============================//
-1) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
-2) There is no collision detection, if the robot hits an object it will just phase through it
-3) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
-4) Assumes thrusters will not be running while out of water
-5) Assumes center of drag is at center of bouyancy
-6) Everything is in SI units (kg, m, s, N)
-7) Assumes robot is on Earth :P
-8) This will cook your CPU
-*/
 
 class PhysicsSimNode : public rclcpp::Node
 {
@@ -54,6 +78,8 @@ public:
     PhysicsSimNode() : Node("physics_simulator")
     {
         enabled = false;
+        string name = this->get_namespace();
+        robot = Robot(name.substr(1)); // Removing the starting '/' with substring
 
         // Create publishers and subscribers
         imuPub = this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu", 10);
@@ -71,11 +97,12 @@ public:
         this->thrusterTelemetryTimer = this->create_wall_timer(std::chrono::duration<double>((double)0.5), std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
 
         // Services for setting odom and simulator
-        poseClient = this->create_client<robot_localization::srv::SetPose>("/talos/set_pose");
+        poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
         poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
     }
 
-    void pubThrusterTelemetry(){
+    void pubThrusterTelemetry()
+    {
         // publish a telemtry message with no disabled flags
 
         riptide_msgs2::msg::DshotPartialTelemetry msgLow;
@@ -85,7 +112,7 @@ public:
         msgLow.esc_telemetry[0].thruster_ready = true;
         msgLow.esc_telemetry[1].thruster_ready = true;
         msgLow.esc_telemetry[2].thruster_ready = true;
-        msgLow.esc_telemetry[3].thruster_ready = true;        
+        msgLow.esc_telemetry[3].thruster_ready = true;
         msgHigh.esc_telemetry[0].thruster_ready = true;
         msgHigh.esc_telemetry[1].thruster_ready = true;
         msgHigh.esc_telemetry[2].thruster_ready = true;
@@ -103,21 +130,37 @@ public:
      */
     bool init()
     {
-        RCLCPP_INFO(this->get_logger(), "Getting simulator starting parameter data");
+        // collisionBox box1 = collisionBox("talos", 1, 1, 1, v3d(0, 0, 0), v3d(0, 0, 0), quat(1, 0, 0, 0), quat(1, 0, 0, 0));
+        // collisionBox box2 = collisionBox("obstacle", 2, 2, 2, v3d(2.5, 1.4, -2), v3d(0, 0, 0), quat(1, 0, 0, 0), quat(1, 0, 0, 0));
+        // robotBoxes.push_back(box1);
+        // obstacleBoxes.push_back(box2);
+
         // Tries to load robot parameter data
-        bool loaded = robot.loadParams(shared_from_this());
-        if (loaded)
+        RCLCPP_INFO(this->get_logger(), "Loading robot's parameter data from YAML..");
+        bool paramsLoaded = robot.loadParams(shared_from_this());
+        RCLCPP_INFO(this->get_logger(), "Loading collision files...");
+        bool collisionBoxesLoaded = loadCollisionFiles();
+        // Loaded successfully if true
+        if (paramsLoaded && collisionBoxesLoaded)
         {
             //  Once YAML file params have been loaded, create timers to publish sensor data
             auto imuRate = std::chrono::duration<double>(robot.getIMURate());
             auto dvlRate = std::chrono::duration<double>(robot.getDVLRate());
             auto depthRate = std::chrono::duration<double>(robot.getDepthRate());
-            RCLCPP_INFO(this->get_logger(), "Timers created to fake sensor data");
-            imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
-            dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
-            depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
+            RCLCPP_INFO(this->get_logger(), "Initization successful. Timers created to fake sensor data");
+            // imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
+            // dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
+            // depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
         }
-        return loaded;
+        else
+        {
+            // Report error
+            if (!paramsLoaded)
+                RCLCPP_INFO(this->get_logger(), "Failed to read YAML parameter data");
+            else
+                RCLCPP_INFO(this->get_logger(), "Failed to read collision URDF data");
+        }
+        return paramsLoaded && collisionBoxesLoaded;
     }
 
     //================================//
@@ -139,9 +182,12 @@ public:
             double stepSize = (currentTime - prevTime).seconds();
             prevTime = currentTime;
 
-            // For more info: https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
+            // Get state, and modify it to account for any collisions
             vXd state = robot.getState();
-
+            state = handleCollisions(state);
+            // For more info on Runge Kutta:
+            // https://www.youtube.com/watch?v=HOWJp8NV5xU
+            // https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
             // Evaluate derivative vector field at key points
             vXd K1 = calcStateDot(state);
             vXd K2 = calcStateDot(state + stepSize / 2.0 * K1);
@@ -189,11 +235,10 @@ private:
 
         // Linear velocities
         stateDot.segment(0, 3) = linearVel;
-        // Change in linear momentum dP/dt = F (Newton's second law)
-        stateDot.segment(7, 3) = calcForces(q, linearVel, depth);
-
         // Rate of change of quaternion
         stateDot.segment(3, 4) = calcQuaternionDot(q, angularVel);
+        // Change in linear momentum dP/dt = F (Newton's second law)
+        stateDot.segment(7, 3) = calcForces(q, linearVel, depth);
         // Change in angular momentum dL/dt = T (Newton's second law)
         stateDot.segment(10, 3) = calcTorques(q, linearVel, angularVel, depth);
 
@@ -244,8 +289,329 @@ private:
     }
 
     //================================//
+    //      COLLISION FUNCTIONS       //
+    //================================//
+
+    /**
+     * @brief Loops through all collision elements and adds impulses based on collision information
+     * @param state Robot's state vector where collisions are evaluated at
+     * @returns Modified state vector with added collision impulses
+     */
+    vXd handleCollisions(vXd state)
+    {
+        // Get state information
+        quat q = state2quat(state);
+        m3d invWorldInertia = q * robot.getInvInertia() * q.conjugate();
+        v3d angularVel = invWorldInertia * state.segment(10, 3);
+        v3d linearVel = state.segment(7, 3) / robot.getMass();
+
+        // Loop through all combination of boxes
+        for (collisionBox robotBox : robotBoxes)
+        {
+            // Need to update robot collision boxes to robot's current position
+            robotBox.updateLocation(state);
+            for (collisionBox obstacleBox : obstacleBoxes)
+            {
+                // Compute the collision on selected boxes
+                collisionResult collision = computeCollision(robotBox, obstacleBox);
+
+                // A collision occoured, calculate how to change state in response to collision
+                if (collision.collided)
+                {
+                    RCLCPP_DEBUG(this->get_logger(), "%s has collided with %s", robot.getName().c_str(), obstacleBox.getName().c_str());
+                    // Compute impulse
+                    // Using impulse method described here:
+                    // https://research.ncl.ac.uk/game/mastersdegree/gametechnologies/physicstutorials/5collisionresponse/Physics%20-%20Collision%20Response.pdf
+                    // And also here: https://hitokageproduction.com/article/11
+                    v3d r_a = collision.collisionPoint - state.segment(0, 3);
+                    double v_rel = (linearVel + angularVel.cross(r_a)).dot(collision.unitDirection);
+                    double impulse = -(1.0 + COEF_OF_RESTITUTION) * v_rel /
+                                     (1.0 / robot.getMass() + (invWorldInertia * (r_a.cross(collision.unitDirection))).cross(r_a).dot(collision.unitDirection));
+                    // Seperate the objects
+                    state.segment(0, 3) = collision.unitDirection * collision.depth + state.segment(0, 3);
+                    // Update momentums
+                    state.segment(7, 3) = state.segment(7, 3) + impulse * collision.unitDirection;
+                    state.segment(10, 3) = state.segment(10, 3) + r_a.cross(impulse * collision.unitDirection);
+                }
+            }
+        }
+        return state;
+    }
+
+    /**
+     * @brief Determines collision information for two collision boxes using the Seperating Axis Theorem (SAT) in 3D
+     * @param box1 Collision box of the robot (must make sure to update position beforehand)
+     * @param box2 Collision box of the obstacle
+     * @returns Struct containing wether there was a collision, collision point, depth, and collision normal
+     */
+    collisionResult computeCollision(collisionBox &box1, collisionBox &box2)
+    {
+        // For more on Seperating Axis Theorem:
+        // https://research.ncl.ac.uk/game/mastersdegree/gametechnologies/previousinformation/physics4collisiondetection/2017%20Tutorial%204%20-%20Collision%20Detection.pdf
+        // Create axes to check projections on
+        v3d axes[] = {box1.getAxis(0),
+                      box1.getAxis(1),
+                      box1.getAxis(2),
+                      box2.getAxis(0),
+                      box2.getAxis(1),
+                      box2.getAxis(2),
+                      box1.getAxis(0).cross(box2.getAxis(0)).normalized(),
+                      box1.getAxis(0).cross(box2.getAxis(1)).normalized(),
+                      box1.getAxis(0).cross(box2.getAxis(2)).normalized(),
+                      box1.getAxis(1).cross(box2.getAxis(0)).normalized(),
+                      box1.getAxis(1).cross(box2.getAxis(1)).normalized(),
+                      box1.getAxis(1).cross(box2.getAxis(2)).normalized(),
+                      box1.getAxis(2).cross(box2.getAxis(0)).normalized(),
+                      box1.getAxis(2).cross(box2.getAxis(1)).normalized(),
+                      box1.getAxis(2).cross(box2.getAxis(2)).normalized()};
+
+        // Variable set up
+        v3d minAxis;
+        double overlap;
+        double minOverlap = std::numeric_limits<double>::infinity();
+
+        // Loop through all axes
+        for (v3d axis : axes)
+        {
+            // If axis is zero vector, don't compute it. (Can occour because vectors from cross products could be alligned)
+            if (axis.norm() < 0.9)
+                continue;
+            // If the center of box1 is to the right of box2, flip axis so it becomes to the left
+            if (box1.getCenter().dot(axis) > box2.getCenter().dot(axis))
+                axis = -axis;
+
+            // Calculate the overlap between the projections of the two boxes onto the axis
+            // Think about this like shining a flashlight onto the shape and looking at it's shadow
+            // This finds the overlap between the shape's "shadows" along the axis to be tested
+            overlap = box1.maxProjection(axis) - box2.minProjection(axis);
+
+            // New smallest overlap found
+            if (overlap < minOverlap)
+            {
+                minOverlap = overlap;
+                minAxis = axis;
+                if (minOverlap <= 0)
+                    //  *gasp!* there is a way to look at the boxes without any overlap
+                    //  The shapes can't be colliding then, return standard no-collision result
+                    return collisionResult();
+            }
+        }
+
+        // Since the function hasn't returned yet, there is no axis without overlap
+        // COLLISION HAS OCCOURED!
+        // Now finding collision point
+        v3d point;
+        mXd boxAxes(3, 6);
+        boxAxes.block(0, 0, 3, 3) = box1.rotationMatrix();
+        boxAxes.block(0, 3, 3, 3) = box2.rotationMatrix();
+        int index;
+        // Ok, we have the axis that has the smallest overlap, but need to find if it belongs to first or second box
+        // Need to know which box it belongs to because it determines which box's vertex to use as the collision point
+        // Note that the minAxis might not be one of the three axes alligned with a box edge since the cross product of the axes could be the minAxes
+        // The dot product is taken with each of the box axes, the one with the largest matches the box the most. This informs us on what box's vertex to use for the collision point
+        (boxAxes.transpose() * minAxis).cwiseAbs().maxCoeff(&index);
+        if (index < 3)
+            // A face of the first box is getting intersected, thus a vertex from the second box must be intersecting it
+            point = box2.minVertex(minAxis);
+        else
+            // A face of the second box is getting intersected, thus a vertex from the first box must be intersecting it
+            point = box1.maxVertex(minAxis);
+
+        // It's an edge on edge collision if true
+        if (!box1.isInBox(point) || !box2.isInBox(point))
+        {
+            // The collision point needs a bit of persuasion to get to a reasonable location :P
+            // Shuffle the point back and force between the two boxes to iteratively move the vertex closer to the edge collision point
+            point = box1.moveInBox(point);
+            point = box2.moveInBox(point);
+            point = box1.moveInBox(point);
+            point = box2.moveInBox(point);
+            point = box1.moveInBox(point);
+        }
+        // Store results and return
+        collisionResult result;
+        result.collided = true;
+        result.depth = minOverlap;
+        result.unitDirection = -minAxis;
+        result.collisionPoint = point;
+        return result;
+    }
+
+    /**
+     * @brief Goes through collision folder and reads URDF files to populate robotBoxes and obstacleBoxes vector with elements
+     * @returns Whether the files could be read succesfully
+     */
+    bool loadCollisionFiles()
+    {
+        // Get folder path
+        string collisionFolder;
+        this->declare_parameter("collision_folder", "");
+        this->get_parameter("collision_folder", collisionFolder);
+
+        // Check to make sure robot folder exists
+        fs::path robotFolder = fs::path(collisionFolder) / "robots";
+        if (!(fs::exists(robotFolder) && fs::is_directory(robotFolder)))
+        {
+            RCLCPP_FATAL(this->get_logger(), "Robot folder could not be fould: %s", robotFolder.c_str());
+            return false;
+        }
+        // Loop through each URDF in robot folder
+        for (const auto &entry : fs::directory_iterator(robotFolder))
+        {
+            // Check if the file has a ".urdf" extension
+            if (entry.path().extension() != ".urdf")
+            {
+                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file: %s", entry.path().c_str());
+                continue;
+            }
+            urdf::ModelInterfaceSharedPtr robotModel = urdf::parseURDFFile(entry.path());
+            if (!robotModel)
+            {
+                RCLCPP_FATAL(this->get_logger(), "Failed to parse URDF file %s", entry.path().c_str());
+                return false;
+            }
+            // If URDF robot's name matches the robot that is being simulated, unpack file
+            if (robotModel->getName() == robot.getName())
+            {
+                robotBoxes = unpackURDF(robotModel, v3d(0, 0, 0), quat(1, 0, 0, 0));
+                break;
+            }
+        }
+        if (robotBoxes.empty())
+        {
+            RCLCPP_FATAL(this->get_logger(), "Could not find any robot collision boxes");
+            return false;
+        }
+        // Check to make sure obstacle foldeer exists
+        fs::path obstacleFolder = fs::path(collisionFolder) / "obstacles";
+        if (!(fs::exists(obstacleFolder)) && fs::is_directory(obstacleFolder))
+        {
+            RCLCPP_FATAL(this->get_logger(), "Obstacle folder could not be fould: %s", robotFolder.c_str());
+            return false;
+        }
+        // Load YAML file storing obstacle positions
+        string obstacleConfigPath;
+        this->declare_parameter("obstacle_config", "");
+        this->get_parameter("obstacle_config", obstacleConfigPath);
+        YAML::Node obstacleConfig = YAML::LoadFile(obstacleConfigPath);
+        YAML::Node obstacleList = obstacleConfig["/**/dummydetections"]["ros__parameters"]["detection_data"];
+        // Add available obstacles to list of names
+        std::set<string> obstacleNames;
+        for (const auto &obstacle : obstacleList)
+            obstacleNames.insert(obstacle.first.as<string>());
+        // Loop through each URDF in obstacle folder
+        for (const auto &entry : fs::directory_iterator(obstacleFolder))
+        {
+            // Check if the file has a ".urdf" extension
+            if (entry.path().extension() != ".urdf")
+            {
+                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file: %s", entry.path().c_str());
+                continue;
+            }
+            urdf::ModelInterfaceSharedPtr obstacleModel = urdf::parseURDFFile(entry.path());
+            if (!obstacleModel)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to parse URDF file %s", entry.path().c_str());
+                return false;
+            }
+            // Check if object is one of the known task objects
+            if (obstacleNames.count(obstacleModel->getName()) > 0) // name matches obstacle name list
+            {
+                // Get position and orientation of object
+                std::vector<double> objPose = obstacleList[obstacleModel->getName()]["pose"].as<std::vector<double>>();
+                tf2::Quaternion tf2Quat;
+                tf2Quat.setRPY(objPose[3], objPose[4], objPose[5]);
+                tf2Quat.normalize();
+                // Unpack URDF, set position and orientation to the object
+                std::vector<collisionBox> newBoxes = unpackURDF(obstacleModel,
+                                                                v3d(objPose[0],
+                                                                    objPose[1],
+                                                                    objPose[2]),
+                                                                quat(tf2Quat.w(),
+                                                                     tf2Quat.x(),
+                                                                     tf2Quat.y(),
+                                                                     tf2Quat.z()));
+                // Add all new boxes to obstacle list
+                for (collisionBox newBox : newBoxes)
+                    obstacleBoxes.push_back(newBox);
+                RCLCPP_INFO(this->get_logger(), "Succesfully added %s collision data into simulator", obstacleModel->getName().c_str());
+            }
+            else
+            {
+                // Obstacle does not match any known obstacle
+                RCLCPP_ERROR(this->get_logger(), "Obstacle %s does not match list of known obstacles", obstacleModel->getName().c_str());
+                return false;
+            }
+        }
+        if (obstacleBoxes.empty())
+        {
+            RCLCPP_FATAL(this->get_logger(), "No obstacle could not be found or properly parsed");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @brief Unpacks collision information from URDF model and stores it's content into a collisionBox object. Note this only works for boxes
+     * @param model URDF model
+     * @param basePosition Location of orgin of obstacle in world frame
+     * @param baseOrientation Orientation of obstacle represented by quaternion.
+     * @returns vector containing collision boxes for each object of URDF
+     */
+    std::vector<collisionBox> unpackURDF(urdf::ModelInterfaceSharedPtr model, v3d basePosition, quat baseOrientation)
+    {
+        std::vector<collisionBox> newBoxes;
+        // Loop through each link in the URDF
+        for (const auto &link_pair : model->links_)
+        {
+            const urdf::LinkSharedPtr &link = link_pair.second;
+            // Loop through each collision element in each link
+            for (const auto &collision : link->collision_array)
+            {
+                const urdf::CollisionSharedPtr &collision_ptr = collision;
+                // Check if it's a box (current collision implementation only works with boxes)
+                if (collision_ptr->geometry->type == urdf::Geometry::BOX)
+                {
+                    const urdf::BoxSharedPtr &box = std::static_pointer_cast<urdf::Box>(collision_ptr->geometry);
+                    // Get information from box element
+                    double length = box->dim.x;
+                    double width = box->dim.y;
+                    double height = box->dim.z;
+                    // Get box posititon relative to obstacle's base
+                    v3d baseOffset(collision_ptr->origin.position.x,
+                                   collision_ptr->origin.position.y,
+                                   collision_ptr->origin.position.z);
+                    // Get box orientation relative to obstacle's base
+                    quat baseOrientationOffset(collision_ptr->origin.rotation.w,
+                                               collision_ptr->origin.rotation.x,
+                                               collision_ptr->origin.rotation.y,
+                                               collision_ptr->origin.rotation.z);
+
+                    // Add box to list
+                    collisionBox newBox = collisionBox(link->name,
+                                                       length,
+                                                       width,
+                                                       height,
+                                                       basePosition,
+                                                       baseOffset,
+                                                       baseOrientation,
+                                                       baseOrientationOffset);
+                    newBoxes.push_back(newBox);
+                }
+                else
+                {
+                    RCLCPP_ERROR(this->get_logger(), "Link %s uses a non-box geometry, only boxes are supportede. Skipping element", link->name.c_str());
+                }
+            }
+        }
+        return newBoxes;
+    }
+
+    //================================//
     //       FAKING SENSOR DATA       //
     //================================//
+
+    // Fabricates fake depth sensor data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDepthData()
     {
         // Get depth and add noise to data
@@ -262,6 +628,8 @@ private:
         depthMsg.header.frame_id = "odom";
         depthPub->publish(depthMsg);
     }
+
+    // Fabricates fake DVL data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDVLData()
     {
         if (robot.hasDVLTransform())
@@ -278,7 +646,7 @@ private:
 
             // V_dvl = V_robot + w x r
             v3d dvlData = linearVel + angularVel.cross(q * robot.getDVLOffset());
-            // Transform velocity from world frame -> robot frame -s> DVL frame
+            // Transform velocity from world frame -> robot frame -> DVL frame
             dvlData = robot.getDVLQuat() * (q.conjugate() * dvlData);
 
             // Add nonise to sensor data if enabled, otherwise don't
@@ -294,26 +662,24 @@ private:
             dvlMsg.twist.covariance[21] = dvlVariance;
             dvlMsg.twist.covariance[28] = dvlVariance;
             dvlMsg.twist.covariance[35] = dvlVariance;
-            // dvlMsg.twist.covariance[14] = robot.getDVLSigma();
+            // Send message
             dvlMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
-            dvlMsg.header.frame_id = "talos/dvl_link";
+            dvlMsg.header.frame_id = robot.getName() + "/dvl_link";
             dvlPub->publish(dvlMsg);
         }
         // DVL transform not obtained yet, get try to get it
         else
         {
             if (robot.obtainDVLTransform())
-            {
                 // Transform successfully obtained, rerun function to publish data
                 publishFakeDVLData();
-            }
             else
-            {
                 // Failed to get transform, report error in terminal
                 RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake DVL data, transform not obtained yet");
-            }
         }
     }
+
+    // Fabricates fake IMU data from robot's state and publishes it to topic. Called on a timer
     void publishFakeIMUData()
     {
         if (robot.hasIMUTransform())
@@ -379,54 +745,54 @@ private:
             imuMsg.linear_acceleration_covariance[8] = accelVariance;
             // Publish message
             imuMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
-            imuMsg.header.frame_id = "talos/imu_link";
+            imuMsg.header.frame_id = robot.getName() + "/imu_link";
             imuPub->publish(imuMsg);
         }
         // IMU transform has not been obtained yet, try to get it
         else
         {
             if (robot.obtainIMUTransform())
-            {
                 // Transform successfully obtained, rerun function to publish data
                 publishFakeIMUData();
-            }
             else
-            {
                 // Failed to get transform, report error in terminal
                 RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake IMU data, transform not obtained yet");
-            }
         }
     }
 
     //================================//
-    //         CALLBACK STUFF         //
+    //       CALLBACK FUNCTIONS       //
     //================================//
 
     // Once new thruster forces are available, update robot's forces/torques
     void forceCallback(const std_msgs::msg::Float32MultiArray &thrusterForces)
     {
-        // Discard any forces if robot is disabled
+        // Create a zero vector with the current time
+        thrusterForcesStamped commandedThrust(vXd::Zero(robot.getThrusterCount()), rclcpp::Clock(RCL_SYSTEM_TIME).now().seconds());
+        // Only set forces if robot's enabled
         if (enabled)
-            robot.setForcesTorques(convert2eigen(thrusterForces.data));
-        else
-            robot.setForcesTorques(vXd::Zero(robot.getThrusterCount()));
+            commandedThrust.thrusterForces = convert2eigen(thrusterForces.data);
+        robot.addToThrusterQue(commandedThrust);
     }
 
     // Mirros software kill to firmware kill. This is done to make the enable/disable button in RViz work
     void killSwitchCallback(const riptide_msgs2::msg::KillSwitchReport &softwareKillMsg)
     {
+        // Make sure the correct kill switch is being called
         if (softwareKillMsg.kill_switch_id == 1)
         {
             std_msgs::msg::Bool message;
             message.data = softwareKillMsg.switch_asserting_kill;
             enabled = !message.data;
-            if (!enabled)
-                robot.setForcesTorques(vXd::Zero(robot.getThrusterCount()));
             firmwareKillPub->publish(message);
+            // Turn off thrusters if disabled
+            if (!enabled)
+                robot.addToThrusterQue(thrusterForcesStamped(vXd::Zero(robot.getThrusterCount()),
+                                                             rclcpp::Clock(RCL_SYSTEM_TIME).now().seconds()));
         }
     }
 
-    // Function called by "set_sim_pose" service. Updates simulator and EKF to requested position
+    // Function called by "/set_sim_pose" service. Updates simulator and EKF to requested position
     void setSim(const std::shared_ptr<robot_localization::srv::SetPose::Request> poseRequest)
     {
         // Create request to EKF, wait for availablility
@@ -467,7 +833,7 @@ private:
         auto message = geometry_msgs::msg::Pose();
         vXd state = robot.getState();
         quat q = state2quat(state);
-        v3d baseLinkOffset = q * robot.getBaseLinkOffset();
+        v3d baseLinkOffset = q * robot.getBaseLinkOffset(); // Converting baseLink to world frame
 
         // Setting position
         // Sim uses COM for robot position, need to add offset for position relative to base link
@@ -521,15 +887,18 @@ private:
     //================================//
     //          VARIABLES             //
     //================================//
+    string name;
     Robot robot;
     bool enabled;
+    std::vector<collisionBox> robotBoxes;
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
+    std::vector<collisionBox> obstacleBoxes;
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
-    
+
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
@@ -540,7 +909,6 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
-    
 };
 
 //=========================//
@@ -563,7 +931,7 @@ int main(int argc, char *argv[])
     else
     {
         // Parameters failed to load, report error
-        RCLCPP_FATAL(node->get_logger(), "SIM FAILED TO START: Could not load robot parameters");
+        RCLCPP_FATAL(node->get_logger(), "SIM FAILED TO START: Could not initialize");
     }
     return 0;
 }

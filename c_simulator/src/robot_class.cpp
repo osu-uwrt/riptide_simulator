@@ -4,8 +4,29 @@
 //     OBJECT INITIALIZATION      //
 //================================//
 
+thrusterForcesStamped::thrusterForcesStamped(vXd thrusterForces_, double time_)
+{
+    thrusterForces = thrusterForces_;
+    time = time_;
+}
+
 Robot::Robot()
 {
+    name = "talos";
+    state.resize(13);
+
+    // INITIAL CONDITION
+    state << 0, 0, -1, // Position, X Y Z
+        1, 0, 0, 0,    // Orientation, W X Y Z
+        0, 0, 0,       // Linear momentum, X Y Z
+        0, 0, 0;       // Angular momentum, X Y Z
+    imuTransform = false;
+    dvlTransform = false;
+}
+
+Robot::Robot(std::string name_)
+{
+    name = name_;
     state.resize(13);
 
     // INITIAL CONDITION
@@ -90,10 +111,8 @@ void Robot::storeConfigData(YAML::Node config)
     r_dvl = std2v3d(config["dvl"]["pose"].as<std::vector<double>>()) - r_com;
     dvl_rate = 1.0 / config["dvl"]["rate"].as<double>();
     dvl_sigma = config["dvl"]["sigma"].as<double>();
-
     // Drag information
-    std::vector<double> dragCoefStd = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
-    dragCoef = Eigen::Map<vXd>(dragCoefStd.data(), dragCoefStd.size());
+    dragCoef = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
 
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
     YAML::Node thrusters = config["thrusters"];
@@ -107,14 +126,11 @@ void Robot::storeConfigData(YAML::Node config)
         // Get thruster position and orientation
         std::vector<double> pose = thruster["pose"].as<std::vector<double>>();
         v3d thrusterPos = std2v3d(pose);
-        // I am not really sure why I needed to put the negative in front of pose, or the transpose
-        // but it matches the matrix the thruster solver gives so I'm not going to question it
-        m3d rotMat = Eigen::AngleAxisd(-pose[3], v3d::UnitX()).toRotationMatrix() *
-                     Eigen::AngleAxisd(-pose[4], v3d::UnitY()).toRotationMatrix() *
-                     Eigen::AngleAxisd(-pose[5], v3d::UnitZ()).toRotationMatrix();
-
+        tf2::Quaternion tfQuat;
+        tfQuat.setRPY(pose[3], pose[4], pose[5]);
+        tfQuat.normalize();
         // Body force caused by unit thrust vector:
-        v3d bodyForce = rotMat.transpose() * v3d(1, 0, 0);
+        v3d bodyForce = quat(tfQuat.w(), tfQuat.x(), tfQuat.y(), tfQuat.z()) * v3d(1, 0, 0);
         // Body torque caused by unit thrust vector (T = r x F):
         v3d bodyTorque = (thrusterPos - r_com).cross(bodyForce);
         // Storing results into matrix
@@ -122,6 +138,7 @@ void Robot::storeConfigData(YAML::Node config)
         thrusterMatrix.block(row, 3, 1, 3) = bodyTorque.transpose();
         row++;
     }
+    cout << thrusterMatrix << endl;
     // Initialize thruster forces and torques to zero
     forces.Zero();
     torques.Zero();
@@ -211,6 +228,19 @@ void Robot::setState(vXd state_)
     state_.segment(4, 3) = q.vec();
     // Update state now that the quaternion has been normalized
     state = state_;
+
+    // Check thruster que
+    // The thruster commands are backlogged to fake delay IRL between being commanded and the thruster actually applying a force
+    if (!thrusterForceQue.empty())
+    {
+        // If true, it has been THRUSTER_DELAY since thrust was commanded, so it should be applied
+        if (rclcpp::Clock(RCL_SYSTEM_TIME).now().seconds() - thrusterForceQue[0].time > THRUSTER_DELAY)
+        {
+            // Set forces and torques and remove element from thruster que
+            setForcesTorques(thrusterForceQue[0].thrusterForces);
+            thrusterForceQue.erase(thrusterForceQue.begin());
+        }
+    }
 }
 
 // Stores the latest acceleration vector in the world frame, used for IMU sensor data calcs
@@ -229,6 +259,12 @@ void Robot::setAccel(const vXd &stateDot)
     // alpha = I^-1 * T
     m3d invWorldInertia = q * invBodyInertia * q.conjugate();
     angAccel = invWorldInertia * (v3d)stateDot.segment(10, 3);
+}
+
+// Converts thruster forces into robot body forces and torques stored in class
+void Robot::addToThrusterQue(thrusterForcesStamped commandedThrust)
+{
+    thrusterForceQue.push_back(commandedThrust);
 }
 
 // Converts thruster forces into robot body forces and torques stored in class
@@ -319,6 +355,10 @@ v3d Robot::getThrusterTorques()
 v3d Robot::getBaseLinkOffset()
 {
     return r_baseLink;
+}
+std::string Robot::getName()
+{
+    return name;
 }
 v3d Robot::getNetBouyantForce(const double &depth)
 {

@@ -19,9 +19,10 @@ find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(urdf REQUIRED)
 find_package(robot_localization REQUIRED)
 
-add_executable(physics_simulator src/physics_simulator.cpp src/robot_class.cpp)
+add_executable(physics_simulator src/physics_simulator.cpp src/robot_class.cpp src/collisionBox_class.cpp)
 
 target_include_directories(physics_simulator PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -31,6 +32,7 @@ target_include_directories(physics_simulator PUBLIC
 ament_target_dependencies(physics_simulator 
   Eigen3 
   rclcpp 
+  urdf
   tf2
   tf2_ros
   std_msgs
@@ -48,7 +50,7 @@ install(TARGETS physics_simulator
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch collision_files
   DESTINATION share/${PROJECT_NAME}
 )
 

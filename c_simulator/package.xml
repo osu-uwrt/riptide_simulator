@@ -17,6 +17,7 @@
   <depend>robot_localization</depend>
   <depend>yaml-cpp</depend>
   <depend>tf2_ros</depend>
+  <depend>urdf</depend>
   
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
   <build_depend>eigen</build_depend>

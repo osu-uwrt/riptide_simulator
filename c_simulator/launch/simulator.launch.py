@@ -22,6 +22,18 @@ def generate_launch_description():
         LaunchConfiguration("robot_yaml")
     ])
 
+    # declare the path to the robot's vehicle description file
+    obsstacleConfig = PathJoinSubstitution([
+        get_package_share_directory('riptide_mapping2'),
+        'config','dummy_detections.yaml'
+    ])
+
+    # declare the path to collision data folder
+    collision = PathJoinSubstitution([
+        get_package_share_directory('c_simulator'),
+        'collision_files'
+    ])
+
     return launch.LaunchDescription([
         DeclareLaunchArgument(
             "robot",
@@ -43,6 +55,8 @@ def generate_launch_description():
                 name="physics_simulator",
                 output="screen",
                 parameters=[
+                    {"obstacle_config": obsstacleConfig},
+                    {"collision_folder": collision},
                     {"vehicle_config": config},
                     {"robot": robot},
                 ]

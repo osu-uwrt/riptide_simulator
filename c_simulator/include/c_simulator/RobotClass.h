@@ -23,13 +23,22 @@ typedef Eigen::Quaterniond quat;
 //       CONSTANTS        //
 //========================//
 
+#define THRUSTER_DELAY 0.1 // s         time from when thruster is commanded to when force is applied
 #define GRAVITY 9.80665    // m/s^2
 #define VEHICLE_HEIGHT 0.3 // m         Used for bouyancy calcs when partially submerged
+
+struct thrusterForcesStamped
+{
+    vXd thrusterForces;
+    double time;
+    thrusterForcesStamped(vXd thrusterForces_, double time_);
+};
 
 class Robot
 {
 public:
     Robot();
+    Robot(std::string name_);
 
     //========================//
     //        GETTERS         //
@@ -47,6 +56,7 @@ public:
     v3d getDepthOffset();
     double getDVLSigma();
     double getDepthRate();
+    std::string getName();
     bool hasDVLTransform();
     double getDepthSigma();
     bool hasIMUTransform();
@@ -66,8 +76,8 @@ public:
     //========================//
     void setState(vXd state_);
     void setAccel(const vXd &stateDot);
-    void setForcesTorques(vXd forcesTorques);
     bool loadParams(rclcpp::Node::SharedPtr node);
+    void addToThrusterQue(thrusterForcesStamped commandedThrust);
 
     //========================//
     //        MATHERS         //
@@ -108,7 +118,9 @@ private:
     quat q_imu;            // Quaternion to IMU's frame
     bool imuTransform;     // IMU tf2 transform
     bool dvlTransform;     // DVL tf2 transform
+    std::string name;      // Robot's name
 
+    std::vector<thrusterForcesStamped> thrusterForceQue;
     double mass;        // Robot mass, kg
     v3d forces;         // Thruster body forces
     v3d torques;        // Thruster body torques
@@ -117,18 +129,19 @@ private:
     v3d linAccel;       // Latest linear acceleration on robot (for faking sensor data)
     v3d angAccel;       // Latest angular acceleration on robot (for faking sensor data)
 
-    int thrusterCount;  // Number of thrusters
-    double maxThrust;   // Limit on thruster force, N
-    vXd dragCoef;       // Drag coeffecients for each axis
-    m3d invBodyInertia; // Inverse inertia tensor in body frame
-    v3d angDragCoef;    // Angular drag coeffecients for each axis
-    v3d area;           // Frontal area from each direction (used for drag)
-    mXd thrusterMatrix; // 6xN matrix translating N thruster forces into body forces and torques
+    int thrusterCount;            // Number of thrusters
+    double maxThrust;             // Limit on thruster force, N
+    std::vector<double> dragCoef; // Drag coeffecients for each axis
+    m3d invBodyInertia;           // Inverse inertia tensor in body frame
+    v3d angDragCoef;              // Angular drag coeffecients for each axis
+    v3d area;                     // Frontal area from each direction (used for drag)
+    mXd thrusterMatrix;           // 6xN matrix translating N thruster forces into body forces and torques
 
     //========================//
     //       FUNCTIONS        //
     //========================//
     void storeConfigData(YAML::Node config);
     v3d std2v3d(std::vector<double> stdVect);
+    void setForcesTorques(vXd thrusterForces);
     double getScaleFactor(const double &depth);
 };

@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+
+<robot name="puddles">
+  <!-- AYO big dawg, this file doesn't exist because IDK what offsets to use for puddles cuz idk where orgin is. This is just a placeholder -->
+  <!-- It's really meant to show you can have multiples robot files and the sim picks the right one -->
+  <!-- If you were to actually create it, I'd have one box for chassis, and one box for hull -->
+
+  <link name="puddles">
+    <!-- Chassis Box -->
+    <visual>
+      <geometry>
+        <box size="0.42 0.93 0.65"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.42 0.93 0.65"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+
+    <!-- Hull Box -->
+    <visual>
+      <geometry>
+        <box size="0.2 0.05 0.05"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="1 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 0.05 0.05"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="1 0 0"/> 
+    </collision>
+  </link>
+</robot>
