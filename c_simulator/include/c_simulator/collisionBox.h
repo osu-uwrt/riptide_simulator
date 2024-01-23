@@ -2,11 +2,9 @@
 #include <iostream>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
-#include <bits/stdc++.h>
-#include <chrono>
+#include "c_simulator/settings.h"
 
-using std::cout, std::endl;
-
+using std::string, std::cout, std::endl;
 typedef Eigen::Vector3d v3d;
 typedef Eigen::Vector4d v4d;
 typedef Eigen::VectorXd vXd;
@@ -26,33 +24,36 @@ public:
                  quat baseOrientation,
                  quat baseOrientationOffset_);
 
-    void updateLocation(const vXd &state);
     v3d getCenter();
+    double getWidth();
+    double getHeight();
+    double getLength();
+    m3d rotationMatrix();
+    quat getOrientation();
     std::string getName();
     v3d getAxis(int index);
-    m3d rotationMatrix();
-    mXd getVertices();
     void setCenter(v3d center_);
-    void setOrientation(quat orientation_);
-    double maxProjection(const v3d &axis);
-    double minProjection(const v3d &axis);
     v3d maxVertex(const v3d &axis);
     v3d minVertex(const v3d &axis);
     bool isInBox(const v3d &point);
     v3d moveInBox(const v3d &point);
+    void updateLocation(const vXd &state);
+    double maxProjection(const v3d &axis);
+    double minProjection(const v3d &axis);
+    void setOrientation(quat orientation_);
 
 private:
-    std::string name;
-    double length;
+    m3d rotM;
+    v3d center;
+    mXd vertices;
     double width;
     double height;
-    v3d center;
+    double length;
     v3d baseOffset;
+    std::string name;
     quat orientation;
-    quat baseOrientationOffset;
-    mXd vertices;
-
     void setVertices();
+    quat baseOrientationOffset;
 };
 
 struct collisionResult
@@ -61,6 +62,5 @@ struct collisionResult
     bool collided;
     v3d unitDirection;
     v3d collisionPoint;
-
     collisionResult();
 };

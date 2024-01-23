@@ -23,17 +23,15 @@
 6) Assumes center of drag is at center of bouyancy
 7) Everything is in SI units (kg, m, s, N)
 8) This will cook your CPU
-*/
 
 //===============================//
-//           INCLUDES            //
+//           INCLUDES            */
 //===============================//
 #include <set>
 #include <chrono>
 #include <memory>
 #include <string>
 #include <random>
-#include "c_simulator/settings.h"
 #include <functional>
 #include <filesystem>
 #include <rclcpp/rclcpp.hpp>
@@ -41,6 +39,7 @@
 #include <eigen3/Eigen/Dense>
 #include <urdf_model/model.h>
 #include <std_msgs/msg/bool.hpp>
+#include "c_simulator/settings.h"
 #include <sensor_msgs/msg/imu.hpp>
 #include <std_msgs/msg/string.hpp>
 #include "c_simulator/RobotClass.h"
@@ -48,14 +47,23 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include "c_simulator/collisionBox.h"
 #include <geometry_msgs/msg/pose.hpp>
+#include <tf2_ros/transform_broadcaster.h>
 #include <robot_localization/srv/set_pose.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <riptide_msgs2/msg/kill_switch_report.hpp>
 #include <riptide_msgs2/msg/dshot_partial_telemetry.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
-typedef std::string string;
+using std::string, std::cout, std::endl;
+typedef Eigen::Vector3d v3d;
+typedef Eigen::Vector4d v4d;
+typedef Eigen::VectorXd vXd;
+typedef Eigen::Matrix3d m3d;
+typedef Eigen::MatrixXd mXd;
+typedef Eigen::Quaterniond quat;
+
 using std::placeholders::_1;
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
@@ -78,9 +86,10 @@ public:
         statePub = this->create_publisher<geometry_msgs::msg::Pose>("simulator/state", 10);
         dvlPub = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("dvl_twist", 10);
         depthPub = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("depth/pose", 10);
+        collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
+        thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
-        thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
@@ -90,6 +99,9 @@ public:
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
         poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
+
+        // TF broadcaster
+        tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     }
 
     /**
@@ -132,12 +144,25 @@ public:
 
     /**
      * @brief Solves system of ODEs representing robot physics using fourth order Runge-Kutta numerical method.
-     * This function is runs in an infinite loop to run simulator, which also spins the node
+     * This function is runs in an infinite loop to run the simulator, which also spins the ROS node
+     *
+     * Physics equations have been set up as a system of first order equations so that:
+     * dx/dt = f(x)
+     *
+     * Where x is the robot's state as a column vector:
+     * x = [x y z q_w q_x q_y q_z P_x P_y P_z L_x L_y L_z]^T     <- parameter
+     *      0 1 2 3   4   5   6   7   8   9   10  11  12         <- index
+     * with P meaning linear momentum, and L meaning angular momentum, and q meaning quaternion
+     * Everything in the state vector is in world frame
      */
     void rungeKutta4()
     {
+        // Clock time setup
         rclcpp::Time currentTime;
         rclcpp::Time prevTime = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+        startTime = this->get_clock()->now();
+
+        // Start simulation infinite loop
         while (rclcpp::ok())
         {
             // Time since last loop, sets step size of simulation
@@ -148,6 +173,7 @@ public:
             // Get state, and modify it to account for any collisions
             vXd state = robot.getState();
             state = handleCollisions(state);
+
             // For more info on Runge Kutta:
             // https://www.youtube.com/watch?v=HOWJp8NV5xU
             // https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
@@ -158,9 +184,9 @@ public:
             vXd K4 = calcStateDot(state + stepSize * K3);
 
             // Update the robots state based on weighted average of sampled points
-            vXd stateDot = stepSize / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
-            robot.setState(state + stateDot);
-            robot.setAccel(stateDot);
+            vXd stateDelta = stepSize / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
+            robot.setState(state + stateDelta);
+            robot.setAccel(stateDelta / stepSize);
 
             // Proccess any pending callbacks or timers
             rclcpp::spin_some(shared_from_this());
@@ -215,6 +241,7 @@ private:
      */
     v3d calcForces(const quat &q, const v3d &linVel, const double &depth)
     {
+        // Some forces are easier to calculate in the body frame, like thruster forces and drag forces, doing those first
         // Linear velocity is converted to body frame before passing it to drag force function
         v3d body_forces = robot.getThrusterForces() + robot.calcDragForces(q.conjugate() * linVel, depth);
         v3d world_forces = q * body_forces + robot.getNetBouyantForce(depth);
@@ -269,7 +296,7 @@ private:
         v3d linearVel = state.segment(7, 3) / robot.getMass();
 
         // Loop through all combination of boxes
-        for (collisionBox robotBox : robotBoxes)
+        for (collisionBox &robotBox : robotBoxes)
         {
             // Need to update robot collision boxes to robot's current position
             robotBox.updateLocation(state);
@@ -364,6 +391,7 @@ private:
         // COLLISION HAS OCCOURED!
         // Now finding collision point
         v3d point;
+        // Create a 3x6 matrix containing all the box axis
         mXd boxAxes(3, 6);
         boxAxes.block(0, 0, 3, 3) = box1.rotationMatrix();
         boxAxes.block(0, 3, 3, 3) = box2.rotationMatrix();
@@ -468,7 +496,7 @@ private:
             // Check if the file has a ".urdf" extension
             if (entry.path().extension() != ".urdf")
             {
-                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file: %s", entry.path().c_str());
+                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file, skipping: %s", entry.path().c_str());
                 continue;
             }
             urdf::ModelInterfaceSharedPtr obstacleModel = urdf::parseURDFFile(entry.path());
@@ -497,7 +525,7 @@ private:
                 // Add all new boxes to obstacle list
                 for (collisionBox newBox : newBoxes)
                     obstacleBoxes.push_back(newBox);
-                RCLCPP_INFO(this->get_logger(), "Succesfully added %s collision data into simulator", obstacleModel->getName().c_str());
+                RCLCPP_DEBUG(this->get_logger(), "Succesfully added %s collision data into simulator", obstacleModel->getName().c_str());
             }
             else
             {
@@ -570,6 +598,58 @@ private:
         return newBoxes;
     }
 
+    /**
+     * @brief Publishes a marker array containing each collision box for robot and obstacle.
+     * This allows RViz to visualize the collision elements for information and debugging
+     */
+    void publishCollisionMarkers()
+    {
+        // Combine obstacleBoxes and robotBoxes into a single list to loop through
+        std::vector<collisionBox> combinedBoxList = obstacleBoxes;
+        combinedBoxList.insert(combinedBoxList.begin(), robotBoxes.begin(), robotBoxes.end());
+        // Loop through each collision box and add to marker array
+        visualization_msgs::msg::MarkerArray markerArray;
+        int markerID = 0;
+        rclcpp::Time stampTime = this->now();
+        for (collisionBox boxInfo : combinedBoxList)
+        {
+            // Fill in generic marker info
+            visualization_msgs::msg::Marker collisionMarker;
+            collisionMarker.ns = "Collision Boxes";
+            collisionMarker.id = markerID;
+            collisionMarker.type = visualization_msgs::msg::Marker::CUBE;
+            collisionMarker.action = visualization_msgs::msg::Marker::ADD;
+            collisionMarker.header.stamp = stampTime;
+            collisionMarker.header.frame_id = "map";
+            // Set box size
+            collisionMarker.scale.x = boxInfo.getLength();
+            collisionMarker.scale.y = boxInfo.getWidth();
+            collisionMarker.scale.z = boxInfo.getHeight();
+            // Set box position
+            v3d boxPosition = boxInfo.getCenter();
+            collisionMarker.pose.position.x = boxPosition.x();
+            collisionMarker.pose.position.y = boxPosition.y();
+            collisionMarker.pose.position.z = boxPosition.z();
+            //  Set box orientation
+            quat boxOrientation = boxInfo.getOrientation();
+            collisionMarker.pose.orientation.w = boxOrientation.w();
+            collisionMarker.pose.orientation.x = boxOrientation.x();
+            collisionMarker.pose.orientation.y = boxOrientation.y();
+            collisionMarker.pose.orientation.z = boxOrientation.z();
+            // Set color to red
+            collisionMarker.color.r = 1;
+            collisionMarker.color.g = 0;
+            collisionMarker.color.b = 0;
+            collisionMarker.color.a = 0.5;
+
+            // Add marker to array
+            markerArray.markers.push_back(collisionMarker);
+            markerID++;
+        }
+        // Publish marker array to update boxes
+        collisionBoxPub->publish(markerArray);
+    }
+
     //================================//
     //       FAKING SENSOR DATA       //
     //================================//
@@ -578,16 +658,15 @@ private:
     void publishFakeDepthData()
     {
         // Get depth and add noise to data
-        vXd state = robot.getState();
-        double depthData = state[2];
+        double depthData = robot.getState().z();
         if (SENSOR_NOISE_ENABLED)
             depthData = randomNorm(depthData, robot.getDepthSigma());
 
         // Send message with depth sensor info
         geometry_msgs::msg::PoseWithCovarianceStamped depthMsg;
         depthMsg.pose.pose.position.z = depthData;
-        depthMsg.pose.covariance[14] = robot.getDepthSigma();
-        depthMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+        depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
+        depthMsg.header.stamp = this->get_clock()->now();
         depthMsg.header.frame_id = "odom";
         depthPub->publish(depthMsg);
     }
@@ -595,7 +674,7 @@ private:
     // Fabricates fake DVL data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDVLData()
     {
-        if (robot.hasDVLTransform())
+        if (robot.dvlTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -610,42 +689,32 @@ private:
             // V_dvl = V_robot + w x r
             v3d dvlData = linearVel + angularVel.cross(q * robot.getDVLOffset());
             // Transform velocity from world frame -> robot frame -> DVL frame
-            dvlData = robot.getDVLQuat() * (q.conjugate() * dvlData);
+            dvlData = robot.getDVLQuat().conjugate() * (q.conjugate() * dvlData);
 
             // Add nonise to sensor data if enabled, otherwise don't
             if (SENSOR_NOISE_ENABLED)
                 dvlData = randomNorm(dvlData, robot.getDVLSigma());
             // Send message with DVL sensor info
             geometry_msgs::msg::TwistWithCovarianceStamped dvlMsg;
-            dvlMsg.twist.twist.linear.x = dvlData[0];
-            dvlMsg.twist.twist.linear.y = dvlData[1];
-            dvlMsg.twist.twist.linear.z = dvlData[2];
+            dvlMsg.twist.twist.linear.x = dvlData.x();
+            dvlMsg.twist.twist.linear.y = dvlData.y();
+            dvlMsg.twist.twist.linear.z = dvlData.z();
             // Add covariance to message
             double dvlVariance = robot.getDVLSigma() * robot.getDVLSigma();
             dvlMsg.twist.covariance[21] = dvlVariance;
             dvlMsg.twist.covariance[28] = dvlVariance;
             dvlMsg.twist.covariance[35] = dvlVariance;
             // Send message
-            dvlMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+            dvlMsg.header.stamp = this->get_clock()->now();
             dvlMsg.header.frame_id = robot.getName() + "/dvl_link";
             dvlPub->publish(dvlMsg);
-        }
-        // DVL transform not obtained yet, get try to get it
-        else
-        {
-            if (robot.obtainDVLTransform())
-                // Transform successfully obtained, rerun function to publish data
-                publishFakeDVLData();
-            else
-                // Failed to get transform, report error in terminal
-                RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake DVL data, transform not obtained yet");
         }
     }
 
     // Fabricates fake IMU data from robot's state and publishes it to topic. Called on a timer
     void publishFakeIMUData()
     {
-        if (robot.hasIMUTransform())
+        if (robot.imuTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -661,33 +730,37 @@ private:
             v3d imuAccel = robot.getLatestLinAccel() + robot.getLatestAngAccel().cross(q * robot.getIMUOffset()) + angularVel.cross(angularVel.cross(q * robot.getIMUOffset()));
 
             // Transform vectors from world -> robot -> IMU
-            angularVel = robot.getIMUQuat() * (q.conjugate() * angularVel);
-            imuAccel = robot.getIMUQuat() * (q.conjugate() * imuAccel);
+            angularVel = robot.getIMUQuat().conjugate() * (q.conjugate() * angularVel);
+            imuAccel = robot.getIMUQuat().conjugate() * (q.conjugate() * imuAccel);
             // Transform orientation from robot -> IMU
             q = q * robot.getIMUQuat();
-
             // Add nonise to sensor data if enabled, otherwise don't
             v3d imu_sigma = robot.getIMUSigma();
             if (SENSOR_NOISE_ENABLED)
             {
                 imuAccel = randomNorm(imuAccel, imu_sigma[0]);
                 angularVel = randomNorm(angularVel, imu_sigma[1]);
-                // Add noise to orientation
+                // Create a rotation some random amount about some random axis
                 v3d randomAxis;
                 randomAxis.setRandom().normalize();
-                Eigen::AngleAxisd randomAngle(imu_sigma[2], randomAxis);
-                q = randomAngle * q;
+                Eigen::AngleAxisd randomAngleNoise(imu_sigma[2], randomAxis);
+                // Drift = drift_speed * elapsed_time
+                double elapsedTime = (this->get_clock()->now() - startTime).seconds() / 60.0;
+                double driftAngle = elapsedTime * robot.getIMUDrift() * M_PI / 180;
+                Eigen::AngleAxisd yawDrift(driftAngle, v3d::UnitZ());
+                // Add rotation noise to orientation
+                q = yawDrift * randomAngleNoise * q;
             }
             // Send message with IMU sensor info
             sensor_msgs::msg::Imu imuMsg;
             // Setting linear acceleration message info
-            imuMsg.linear_acceleration.x = imuAccel[0];
-            imuMsg.linear_acceleration.y = imuAccel[1];
-            imuMsg.linear_acceleration.z = imuAccel[2];
+            imuMsg.linear_acceleration.x = imuAccel.x();
+            imuMsg.linear_acceleration.y = imuAccel.y();
+            imuMsg.linear_acceleration.z = imuAccel.z();
             // Setting angular velocity message info
-            imuMsg.angular_velocity.x = angularVel[0];
-            imuMsg.angular_velocity.y = angularVel[1];
-            imuMsg.angular_velocity.z = angularVel[2];
+            imuMsg.angular_velocity.x = angularVel.x();
+            imuMsg.angular_velocity.y = angularVel.y();
+            imuMsg.angular_velocity.z = angularVel.z();
             // Setting orientation message info
             imuMsg.orientation.w = q.w();
             imuMsg.orientation.x = q.x();
@@ -707,19 +780,9 @@ private:
             imuMsg.linear_acceleration_covariance[4] = accelVariance;
             imuMsg.linear_acceleration_covariance[8] = accelVariance;
             // Publish message
-            imuMsg.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+            imuMsg.header.stamp = this->get_clock()->now();
             imuMsg.header.frame_id = robot.getName() + "/imu_link";
             imuPub->publish(imuMsg);
-        }
-        // IMU transform has not been obtained yet, try to get it
-        else
-        {
-            if (robot.obtainIMUTransform())
-                // Transform successfully obtained, rerun function to publish data
-                publishFakeIMUData();
-            else
-                // Failed to get transform, report error in terminal
-                RCLCPP_ERROR_SKIPFIRST_THROTTLE(this->get_logger(), *this->get_clock(), 500, "Could not publish fake IMU data, transform not obtained yet");
         }
     }
 
@@ -727,12 +790,13 @@ private:
     //       CALLBACK FUNCTIONS       //
     //================================//
 
+    // Publishes fake thruster telemtry messages to make controller work
     void pubThrusterTelemetry()
     {
-        // publish a telemtry message with no disabled flags
-
+        // Create messages
         riptide_msgs2::msg::DshotPartialTelemetry msgLow;
         riptide_msgs2::msg::DshotPartialTelemetry msgHigh;
+        // Set message data to enable thrusters
         msgLow.disabled_flags = 0;
         msgHigh.disabled_flags = 0;
         msgLow.esc_telemetry[0].thruster_ready = true;
@@ -746,22 +810,23 @@ private:
         msgLow.start_thruster_num = 0;
         msgHigh.start_thruster_num = 4;
 
+        // Publish thruster telemetery messages
         this->thrusterTelemetryPub->publish(msgLow);
         this->thrusterTelemetryPub->publish(msgHigh);
     }
 
-    // Once new thruster forces are available, update robot's forces/torques
+    // Once new thruster forces are available, add them to thruster que
     void forceCallback(const std_msgs::msg::Float32MultiArray &thrusterForces)
     {
         // Create a zero vector with the current time
-        thrusterForcesStamped commandedThrust(vXd::Zero(robot.getThrusterCount()), rclcpp::Clock(RCL_SYSTEM_TIME).now().seconds());
+        thrusterForcesStamped commandedThrust(vXd::Zero(robot.getThrusterCount()), this->get_clock()->now().seconds());
         // Only set forces if robot's enabled
         if (enabled)
             commandedThrust.thrusterForces = convert2eigen(thrusterForces.data);
         robot.addToThrusterQue(commandedThrust);
     }
 
-    // Mirros software kill to firmware kill. This is done to make the enable/disable button in RViz work
+    // Mirrors software kill to firmware kill. This is done to make the enable/disable button in RViz work
     void killSwitchCallback(const riptide_msgs2::msg::KillSwitchReport &softwareKillMsg)
     {
         // Make sure the correct kill switch is being called
@@ -774,7 +839,7 @@ private:
             // Turn off thrusters if disabled
             if (!enabled)
                 robot.addToThrusterQue(thrusterForcesStamped(vXd::Zero(robot.getThrusterCount()),
-                                                             rclcpp::Clock(RCL_SYSTEM_TIME).now().seconds()));
+                                                             this->get_clock()->now().seconds()));
         }
     }
 
@@ -786,7 +851,7 @@ private:
         geometry_msgs::msg::Pose desiredPose = poseRequest->pose.pose.pose;
         request->pose.pose.pose = desiredPose;
         request->pose.pose.covariance = {0.0};
-        request->pose.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+        request->pose.header.stamp = this->get_clock()->now();
         request->pose.header.frame_id = "odom";
         while (!poseClient->wait_for_service(1s))
         {
@@ -813,26 +878,65 @@ private:
         robot.setState(state);
     }
 
-    // Called on a timer, publishes robot's true state for RViz
+    /**
+     * @brief Called on a timer, publishes the following simulator information:
+     * 1) Robot's pose for RViz
+     * 2) Collision boxes marker array for RViz
+     * 3) TF frames for simulated robot and cameras for Zed SDK image faking
+     */
     void publishState()
     {
-        auto message = geometry_msgs::msg::Pose();
-        vXd state = robot.getState();
-        quat q = state2quat(state);
-        v3d baseLinkOffset = q * robot.getBaseLinkOffset(); // Converting baseLink to world frame
+        if (robot.mapAvailable())
+        {
+            // Update collision box markers for RViz display
+            publishCollisionMarkers();
 
-        // Setting position
-        // Sim uses COM for robot position, need to add offset for position relative to base link
-        message.position.x = state[0] - baseLinkOffset.x();
-        message.position.y = state[1] - baseLinkOffset.y();
-        message.position.z = state[2] - baseLinkOffset.z();
-        // Setting orientation
-        message.orientation.w = q.w();
-        message.orientation.x = q.x();
-        message.orientation.y = q.y();
-        message.orientation.z = q.z();
-        // Publishing state
-        statePub->publish(message);
+            // Getting state information from simulator
+            vXd state = robot.getState();
+            quat q = state2quat(state);
+            v3d baseLinkOffset = q * robot.getBaseLinkOffset(); // Converting baseLink to world frame
+
+            // Getting position
+            // Sim uses COM for robot position, need to add offset for position relative to base link
+            geometry_msgs::msg::Pose poseMsg;
+            poseMsg.position.x = state.x() - baseLinkOffset.x();
+            poseMsg.position.y = state.y() - baseLinkOffset.y();
+            poseMsg.position.z = state.z() - baseLinkOffset.z();
+            // Setting orientation
+            poseMsg.orientation.w = q.w();
+            poseMsg.orientation.x = q.x();
+            poseMsg.orientation.y = q.y();
+            poseMsg.orientation.z = q.z();
+
+            // Setting up TF messages
+            geometry_msgs::msg::TransformStamped robotFrame;
+            geometry_msgs::msg::TransformStamped cameraFrameL;
+            geometry_msgs::msg::TransformStamped cameraFrameR;
+            rclcpp::Time clockTime = this->get_clock()->now();
+            robotFrame.header.stamp = clockTime;
+            cameraFrameL.header.stamp = clockTime;
+            cameraFrameR.header.stamp = clockTime;
+            // Frame names
+            robotFrame.header.frame_id = "odom";
+            robotFrame.child_frame_id = "simulator/" + robot.getName() + "/base_link";
+            cameraFrameL.header.frame_id = robotFrame.child_frame_id;
+            cameraFrameL.child_frame_id = "simulator/" + robot.getName() + "/zed2i/left_optical";
+            // Set message position
+            robotFrame.transform.translation.x = state.x();
+            robotFrame.transform.translation.y = state.y();
+            robotFrame.transform.translation.z = state.z();
+            cameraFrameL.transform = robot.getLCameraTransform();
+            // Set message orientation
+            robotFrame.transform.rotation.w = q.w();
+            robotFrame.transform.rotation.x = q.x();
+            robotFrame.transform.rotation.y = q.y();
+            robotFrame.transform.rotation.z = q.z();
+
+            // Broadcast and publish messages
+            statePub->publish(poseMsg);
+            tf_broadcaster->sendTransform(robotFrame);
+            tf_broadcaster->sendTransform(cameraFrameL);
+        }
     }
 
     //================================//
@@ -876,6 +980,7 @@ private:
     string name;
     Robot robot;
     bool enabled;
+    rclcpp::Time startTime;
     std::vector<collisionBox> robotBoxes;
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
@@ -884,13 +989,14 @@ private:
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
-
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
     rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisionBoxPub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;

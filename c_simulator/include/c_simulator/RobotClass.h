@@ -1,28 +1,29 @@
-//===================================//
-//       INCLUDES/DEFINITIONS        //
-//===================================//
+//=======================//
+//       INCLUDES        //
+//=======================//
 
 #pragma once
-#include "c_simulator/settings.h"
+#include <cmath>
+#include <yaml-cpp/yaml.h>
+#include <tf2_ros/buffer.h>
+#include <rclcpp/rclcpp.hpp>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
-#include <tf2_ros/buffer.h>
-#include "tf2_ros/transform_listener.h"
-#include "rclcpp/rclcpp.hpp"
-#include "yaml-cpp/yaml.h"
-#include <cmath>
+#include "c_simulator/settings.h"
+#include <tf2_ros/transform_listener.h>
 
-using std::cout, std::endl;
-
+using std::string, std::cout, std::endl;
 typedef Eigen::Vector3d v3d;
+typedef Eigen::Vector4d v4d;
 typedef Eigen::VectorXd vXd;
 typedef Eigen::Matrix3d m3d;
 typedef Eigen::MatrixXd mXd;
 typedef Eigen::Quaterniond quat;
+
 struct thrusterForcesStamped
 {
-    vXd thrusterForces;
     double time;
+    vXd thrusterForces;
     thrusterForcesStamped(vXd thrusterForces_, double time_);
 };
 
@@ -42,16 +43,16 @@ public:
     v3d getIMUSigma();
     v3d getIMUOffset();
     v3d getDVLOffset();
+    bool mapAvailable();
     double getDVLRate();
     double getIMURate();
     m3d getInvInertia();
+    double getIMUDrift();
     v3d getDepthOffset();
     double getDVLSigma();
     double getDepthRate();
     std::string getName();
-    bool hasDVLTransform();
     double getDepthSigma();
-    bool hasIMUTransform();
     int getThrusterCount();
     mXd getThrusterMatrix();
     v3d getThrusterForces();
@@ -59,9 +60,10 @@ public:
     v3d getLatestAngAccel();
     v3d getBaseLinkOffset();
     v3d getThrusterTorques();
-    bool obtainIMUTransform();
-    bool obtainDVLTransform();
+    bool dvlTransformAvailable();
+    bool imuTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
+    geometry_msgs::msg::Transform getLCameraTransform();
 
     //========================//
     //        SETTERS         //
@@ -83,10 +85,12 @@ private:
     //       VARIABLES        //
     //========================//
 
-    // STATE:
-    // 0 1 2 3  4  5  6  7   8   9   10  11  12       <- index
-    // x y z qw qx qy qz P_x P_y P_z L_x L_y L_z      <- parameter
-    // where P is linear momentum, and L is angular momentum, and q is quaternion
+    geometry_msgs::msg::Transform lCameraTransform;
+    bool hasLCameraTransform;
+    bool hasIMUTransform;
+    bool hasDVLTransform;
+    bool hasMapFrame;
+
     vXd state;
     rclcpp::Node::SharedPtr node;
     std::unique_ptr<tf2_ros::Buffer> tf_buffer;
@@ -108,8 +112,7 @@ private:
     v3d r_dvl;             // DVL location relative to COM
     quat q_dvl;            // Quaternion to DVL's frame
     quat q_imu;            // Quaternion to IMU's frame
-    bool imuTransform;     // IMU tf2 transform
-    bool dvlTransform;     // DVL tf2 transform
+    double imu_yawDrift;   // IMU yaw drift in deg/min
     std::string name;      // Robot's name
 
     std::vector<thrusterForcesStamped> thrusterForceQue;
@@ -125,8 +128,6 @@ private:
     double maxThrust;             // Limit on thruster force, N
     std::vector<double> dragCoef; // Drag coeffecients for each axis
     m3d invBodyInertia;           // Inverse inertia tensor in body frame
-    v3d angDragCoef;              // Angular drag coeffecients for each axis
-    v3d area;                     // Frontal area from each direction (used for drag)
     mXd thrusterMatrix;           // 6xN matrix translating N thruster forces into body forces and torques
 
     //========================//
@@ -136,4 +137,6 @@ private:
     v3d std2v3d(std::vector<double> stdVect);
     void setForcesTorques(vXd thrusterForces);
     double getScaleFactor(const double &depth);
+    quat rpy2quat(double roll, double pitch, double yaw);
+    geometry_msgs::msg::Transform safeTransform(std::string toFrame, std::string fromFrame, bool &transformFlag);
 };

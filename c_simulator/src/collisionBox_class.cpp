@@ -16,6 +16,7 @@ collisionBox::collisionBox(std::string name_,
     baseOffset = baseOffset_;
     baseOrientationOffset = baseOrientationOffset_.normalized();
     orientation = (baseOrientation.normalized() * baseOrientationOffset).normalized();
+    rotM = orientation.toRotationMatrix();
     center = baseCenter + orientation * baseOffset;
     setVertices();
 }
@@ -31,6 +32,7 @@ void collisionBox::updateLocation(const vXd &state)
     // Update position and orientation
     center = state.segment(0, 3) + q * baseOffset;
     orientation = (q * baseOrientationOffset).normalized();
+    rotM = orientation.toRotationMatrix();
     // Also update vertice location
     setVertices();
 }
@@ -40,7 +42,7 @@ v3d collisionBox::getCenter()
 }
 v3d collisionBox::getAxis(int index)
 {
-    return orientation.toRotationMatrix().col(index);
+    return rotM.col(index);
 }
 std::string collisionBox::getName()
 {
@@ -48,7 +50,7 @@ std::string collisionBox::getName()
 }
 m3d collisionBox::rotationMatrix()
 {
-    return orientation.toRotationMatrix();
+    return rotM;
 }
 double collisionBox::maxProjection(const v3d &axis)
 {
@@ -111,7 +113,23 @@ void collisionBox::setVertices()
     vertices.col(7) = v3d(length / 2, width / 2, height / 2);
 
     // Convert from box cordinates to world cordinates
-    vertices = orientation.toRotationMatrix() * vertices + center.replicate(1, 8);
+    vertices = rotM * vertices + center.replicate(1, 8);
+}
+double collisionBox::getLength()
+{
+    return length;
+}
+double collisionBox::getWidth()
+{
+    return width;
+}
+double collisionBox::getHeight()
+{
+    return height;
+}
+quat collisionBox::getOrientation()
+{
+    return orientation;
 }
 
 collisionResult::collisionResult()
