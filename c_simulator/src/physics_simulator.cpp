@@ -27,13 +27,6 @@
 //===============================//
 //           INCLUDES            */
 //===============================//
-#include <set>
-#include <chrono>
-#include <memory>
-#include <string>
-#include <random>
-#include <functional>
-#include <filesystem>
 #include <rclcpp/rclcpp.hpp>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
@@ -55,6 +48,16 @@
 #include <riptide_msgs2/msg/dshot_partial_telemetry.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
+#include <riptide_msgs2/srv/toggle_simulator.hpp>
+
+#include <set>
+#include <chrono>
+#include <memory>
+#include <string>
+#include <random>
+#include <functional>
+#include <filesystem>
+
 
 using std::string, std::cout, std::endl;
 typedef Eigen::Vector3d v3d;
@@ -64,9 +67,10 @@ typedef Eigen::Matrix3d m3d;
 typedef Eigen::MatrixXd mXd;
 typedef Eigen::Quaterniond quat;
 
-using std::placeholders::_1;
+using std::placeholders::_1, std::placeholders::_2;
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
+using riptide_msgs2::srv::ToggleSimulator;
 
 class PhysicsSimNode : public rclcpp::Node
 {
@@ -99,7 +103,7 @@ public:
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
         poseService = this->create_service<robot_localization::srv::SetPose>("set_sim_pose", std::bind(&PhysicsSimNode::setSim, this, _1));
-
+        toggleService = this->create_service<riptide_msgs2::srv::ToggleSimulator>("toggle_sim", std::bind(&PhysicsSimNode::toggleCallback, this, _1, _2));
         // TF broadcaster
         tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     }
@@ -108,13 +112,14 @@ public:
      * @brief Loads parameters from the robot's yaml file into the Robot object
      * @returns wether the parameters were loaded successfully
      */
-    bool init()
+    bool init(bool reload)
     {
         // Tries to load robot parameter data
         RCLCPP_INFO(this->get_logger(), "Loading robot's parameter data from YAML..");
-        bool paramsLoaded = robot.loadParams(shared_from_this());
+        bool paramsLoaded = robot.loadParams(shared_from_this(), reload);
+
         RCLCPP_INFO(this->get_logger(), "Loading collision files...");
-        bool collisionBoxesLoaded = loadCollisionFiles();
+        bool collisionBoxesLoaded = loadCollisionFiles(reload);
         // Loaded successfully if true
         if (paramsLoaded && collisionBoxesLoaded)
         {
@@ -192,6 +197,20 @@ public:
             rclcpp::spin_some(shared_from_this());
         }
         RCLCPP_INFO(this->get_logger(), "Shutting down simulator");
+    }
+
+    void toggleCallback(const std::shared_ptr<ToggleSimulator::Request> request, std::shared_ptr<ToggleSimulator::Response> response) {
+        (void) request;
+        (void) response;
+
+        simulatorRunning = !simulatorRunning;
+        if (simulatorRunning) {
+            init(true);
+        }
+    }
+
+    void setSimulatorRunning(bool running) {
+        simulatorRunning = running;
     }
 
 private:
@@ -432,11 +451,13 @@ private:
      * @brief Goes through collision folder and reads URDF files to populate robotBoxes and obstacleBoxes vector with elements
      * @returns Whether the files could be read succesfully
      */
-    bool loadCollisionFiles()
+    bool loadCollisionFiles(bool reload)
     {
         // Get folder path
         string collisionFolder;
-        this->declare_parameter("collision_folder", "");
+        if (!reload) {
+            this->declare_parameter("collision_folder", "");
+        }
         this->get_parameter("collision_folder", collisionFolder);
 
         // Check to make sure robot folder exists
@@ -482,7 +503,9 @@ private:
         }
         // Load YAML file storing obstacle positions
         string obstacleConfigPath;
-        this->declare_parameter("obstacle_config", "");
+        if (!reload) {
+            this->declare_parameter("obstacle_config", "");
+        }
         this->get_parameter("obstacle_config", obstacleConfigPath);
         YAML::Node obstacleConfig = YAML::LoadFile(obstacleConfigPath);
         YAML::Node obstacleList = obstacleConfig["/**/dummydetections"]["ros__parameters"]["detection_data"];
@@ -980,6 +1003,8 @@ private:
     string name;
     Robot robot;
     bool enabled;
+
+    bool simulatorRunning;
     rclcpp::Time startTime;
     std::vector<collisionBox> robotBoxes;
     rclcpp::TimerBase::SharedPtr dvlTimer;
@@ -995,6 +1020,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
     rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
+    rclcpp::Service<riptide_msgs2::srv::ToggleSimulator>::SharedPtr toggleService;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisionBoxPub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
@@ -1012,11 +1038,13 @@ int main(int argc, char *argv[])
     rclcpp::init(argc, argv);
     auto node = std::make_shared<PhysicsSimNode>();
     // Load parameters into Robot class, don't start if unseccessful
-    bool startUpSuccess = node->init();
+    bool startUpSuccess = node->init(false);
     if (startUpSuccess)
     {
         // Parameters loaded sucessfully, start node
         RCLCPP_INFO(node->get_logger(), "Simulator node starting...");
+
+        node->setSimulatorRunning(false);
         node->rungeKutta4();
         rclcpp::shutdown();
     }

@@ -37,7 +37,7 @@ Robot::Robot(string name_)
  * @param node ROS2 physics simulator node
  * @return whether the results were loaded successfully
  */
-bool Robot::loadParams(rclcpp::Node::SharedPtr node)
+bool Robot::loadParams(rclcpp::Node::SharedPtr node, bool reload)
 {
     // Creating tf2 buffer and listener
     this->node = node;
@@ -46,7 +46,10 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
 
     // Retrieve the path to the YAML config file from the parameters
     string config_file;
-    node->declare_parameter("vehicle_config", "");
+    if (!reload) {
+        node->declare_parameter("vehicle_config", "");
+    }
+
     if (node->get_parameter("vehicle_config", config_file))
     {
         try

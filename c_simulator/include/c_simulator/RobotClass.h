@@ -70,7 +70,7 @@ public:
     //========================//
     void setState(vXd state_);
     void setAccel(const vXd &stateDot);
-    bool loadParams(rclcpp::Node::SharedPtr node);
+    bool loadParams(rclcpp::Node::SharedPtr node, bool reload);
     void addToThrusterQue(thrusterForcesStamped commandedThrust);
 
     //========================//
