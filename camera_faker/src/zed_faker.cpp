@@ -1,5 +1,3 @@
-
-
 //===============================//
 /*     TABLE OF CONTENTS         //
 //===============================//
@@ -37,9 +35,15 @@
 #include <obstackeShader.hpp>
 #include <waterShader.hpp>
 #include <object.hpp>
+#include <tf2/exceptions.h>
+#include <tf2_ros/buffer.h>
+#include "tf2_ros/transform_listener.h"
+#include <geometry_msgs/msg/pose.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <frameShader.hpp>
+#include <blurShader.hpp>
 
 using std::string, std::cout, std::endl;
 using namespace std::chrono_literals;
@@ -53,7 +57,8 @@ public:
     zedFakerNode() : Node("zed_faker")
     {
         // Create a TF broadcaster
-        tfBroadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+        tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+        tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer);
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
@@ -69,7 +74,9 @@ public:
         openGlSetup();
         shaderSetup();
         objectSetup();
-        renderFBO = FBO(true);
+        screenFBO = FBO(true, true);
+        render1FBO = FBO(true);
+        render2FBO = FBO(true);
     }
 
     //===============================//
@@ -77,51 +84,69 @@ public:
     //===============================//
     void fakeImages()
     {
-        waitForTF();
+        // waitForTF();
         while (rclcpp::ok() && !glfwWindowShouldClose(window))
         {
-            glEnable(GL_DEPTH_TEST);
-            // Get the time between frames, used for camera movement
+            // Starting things
+            clearBuffers();
+            //  Get the time between frames, used for camera movement
             double currentFrame = glfwGetTime();
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
-
-            // std::cout << "FPS: " << 1.0 / deltaTime << std::endl;
-
-            // Process any keyboard presses
             processInput(window);
 
-            // Clear screen and depth buffer
-            // renderFBO.use();
-            // renderFBO.clear();
+            std::cout << "FPS: " << 1.0 / deltaTime << std::endl;
+            // Render differenetly depending on what camera is being used
+            if (true)
+            {
+                // updateRobotCamera();
+                render1FBO.use();
+                objectShader.render(objects, flyAroundCamera);
+                waterShader.render(objects, flyAroundCamera, render1FBO, objectShader);
 
-            objectShader.render(objects, flyAroundCamera);
-            // waterShader.render(objects, flyAroundCamera, renderFBO, objectShader);
-            //    Render objects
-            //    Move camera, swap framm buffers
-            //    Render reflections
-            //    render skybox
-            //    Move camera back, render water
-            //    render skybox
+                // Post processing effects
+                render2FBO.use();
+                frameShader.renderDistorted(render1FBO);         // Camera distortion
+                blurShader.renderBlurred(render2FBO, screenFBO); // Blur
+                frameShader.render(vehicleOverlay);              // Vehicle overlay
+            }
+            else
+            {
+                screenFBO.use();
+                objectShader.render(objects, flyAroundCamera);
+                waterShader.render(objects, flyAroundCamera, screenFBO, objectShader);
+            }
 
-            // Check what camera is being used
-            // If using vehicle camera
-            // Distort image
-            // Add blur
-            // Add overlay
-            // else
-            // render talos
             glfwSwapBuffers(window);
             glfwPollEvents();
 
-            // Proccess any pending callbacks or timers
-
+            // Proccess any pending ROS callbacks or timers
             rclcpp::spin_some(shared_from_this());
         }
         glfwTerminate();
     };
 
 private:
+    //===============================//
+    //     RENDER FUNCTIONS          //
+    //===============================//
+    void clearBuffers()
+    {
+        screenFBO.clear();
+        render1FBO.clear();
+        render2FBO.clear();
+    }
+    void updateRobotCamera()
+    {
+        string cameraFrame = "odom/simulator/talos/zed2i/left_optical";
+        geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+            cameraFrame, "world",
+            tf2::TimePointZero);
+        vehicleCamera.Front;
+        vehicleCamera.Right;
+        vehicleCamera.Up;
+    }
+
     //===============================//
     //            SETUP              //
     //===============================//
@@ -145,7 +170,6 @@ private:
 
         // Setup window and callback functions
         glfwMakeContextCurrent(window);
-        glfwSwapInterval(1);
         glfwSetFramebufferSizeCallback(window, resizeWindow);
         glfwSetCursorPosCallback(window, mouseCallback);
 
@@ -167,29 +191,46 @@ private:
         this->declare_parameter("shader_folder", "");
         this->get_parameter("shader_folder", shaderFolder);
         // Get texture folder path
-        string textureFolder, causticsPath;
+        string textureFolder, causticsPath, waterPath;
         this->declare_parameter("texture_folder", "");
         this->get_parameter("texture_folder", textureFolder);
-        causticsPath = fs::path(textureFolder) / "caustics";
+        waterPath = fs::path(textureFolder) / "water";
+        causticsPath = fs::path(textureFolder) / "water" / "caustics";
+
+        // Create post processing shaders
+        vsPath = fs::path(shaderFolder) / "frame.vs";
+        fsPath = fs::path(shaderFolder) / "frame.fs";
+        frameShader = FrameShader(vsPath, fsPath);
+
+        // Making the object shader takes a lot of time to load the 200+ caustic textures xD
+        // Use the newly created frameShader to display a loading screen for some eye candy
+        Texture loadingScreen = Texture(fs::path(textureFolder) / "overlays" / "Loading_Screen.jpg");
+        frameShader.render(loadingScreen);
+        glfwSwapBuffers(window);
 
         // Create object shader
         vsPath = fs::path(shaderFolder) / "object.vs";
         fsPath = fs::path(shaderFolder) / "object.fs";
-        objectShader = ObjectShader(vsPath.c_str(), fsPath.c_str(), causticsPath.c_str());
+        objectShader = ObjectShader(vsPath, fsPath, causticsPath);
 
         // Create water shader
         vsPath = fs::path(shaderFolder) / "water.vs";
         fsPath = fs::path(shaderFolder) / "water.fs";
-        waterShader = WaterShader(vsPath.c_str(), fsPath.c_str());
+        waterShader = WaterShader(vsPath, fsPath, waterPath);
 
-        // Create post processing shaders
-        //
+        // Create blur shader
+        vsPath = fs::path(shaderFolder) / "blur.vs";
+        fsPath = fs::path(shaderFolder) / "blur.fs";
+        blurShader = BlurShader(vsPath, fsPath);
     }
     void objectSetup()
     {
         // Get texture folder path
         string textureFolder, texturePath;
         this->get_parameter("texture_folder", textureFolder);
+
+        // Overlay graphic
+        vehicleOverlay = Texture(fs::path(textureFolder) / "overlays" / "talos_L_overlay.png");
 
         // Task objects
         texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
@@ -200,16 +241,28 @@ private:
         objects.push_back(torpedo);
 
         // Surrounding ground
-        std::vector<Object>
-            poolObjects = generatePoolObjects(textureFolder);
+        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
         for (Object poolObject : poolObjects)
             objects.push_back(poolObject);
     }
-
+    // Go into an infinite loop until the tf transform becomes available
     void waitForTF()
     {
+        bool tfFlag = true;
+        while (rclcpp::ok() && tfFlag)
+        {
+            try
+            {
+                geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+                    "test", "world",
+                    tf2::TimePointZero);
+                tfFlag = false;
+            }
+            catch (const tf2::TransformException &ex)
+            {
+            }
+        }
     }
-
     //===============================//
     //      CALLBACK FUNCTIONS       //
     //===============================//
@@ -221,6 +274,7 @@ private:
     }
     void processInput(GLFWwindow *window)
     {
+        // Close window
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
 
@@ -241,7 +295,7 @@ private:
                 flyAroundCamera.ProcessKeyboard(DOWN, deltaTime);
         }
 
-        // Show april tag if true
+        // Show april tag when T is pressed
         if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS)
             int a = 1;
 
@@ -287,55 +341,10 @@ private:
     {
         node->moveCamera(xpos, ypos);
     }
+    //===============================//
+    //      UTILITY FUNCTIONS        //
+    //===============================//
 
-    std::vector<Object> generatePoolObjects(string textureFolder)
-    {
-        fs::path poolFolder = fs::path(textureFolder) / "pool";
-        std::vector<Object> poolObjects;
-        // POOL FLOOR
-        // Made up of 9 objects, 4 corner objects, 4 side objects, 1 middle object.
-        // Kiddle
-        string poolTexture = poolFolder / "Pool_Cross.jpg";
-        Object middleFloor(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, 0, -POOL_DEPTH), 0, -90, -90, 17, 7);
-        // Sides
-        poolTexture = poolFolder / "Pool_Black_T.jpg";
-        Object longSideTopFloor(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, -90, -90, 17, 1);
-        Object longSideBottomFloor(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, 90, -90, 17, 1);
-        poolTexture = poolFolder / "Pool_Blue_T.jpg";
-        Object shortSideRightFloor(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, 7);
-        Object shortSideLeftFloor(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 7);
-        // Corners
-        poolTexture = poolFolder / "Pool_Corner.jpg";
-        Object topRightCornerPool(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, 90, 1, 1);
-        Object bottomRightCornerPool(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, 1);
-        Object topLeftCornerPool(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, -90, 1, 1);
-        Object bottomLeftCornerPool(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 1);
-
-        // POOL WALLS
-        // Wall Sides
-        poolTexture = poolFolder / "Pool_Wall_Black.jpg";
-        Object topSidePool(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, 17, 1);
-        Object bottomSidePool(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, 17, 1);
-        poolTexture = poolFolder / "Pool_Wall_Blue.jpg";
-        Object leftSidePool(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, 7, 1);
-        Object rightSidePool(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, 7, 1);
-
-        // Add objects to list and return
-        poolObjects.push_back(middleFloor);
-        poolObjects.push_back(longSideTopFloor);
-        poolObjects.push_back(longSideBottomFloor);
-        poolObjects.push_back(shortSideRightFloor);
-        poolObjects.push_back(shortSideLeftFloor);
-        poolObjects.push_back(bottomRightCornerPool);
-        poolObjects.push_back(topRightCornerPool);
-        poolObjects.push_back(topLeftCornerPool);
-        poolObjects.push_back(bottomLeftCornerPool);
-        poolObjects.push_back(topSidePool);
-        poolObjects.push_back(bottomSidePool);
-        poolObjects.push_back(rightSidePool);
-        poolObjects.push_back(leftSidePool);
-        return poolObjects;
-    }
     //===============================//
     //          VARIABLES            //
     //===============================//
@@ -347,13 +356,20 @@ private:
     Shader testShader;
     ObjectShader objectShader;
     WaterShader waterShader;
+    FrameShader frameShader;
+    BlurShader blurShader;
     Camera vehicleCamera = Camera();
     Camera flyAroundCamera = Camera();
     CameraMode cameraMode = FLY_ARROUND_MODE;
+    Texture vehicleOverlay;
 
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::vector<Object> objects;
     GLFWwindow *window;
-    FBO renderFBO = FBO();
+    FBO render1FBO;
+    FBO render2FBO;
+    FBO screenFBO;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
@@ -370,7 +386,6 @@ int main(int argc, char *argv[])
     rclcpp::init(argc, argv);
     node = std::make_shared<zedFakerNode>();
     node->fakeImages();
-    // rclcpp::spin(node);
     rclcpp::shutdown();
     return 1;
 }

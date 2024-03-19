@@ -16,12 +16,13 @@
 #include <object.hpp>
 #include <cmath>
 namespace fs = std::filesystem;
+using std::string;
 
 class ObjectShader
 {
 public:
     ObjectShader() {}
-    ObjectShader(const char *vsPath, const char *fsPath, const char *causticsPath)
+    ObjectShader(string vsPath, string fsPath, string causticsPath)
     {
         shader = Shader(vsPath, fsPath);
         loadCaustics(causticsPath);
@@ -30,7 +31,7 @@ public:
     {
         // Activate shader
         shader.use();
-
+        glEnable(GL_DEPTH_TEST);
         //  Get camera matrixs
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
         shader.setMat4("projection", projection);
@@ -41,13 +42,9 @@ public:
         shader.setFloat("fogStrength", FOG_STRENGTH);
         shader.setFloat("causticStrength", CAUSTIC_STRENGTH);
         shader.setVec4("fogColor", glm::vec4(FOG_COLOR, 1.0));
-        // shader.setFloat("fogFactor", FOG_STRENGTH);
-        // shader.setVec3("fogColor", glm::vec3(FOG_COLOR));
+        shader.setFloat("fogFactor", FOG_STRENGTH);
         shader.setInt("ourTexture", 1);
         shader.setInt("causticTexture", 2);
-        // shader.setFloat("waveSpeed", WAVE_SPEED);
-        // shader.setFloat("waveScale", WAVE_SCALE);
-        // shader.setFloat("waveStrength", WAVE_STRENGTH);
         // Figure out what caustic image from the animation to use then use it
         unsigned int index = ((int)(CAUSTIC_SPEED * glfwGetTime())) % causticsImgs.size();
         causticsImgs[index].use(2);
@@ -64,29 +61,32 @@ public:
     }
 
 private:
-    void loadCaustics(const char *causticPath)
+    void loadCaustics(string causticPath)
     {
         // Vector to hold directory entries
         std::vector<fs::directory_entry> entries;
-
         // Populate the vector with directory entries
         int i = 1;
         for (const auto &entry : fs::directory_iterator(causticPath))
         {
+            // Check if the file in the directory is a valid image first
             if (entry.path().extension() != ".jpg" && entry.path().extension() != ".png")
             {
                 std::cout << "WHOA there's a non jpg or png caustics file dawg: " << entry.path().filename() << std::endl;
                 continue;
             }
-            std::string thing = "Caustics_Texture (" + std::to_string(i) + ").jpg";
-            fs::path texturePath = fs::path(causticPath) / thing;
-            causticsImgs.push_back(Texture(texturePath.string()));
+            // Kinda hard coding the file names here, but it works
+            string fileName = "Caustics_Texture (" + std::to_string(i) + ").jpg";
+            string texturePath = fs::path(causticPath) / fileName;
+            // Make a texture for the file and add it to the list
+            causticsImgs.push_back(Texture(texturePath));
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
             i++;
         }
-        // Create caustic texture, add it to list
+        std::cout << "done loading textures" << std::endl;
     }
+
     std::vector<Texture> causticsImgs;
     Shader shader;
 };

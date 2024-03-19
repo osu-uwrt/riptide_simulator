@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+using std::string;
 
 class Shader
 {
@@ -13,7 +14,7 @@ public:
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
     Shader() {}
-    Shader(const char *vertexPath, const char *fragmentPath)
+    Shader(string vertexPath, string fragmentPath)
     {
         // 1. retrieve the vertex/fragment source code from filePath
         std::string vertexCode;

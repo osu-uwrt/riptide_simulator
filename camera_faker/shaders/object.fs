@@ -5,6 +5,7 @@ in vec2 TexCoord;
 in vec3 worldPos;
 in vec2 causticTexCoord;
 
+// Water settings values
 uniform vec4 fogColor;
 uniform float fogStrength;
 uniform float causticStrength;
@@ -12,8 +13,6 @@ uniform float causticStrength;
 // Textures
 uniform sampler2D ourTexture;
 uniform sampler2D causticTexture;
-//uniform sampler2D causticTexture2;
-//uniform float causticMixFactor;
 
 // Camera stuff
 uniform vec3 cameraPos;

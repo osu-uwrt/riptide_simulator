@@ -14,7 +14,7 @@
 #include <settings.h>
 #include <light.hpp>
 #include <material.hpp>
-
+namespace fs = std::filesystem;
 class Object
 {
 public:
@@ -67,12 +67,16 @@ private:
         // Verteex information
         float vertices[28] = {
             // positions                    // texture coords                   // cautic cords
-            0.5 * width, 0.0, 0.5 * height, textCountW, textCountH, width / CAUSTIC_SCALE, height / CAUSTIC_SCALE, // top right
-            0.5 * width, 0.0, -0.5 * height, textCountW, 0.0, width / CAUSTIC_SCALE, 0.0,                          // bottom right
-            -0.5 * width, 0.0, -0.5 * height, 0.0, 0.0, 0.0, 0.0,                                                  // bottom left
-            -0.5 * width, 0.0, 0.5 * height, 0.0, textCountH, 0.0, height / CAUSTIC_SCALE                          // top left
+            0.5f * width, 0.0, 0.5f * height, textCountW, textCountH, width / (float)CAUSTIC_SCALE, height / (float)CAUSTIC_SCALE, // top right
+            0.5f * width, 0.0, -0.5f * height, textCountW, 0.0, width / (float)CAUSTIC_SCALE, 0.0,                                 // bottom right
+            -0.5f * width, 0.0, -0.5f * height, 0.0, 0.0, 0.0, 0.0,                                                                // bottom left
+            -0.5f * width, 0.0, 0.5f * height, 0.0, textCountH, 0.0, height / (float)CAUSTIC_SCALE                                 // top left
         };
-
+        // Indices of triangle vertices
+        unsigned int indices[6] = {
+            0, 1, 3, // first triangle
+            1, 2, 3  // second triangle
+        };
         glBindVertexArray(VAO);
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -91,10 +95,13 @@ private:
         glEnableVertexAttribArray(2);
     }
 
+    // Create model matrix (It's a transformation matrix from model coordinates to world)
     void generateModelMatrix()
     {
         modelMatrix = glm::mat4(1.0f);
+        // Apply translation
         modelMatrix = glm::translate(modelMatrix, position);
+        // Apply Euler angle rotations
         modelMatrix = glm::rotate(modelMatrix, glm::radians(roll), glm::vec3(1, 0, 0));
         modelMatrix = glm::rotate(modelMatrix, glm::radians(pitch), glm::vec3(0, 1, 0));
         modelMatrix = glm::rotate(modelMatrix, glm::radians(yaw), glm::vec3(0, 0, 1));
@@ -105,13 +112,76 @@ private:
     float roll, pitch, yaw;
     float textCountW, textCountH;
     unsigned int VBO, VAO, EBO;
-    unsigned int indices[6] = {
-        0, 1, 3, // first triangle
-        1, 2, 3  // second triangle
-    };
 
     Texture texture;
     Material material;
     glm::mat4 modelMatrix;
     glm::vec3 position;
 };
+
+std::vector<Object> generatePoolObjects(string textureFolder)
+{
+    fs::path poolFolder = fs::path(textureFolder) / "pool";
+    std::vector<Object> poolObjects;
+    // POOL FLOOR
+    // Made up of 9 objects, 4 corner objects, 4 side objects, 1 middle object.
+    // Middle
+    string poolTexture = poolFolder / "Pool_Cross.jpg";
+    Object poolFloorMiddle(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, 0, -POOL_DEPTH), 0, -90, -90, 17, 7);
+    // Edges
+    poolTexture = poolFolder / "Pool_Black_T.jpg";
+    Object poolFloorEdge1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, -90, -90, 17, 1);
+    Object poolFloorEdge2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, 90, -90, 17, 1);
+    poolTexture = poolFolder / "Pool_Blue_T.jpg";
+    Object poolFloorEdge3(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, 7);
+    Object poolFloorEdge4(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 7);
+    // Corners
+    poolTexture = poolFolder / "Pool_Corner.jpg";
+    Object poolFloorCorner1(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, 90, 1, 1);
+    Object poolFloorCorner2(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, 1);
+    Object poolFloorCorner3(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, -90, 1, 1);
+    Object poolFloorCorner4(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 1);
+
+    // POOL WALLS
+    // Wall Sides
+    poolTexture = poolFolder / "Pool_Wall_Black.jpg";
+    Object poolWallSide1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, 17, 1);
+    Object poolWallSide2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, 17, 1);
+    poolTexture = poolFolder / "Pool_Wall_Blue.jpg";
+    Object poolWallSide3(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, 7, 1);
+    Object poolWallSide4(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, 7, 1);
+    // Wall corners
+    poolTexture = poolFolder / "Pool_Wall_Blue_Corner.jpg";
+    Object poolWallCorner1(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
+    Object poolWallCorner2(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
+    Object poolWallCorner3(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 180);
+    Object poolWallCorner4(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 180);
+    poolTexture = poolFolder / "Pool_Wall_Black_Corner.jpg";
+    Object poolWallCorner5(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
+    Object poolWallCorner6(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
+    Object poolWallCorner7(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+    Object poolWallCorner8(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+    // Add objects to list and return
+    poolObjects.push_back(poolFloorMiddle);
+    poolObjects.push_back(poolFloorEdge1);
+    poolObjects.push_back(poolFloorEdge2);
+    poolObjects.push_back(poolFloorEdge3);
+    poolObjects.push_back(poolFloorEdge4);
+    poolObjects.push_back(poolFloorCorner1);
+    poolObjects.push_back(poolFloorCorner2);
+    poolObjects.push_back(poolFloorCorner3);
+    poolObjects.push_back(poolFloorCorner4);
+    poolObjects.push_back(poolWallSide1);
+    poolObjects.push_back(poolWallSide2);
+    poolObjects.push_back(poolWallSide3);
+    poolObjects.push_back(poolWallSide4);
+    poolObjects.push_back(poolWallCorner1);
+    poolObjects.push_back(poolWallCorner2);
+    poolObjects.push_back(poolWallCorner3);
+    poolObjects.push_back(poolWallCorner4);
+    poolObjects.push_back(poolWallCorner5);
+    poolObjects.push_back(poolWallCorner6);
+    poolObjects.push_back(poolWallCorner7);
+    poolObjects.push_back(poolWallCorner8);
+    return poolObjects;
+}
