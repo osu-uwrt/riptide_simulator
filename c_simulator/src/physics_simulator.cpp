@@ -170,28 +170,30 @@ public:
         // Start simulation infinite loop
         while (rclcpp::ok())
         {
-            // Time since last loop, sets step size of simulation
-            currentTime = rclcpp::Clock(RCL_SYSTEM_TIME).now();
-            double stepSize = (currentTime - prevTime).seconds();
-            prevTime = currentTime;
+            if (simulatorRunning) {
+                // Time since last loop, sets step size of simulation
+                currentTime = rclcpp::Clock(RCL_SYSTEM_TIME).now();
+                double stepSize = (currentTime - prevTime).seconds();
+                prevTime = currentTime;
 
-            // Get state, and modify it to account for any collisions
-            vXd state = robot.getState();
-            state = handleCollisions(state);
+                // Get state, and modify it to account for any collisions
+                vXd state = robot.getState();
+                state = handleCollisions(state);
 
-            // For more info on Runge Kutta:
-            // https://www.youtube.com/watch?v=HOWJp8NV5xU
-            // https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
-            // Evaluate derivative vector field at key points
-            vXd K1 = calcStateDot(state);
-            vXd K2 = calcStateDot(state + stepSize / 2.0 * K1);
-            vXd K3 = calcStateDot(state + stepSize / 2.0 * K2);
-            vXd K4 = calcStateDot(state + stepSize * K3);
+                // For more info on Runge Kutta:
+                // https://www.youtube.com/watch?v=HOWJp8NV5xU
+                // https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods
+                // Evaluate derivative vector field at key points
+                vXd K1 = calcStateDot(state);
+                vXd K2 = calcStateDot(state + stepSize / 2.0 * K1);
+                vXd K3 = calcStateDot(state + stepSize / 2.0 * K2);
+                vXd K4 = calcStateDot(state + stepSize * K3);
 
-            // Update the robots state based on weighted average of sampled points
-            vXd stateDelta = stepSize / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
-            robot.setState(state + stateDelta);
-            robot.setAccel(stateDelta / stepSize);
+                // Update the robots state based on weighted average of sampled points
+                vXd stateDelta = stepSize / 6.0 * (K1 + 2 * K2 + 2 * K3 + K4);
+                robot.setState(state + stateDelta);
+                robot.setAccel(stateDelta / stepSize);
+            }
 
             // Proccess any pending callbacks or timers
             rclcpp::spin_some(shared_from_this());
@@ -205,7 +207,10 @@ public:
 
         simulatorRunning = !simulatorRunning;
         if (simulatorRunning) {
+            RCLCPP_INFO(this->get_logger(), "Simulator toggled on");
             init(true);
+        } else {
+            RCLCPP_INFO(this->get_logger(), "Simulator toggled off");
         }
     }
 
