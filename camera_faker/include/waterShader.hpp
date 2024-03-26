@@ -27,7 +27,7 @@ public:
     {
         waterShader = Shader(vsPath, fsPath);
         createWaterPlane();
-        reflectionFBO = FBO(true);
+        reflectionFBO = FBO(false);
         string test123;
         test123 = fs::path(waterPath) / "waterDUDV.png";
         distortionTexture = Texture(test123, false);
@@ -40,25 +40,22 @@ public:
         // Mirror camera accross water plane and render reflected scene
         reflectionFBO.use();
         reflectionFBO.clear();
-        camera.Position = glm::vec3(camera.Position.x, camera.Position.y, -camera.Position.z);
-        camera.Pitch = -camera.Pitch;
-        camera.updateCameraVectors();
+        camera.flip();
         objectShader.render(objects, camera);
 
         // Move camera back
-        camera.Pitch = -camera.Pitch;
-        camera.Position = glm::vec3(camera.Position.x, camera.Position.y, -camera.Position.z);
-        camera.updateCameraVectors();
+        camera.flip();
         // Now render the water with the reflection texture
         renderFBO.use();
         waterShader.use();
         // Set uniform variables and things
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
         waterShader.setMat4("projection", projection);
-        waterShader.setMat4("view", camera.GetViewMatrix());
+        waterShader.setMat4("view", camera.getViewMatrix());
         waterShader.setMat4("model", glm::mat4(1.0f));
-        waterShader.setVec3("cameraPos", camera.Position);
+        waterShader.setVec3("cameraPos", camera.getPosition());
         waterShader.setInt("reflectionTex", 0);
+        reflectionFBO.useTexture(0);
         waterShader.setInt("dudv", 1);
         waterShader.setInt("normal", 2);
         waterShader.setVec4("fogColor", glm::vec4(FOG_COLOR, 1.0));
@@ -66,7 +63,6 @@ public:
         waterShader.setFloat("moveFactor", moveFactor);
         waterShader.setFloat("fogStrength", FOG_STRENGTH);
         waterShader.setFloat("waveDistortion", WAVE_DISTORTION);
-        reflectionFBO.useTexture(0);
         distortionTexture.use(1);
         normalMap.use(2);
         glBindVertexArray(waterVAO);
@@ -107,10 +103,12 @@ private:
         glEnableVertexAttribArray(1);
     }
 
+    //===============================//
+    //          VARIABLES            //
+    //===============================//
     unsigned int VBO, waterVAO, EBO;
-
-    FBO reflectionFBO;
     Texture distortionTexture;
-    Texture normalMap;
     Shader waterShader;
+    Texture normalMap;
+    FBO reflectionFBO;
 };

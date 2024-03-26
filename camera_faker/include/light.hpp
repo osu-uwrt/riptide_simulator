@@ -1,6 +1,11 @@
 #pragma once
 #include <glm/glm.hpp>
 
+// NOT USED, IMPLEMENT MAYBE
+// NOT USED, IMPLEMENT MAYBE
+// NOT USED, IMPLEMENT MAYBE
+// NOT USED, IMPLEMENT MAYBE
+
 enum lightType
 {
     DIR_LIGHT,

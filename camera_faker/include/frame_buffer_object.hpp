@@ -1,78 +1,128 @@
 #pragma once
-#include "rclcpp/rclcpp.hpp"
 #include <glad/glad.h>
 #include <chrono>
 #include <GLFW/glfw3.h>
-#define STB_IMAGE_IMPLEMENTATION
 #include <glm/glm.hpp>
-#include <stb_image.h>
-#include <shader.hpp>
-#include <camera.hpp>
 #include <iostream>
-#include <filesystem>
-#include <fstream>
-#include <obstackeShader.hpp>
-#include <waterShader.hpp>
-#include <object.hpp>
-#include <tf2_ros/transform_broadcaster.h>
-#include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/msg/image.hpp>
 
 class FBO
 {
 public:
     FBO() {}
-    FBO(bool depth, bool screen_ = false)
+    FBO(bool screen_)
     {
+        // Screen is a bool that holds whether the screen is the default screen buffer or not
         screen = screen_;
         if (!screen)
         {
             // Frame buffer setup
             glGenFramebuffers(1, &framebuffer);
             glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-            // generate texture
-            glGenTextures(1, &textureColorbuffer);
-            glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+
+            // generate color texture
+            glGenTextures(1, &colorTextureBuffer);
+            glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, IMG_WIDTH, IMG_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glBindTexture(GL_TEXTURE_2D, 0);
+
+            // Set up render buffer object for depth stencil
             glGenRenderbuffers(1, &rbo);
             glBindRenderbuffer(GL_RENDERBUFFER, rbo);
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IMG_WIDTH, IMG_HEIGHT);
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-            // attach it to currently bound framebuffer object
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+            // Set up depth texture for holding camera depth data (Can be values not 0-1 unlike depth stencil for depth testing)
+            glGenTextures(1, &depthTextureBuffer);
+            glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, IMG_WIDTH, IMG_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+            // Attach buffers to frame buffer object
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTextureBuffer, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, depthTextureBuffer, 0);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+            // Check if all features of the framebuffer are filled in properly
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
                 std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
         else
+            // This is a screen buffer, make the framebuffer ID = 0 which is the default screen
             framebuffer = 0;
     }
     void use()
     {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+        glDrawBuffers(2, drawBuffers);
     }
-    void useTexture(int textureSlot)
+    void read()
     {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+    }
+    void useTexture(int textureSlot, bool useDepth = false)
+    {
+        // Make the desired texture slot active so that the texture gets bound to the correct place
         glActiveTexture(GL_TEXTURE0 + textureSlot);
-        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+        if (!useDepth)
+            // Sets texture to the color buffer
+            glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
+        else
+            // Sets texture to the depth texture
+            glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
     }
     void clear()
     {
         use();
+        // Clear screen to skyish color
         glClearColor(0.568f, 0.878f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
     int textureID()
     {
-        return textureColorbuffer;
+        return colorTextureBuffer;
+    }
+    void copyData(std::vector<uint8_t> &imgData, std::vector<uint8_t> &depthData)
+    {
+        use();
+        // Copy color information
+        int numChannels = 3; // RGB
+        size_t data_size = IMG_HEIGHT * IMG_WIDTH * numChannels;
+        imgData.resize(data_size);
+        glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, imgData.data());
+
+        // Copy depth information
+        data_size = IMG_HEIGHT * IMG_WIDTH * sizeof(float);
+        depthData.resize(data_size);
+        glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, depthData.data());
+
+        // Flip the image vertically, idk why but I guess OpenGL stores images reversed of ROS2
+        for (int i = 0; i < IMG_HEIGHT / 2; ++i)
+        {
+            // Thanks ChatGPT lol
+            std::swap_ranges(imgData.begin() + i * IMG_WIDTH * numChannels,
+                             imgData.begin() + (i + 1) * IMG_WIDTH * numChannels,
+                             imgData.begin() + (IMG_HEIGHT - i - 1) * IMG_WIDTH * numChannels);
+            std::swap_ranges(depthData.begin() + i * IMG_WIDTH * sizeof(float),
+                             depthData.begin() + (i + 1) * IMG_WIDTH * sizeof(float),
+                             depthData.begin() + (IMG_HEIGHT - i - 1) * IMG_WIDTH * sizeof(float));
+        }
+        glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
     }
 
 private:
-    unsigned int rbo, framebuffer, textureColorbuffer;
+    //===============================//
+    //          VARIABLES            //
+    //===============================//
+    unsigned int rbo,
+        framebuffer,
+        colorTextureBuffer,
+        depthTextureBuffer;
     bool screen;
 };

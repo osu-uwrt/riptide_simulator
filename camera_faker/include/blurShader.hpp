@@ -26,8 +26,8 @@ public:
     BlurShader(string vsPath, string fsPath)
     {
         blurShader = Shader(vsPath, fsPath);
-        horizontalFBO = FBO(true);
-        verticalFBO = FBO(true);
+        horizontalFBO = FBO(false);
+        verticalFBO = FBO(false);
         createVertexInfo();
     }
 
@@ -41,6 +41,8 @@ public:
         glDisable(GL_DEPTH_TEST);
         blurShader.setInt("image", 0);
         glBindVertexArray(VAO);
+        blurShader.setInt("depthTexture", 1);
+        frame.useTexture(1, true);
         // Blur for the desired iterations, ping ponging back and forth between different FBOs
         // Blurring over several iterations with a smaller kernel is more effecient that a large kernel because much less sampling is required
         // Also, doing horizontal and vertical blurs is more effecient again because less sampling

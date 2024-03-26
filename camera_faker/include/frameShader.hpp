@@ -29,27 +29,31 @@ public:
         createVertexInfo();
     }
     // Render distorted texture on whole screen
-    void renderDistorted(FBO frame)
+    void renderDistorted(FBO &frame)
     {
         shader.use();
         glDisable(GL_DEPTH_TEST);
         shader.setInt("ourTexture", 0);
         frame.useTexture(0);
+        shader.setInt("depthTexture", 1);
+        frame.useTexture(1, true);
         glBindVertexArray(distVAO);
         glDrawElements(GL_TRIANGLES, 3 * triangleCount, GL_UNSIGNED_INT, 0);
     }
     // Render texture buffer on whole screen
-    void render(FBO frame)
+    void render(FBO &frame)
     {
         shader.use();
         glDisable(GL_DEPTH_TEST);
         shader.setInt("ourTexture", 0);
         frame.useTexture(0);
+        shader.setInt("depthTexture", 1);
+        frame.useTexture(1, true);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
     // Render texture on whole screen
-    void render(Texture texture)
+    void render(Texture &texture)
     {
         shader.use();
         glEnable(GL_BLEND);
@@ -57,6 +61,8 @@ public:
         glDisable(GL_DEPTH_TEST);
         shader.setInt("ourTexture", 0);
         texture.use(0);
+        shader.setInt("depthTexture", 1);
+        texture.use(1);
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
@@ -190,6 +196,10 @@ private:
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
         glEnableVertexAttribArray(1);
     }
+
+    //===============================//
+    //          VARIABLES            //
+    //===============================//
     unsigned int triangleCount;
     unsigned int VBO, VAO, EBO;
     unsigned int distVBO, distVAO, distEBO;

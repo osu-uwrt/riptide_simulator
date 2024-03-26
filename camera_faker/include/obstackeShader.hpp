@@ -33,18 +33,19 @@ public:
         shader.use();
         glEnable(GL_DEPTH_TEST);
         //  Get camera matrixs
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
         shader.setMat4("projection", projection);
-        shader.setMat4("view", camera.GetViewMatrix());
+        shader.setMat4("view", camera.getViewMatrix());
 
         // Set uniform variables that are constant for all objects
-        shader.setVec3("cameraPos", camera.Position);
+        shader.setVec3("cameraPos", camera.getPosition());
         shader.setFloat("fogStrength", FOG_STRENGTH);
         shader.setFloat("causticStrength", CAUSTIC_STRENGTH);
         shader.setVec4("fogColor", glm::vec4(FOG_COLOR, 1.0));
         shader.setFloat("fogFactor", FOG_STRENGTH);
         shader.setInt("ourTexture", 1);
         shader.setInt("causticTexture", 2);
+        shader.setInt("depthTexture", 3);
         // Figure out what caustic image from the animation to use then use it
         unsigned int index = ((int)(CAUSTIC_SPEED * glfwGetTime())) % causticsImgs.size();
         causticsImgs[index].use(2);
@@ -87,6 +88,9 @@ private:
         std::cout << "done loading textures" << std::endl;
     }
 
+    //===============================//
+    //          VARIABLES            //
+    //===============================//
     std::vector<Texture> causticsImgs;
     Shader shader;
 };

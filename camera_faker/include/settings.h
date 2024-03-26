@@ -1,5 +1,5 @@
 //===============================//
-//      POOL SETTINGS            //
+//         POOL SETTINGS         //
 //===============================//
 // Note that water height is at z = 0 m
 #define POOL_LENGTH 50.0         // m
@@ -11,8 +11,8 @@
 //===============================//
 //      MOVEMENT SETTINGS        //
 //===============================//
-#define MOUSE_SENSITIVITY 0.15 // Lower number makes fly around camera rotate slower
-#define MOVEMENT_SPEED 5.0     // m/s translation speed of fly around camera
+#define MOUSE_SENSITIVITY 0.005 // Lower number makes fly around camera rotate slower
+#define MOVEMENT_SPEED 5.0      // m/s translation speed of fly around camera
 
 //===============================//
 //        CAMERA SETTINGS        //
@@ -29,8 +29,7 @@
 #define DIST_K3 -0.438187135448847   // Radial camera distortion constant
 #define DIST_P1 0.005421094419821622 // Tangential camera distortion constant
 #define DIST_P2 -0.01686702929877146 // Tangential camera distortion constant
-#define DIST_REFINEMENT 20           // Intiger >=1, defines how many triangles wide the distortion mesh is that the texture gets mapped onto
-#define MOTION_BLUR_FRAMES 4         // Number of previous frames used for motion blurring, set to zero to disable
+#define DIST_REFINEMENT 30           // Intiger >=1, defines how many triangles wide the distortion mesh is that the texture gets mapped onto
 #define BLUR_ITERATIONS 1            // Number of 5x5 gaussian blurs done on image, set to 0 to disable
 
 //===============================//
@@ -46,7 +45,7 @@
 //===============================//
 //     CAUSTIC SETTINGS          //
 //===============================//
-#define CAUSTIC_STRENGTH 0.5 // [0.0-1.0] High number represets stronger caustics
+#define CAUSTIC_STRENGTH 0.5 // [0.0-1.0+] High number represets stronger caustics
 #define CAUSTIC_SPEED 20.5   // Speed of caustic image animation
 #define CAUSTIC_SCALE 3.0    // m  - size of caustic texture square
 

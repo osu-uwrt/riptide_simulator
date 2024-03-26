@@ -110,13 +110,13 @@ private:
     float width;
     float height;
     float roll, pitch, yaw;
-    float textCountW, textCountH;
     unsigned int VBO, VAO, EBO;
+    float textCountW, textCountH;
 
     Texture texture;
     Material material;
-    glm::mat4 modelMatrix;
     glm::vec3 position;
+    glm::mat4 modelMatrix;
 };
 
 std::vector<Object> generatePoolObjects(string textureFolder)
@@ -124,6 +124,7 @@ std::vector<Object> generatePoolObjects(string textureFolder)
     fs::path poolFolder = fs::path(textureFolder) / "pool";
     std::vector<Object> poolObjects;
     // POOL FLOOR
+    //---------------------------------------
     // Made up of 9 objects, 4 corner objects, 4 side objects, 1 middle object.
     // Middle
     string poolTexture = poolFolder / "Pool_Cross.jpg";
@@ -143,6 +144,7 @@ std::vector<Object> generatePoolObjects(string textureFolder)
     Object poolFloorCorner4(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 1);
 
     // POOL WALLS
+    //-------------------------------------
     // Wall Sides
     poolTexture = poolFolder / "Pool_Wall_Black.jpg";
     Object poolWallSide1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, 17, 1);
@@ -161,6 +163,7 @@ std::vector<Object> generatePoolObjects(string textureFolder)
     Object poolWallCorner6(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
     Object poolWallCorner7(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
     Object poolWallCorner8(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+
     // Add objects to list and return
     poolObjects.push_back(poolFloorMiddle);
     poolObjects.push_back(poolFloorEdge1);

@@ -7,6 +7,8 @@
 #include <settings.h>
 #include <vector>
 
+using std::cout, std::endl;
+
 enum CameraMode
 {
     ROBOT_MODE,
@@ -24,104 +26,99 @@ enum Camera_Movement
     DOWN
 };
 
-// Default camera values
-const float YAW = 0;
-const float PITCH = 0.0f;
-const float SPEED = MOVEMENT_SPEED;
-const float SENSITIVITY = MOUSE_SENSITIVITY;
-const float ZOOM = 45.0f;
-
 // An abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
 class Camera
 {
 public:
-    // camera Attributes
-    glm::vec3 Position;
-    glm::vec3 Front;
-    glm::vec3 Up;
-    glm::vec3 Right;
-    glm::vec3 WorldUp;
-    // euler Angles
-    float Yaw;
-    float Pitch;
-    // camera options
-    float MovementSpeed;
-    float MouseSensitivity;
-    float Zoom;
-
     // constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), glm::vec3 up = glm::vec3(0.0f, 0.0f, 1.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, -1.0f, 0.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
+    Camera(glm::vec3 position_ = glm::vec3(0.0f, 0.0f, -0.7f))
     {
-        Position = position;
-        WorldUp = up;
-        Yaw = yaw;
-        Pitch = pitch;
-        updateCameraVectors();
+        position = position_;
+        glm::mat3 rotM = rpy2rotM(glm::vec3(0, 0, 3.1415926535 / 2));
     }
-
-    // returns the view matrix calculated using Euler Angles and the LookAt Matrix
-    glm::mat4 GetViewMatrix()
+    glm::mat4 getViewMatrix()
     {
-        return glm::lookAt(Position, Position + Front, Up);
-    }
+        // Get some vectors about where the camera is looking from the rotation matrix
+        glm::mat3 rotM = rpy2rotM(eulerAngles);
+        glm::vec3 front = glm::normalize(rotM[0]);
+        glm::vec3 up = glm::normalize(rotM[2]);
 
-    // processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
+        // Return the view matrix, maps from world coordinates -> camera coordinates
+        return glm::lookAt(position, position + front, up);
+    }
     void ProcessKeyboard(Camera_Movement direction, float deltaTime)
     {
-        float velocity = MovementSpeed * deltaTime;
-        if (direction == FORWARD)
-            Position += glm::normalize(glm::vec3(Front.x, Front.y, 0)) * velocity;
-        if (direction == BACKWARD)
-            Position -= glm::normalize(glm::vec3(Front.x, Front.y, 0)) * velocity;
-        if (direction == LEFT)
-            Position -= glm::normalize(glm::vec3(Right.x, Right.y, 0)) * velocity;
-        if (direction == RIGHT)
-            Position += glm::normalize(glm::vec3(Right.x, Right.y, 0)) * velocity;
-        if (direction == UP)
-            Position += glm::vec3(0, 0, 1) * velocity;
-        if (direction == DOWN)
-            Position -= glm::vec3(0, 0, 1) * velocity;
-    }
+        // Get some vectors about where the camera is looking from the rotation matrix
+        glm::mat3 rotM = rpy2rotM(eulerAngles);
+        glm::vec3 front = rotM[0];
+        glm::vec3 right = rotM[1];
 
+        // Move the camera position based on the desired direction
+        float velocity = MOVEMENT_SPEED * deltaTime;
+        if (direction == FORWARD)
+            position += glm::normalize(glm::vec3(front.x, front.y, 0)) * velocity;
+        if (direction == BACKWARD)
+            position -= glm::normalize(glm::vec3(front.x, front.y, 0)) * velocity;
+        if (direction == LEFT)
+            position += glm::normalize(glm::vec3(right.x, right.y, 0)) * velocity;
+        if (direction == RIGHT)
+            position -= glm::normalize(glm::vec3(right.x, right.y, 0)) * velocity;
+        if (direction == UP)
+            position += glm::vec3(0, 0, 1) * velocity;
+        if (direction == DOWN)
+            position -= glm::vec3(0, 0, 1) * velocity;
+    }
     // processes input received from a mouse input system. Expects the offset value in both the x and y direction.
     void ProcessMouseMovement(float xoffset, float yoffset, GLboolean constrainPitch = true)
     {
-        xoffset *= MouseSensitivity;
-        yoffset *= MouseSensitivity;
+        xoffset *= MOUSE_SENSITIVITY;
+        yoffset *= MOUSE_SENSITIVITY;
 
-        Yaw += xoffset;
-        Pitch += yoffset;
+        eulerAngles.x += xoffset; // yaw
+        eulerAngles.y -= yoffset; // pitch
+        eulerAngles.z = 0;        // roll
 
-        // make sure that when pitch is out of bounds, screen doesn't get flipped
-        if (constrainPitch)
-        {
-            if (Pitch > 89.0f)
-                Pitch = 89.0f;
-            if (Pitch < -89.0f)
-                Pitch = -89.0f;
-        }
-
-        // update Front, Right and Up Vectors using the updated Euler angles
-        updateCameraVectors();
+        if (eulerAngles.y > M_PI / 2)
+            eulerAngles.y = M_PI / 2;
+        else if (eulerAngles.y < -M_PI / 2)
+            eulerAngles.y = -M_PI / 2;
     }
 
-    // calculates the front vector from the Camera's (updated) Euler Angles
-    void updateCameraVectors()
+    // Flips camera position and orientation about water surface
+    // Used for rendering reflections
+    void flip()
     {
-        // calculate the new Front vector
-        glm::vec3 front;
-        front.x = -sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
-        front.y = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
-        front.z = sin(glm::radians(Pitch));
-        Front = glm::normalize(front);
-        // also re-calculate the Right and Up vector
-        glm::vec3 right;
-        right.x = cos(glm::radians(Yaw));
-        right.y = sin(glm::radians(Yaw));
-        right.z = 0;
-        Right = glm::normalize(right);
-        Up = glm::normalize(glm::cross(Right, Front));
+        position.z = -position.z;       // Flip z position
+        eulerAngles.y = -eulerAngles.y; // Flip pitch
+        eulerAngles.z = -eulerAngles.z; // Flip roll
+    }
+    void setYPR(float y, float p, float r)
+    {
+        eulerAngles.x = y;
+        eulerAngles.y = p;
+        eulerAngles.z = r;
+    }
+    void setPosition(float x, float y, float z)
+    {
+        position = glm::vec3(x, y, z);
+    }
+    glm::vec3 getPosition()
+    {
+        return position;
     }
 
 private:
+    // Converts a vector holding roll, pitch, yaw into a 3x3 rotation matrix
+    glm::mat3 rpy2rotM(glm::vec3 ypr)
+    {
+        glm::mat4 rotM = glm::mat4(1.0f);
+        // Apply Euler angle rotations
+        rotM = glm::rotate(rotM, ypr.x, glm::vec3(0, 0, 1)); // yaw
+        rotM = glm::rotate(rotM, ypr.y, glm::vec3(0, 1, 0)); // pitch
+        rotM = glm::rotate(rotM, ypr.z, glm::vec3(1, 0, 0)); // roll
+        return glm::mat3(rotM);
+    }
+
+    glm::vec3 position;
+    glm::vec3 eulerAngles;
 };

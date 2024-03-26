@@ -1,21 +1,13 @@
 //===============================//
 /*     TABLE OF CONTENTS         //
 //===============================//
-16  - Notes/assumptions
-29  - Includes
-67  - Sim start up
-130 - Physics functions
-255 - Collision functions
-574 - Faking sensor data
-727 - Callback functions
-839 - Utility functions
-874 - Variables
-901 - Main
 
 //===============================//
 //      NOTES/ASSUMPTIONS        //
 //===============================//
 1) Change settings in the "setting.h" file in the include directory
+2) If you want good frame rate, don't run in a virtual machine or WSL, do naitive linux boot
+3) The graphics are rendered using OpenGL, to understand how it works, I'd highly reccommend going through the getting started section of https://learnopengl.com/Getting-started/OpenGL
 
 //===============================//
 //           INCLUDES            */
@@ -49,6 +41,7 @@ using std::string, std::cout, std::endl;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
+// This initialization is needed for callback functions
 class zedFakerNode;
 std::shared_ptr<zedFakerNode> node;
 class zedFakerNode : public rclcpp::Node
@@ -56,27 +49,31 @@ class zedFakerNode : public rclcpp::Node
 public:
     zedFakerNode() : Node("zed_faker")
     {
+        robotName = this->get_namespace();
+
         // Create a TF broadcaster
         tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer);
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
-        zedInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
+        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
         imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left_raw/image_raw_color", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
 
         // Create timers
-        std::chrono::duration<double> imgPubTime(1.0 / 1.0);
-        imgPubTimer = this->create_wall_timer(1s, std::bind(&zedFakerNode::publishImages, this));
+        std::chrono::duration<double> imgPubTime(1.0 / FRAME_RATE);
+        imgPubTimer = this->create_wall_timer(imgPubTime, std::bind(&zedFakerNode::publishImages, this));
 
         // Setup OpenGL, shaders, and objects
         openGlSetup();
         shaderSetup();
         objectSetup();
-        screenFBO = FBO(true, true);
-        render1FBO = FBO(true);
-        render2FBO = FBO(true);
+        // Set up FBO's (Things that can be rendered to)
+        screenFBO = FBO(true);
+        render1FBO = FBO(false);
+        render2FBO = FBO(false);
+        finalRenderFBO = FBO(false);
     }
 
     //===============================//
@@ -84,45 +81,45 @@ public:
     //===============================//
     void fakeImages()
     {
-        // waitForTF();
+        waitForTF();
         while (rclcpp::ok() && !glfwWindowShouldClose(window))
         {
             // Starting things
             clearBuffers();
-            //  Get the time between frames, used for camera movement
+            // Get the time between frames, used for camera movement
             double currentFrame = glfwGetTime();
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
-            processInput(window);
+            // std::cout << "FPS: " << 1.0 / deltaTime << std::endl;
 
-            std::cout << "FPS: " << 1.0 / deltaTime << std::endl;
-            // Render differenetly depending on what camera is being used
-            if (true)
-            {
-                // updateRobotCamera();
-                render1FBO.use();
-                objectShader.render(objects, flyAroundCamera);
-                waterShader.render(objects, flyAroundCamera, render1FBO, objectShader);
+            // ROBOT'S VIEW
+            //-------------------------------------------------------
+            updateRobotCamera();
+            render1FBO.use();
+            objectShader.render(objects, robotCamera);
+            waterShader.render(objects, robotCamera, render1FBO, objectShader);
+            // Post processing effects
+            render2FBO.use();
+            frameShader.renderDistorted(render1FBO);              // Camera distortion
+            blurShader.renderBlurred(render2FBO, finalRenderFBO); // Blur
+            frameShader.render(vehicleOverlay);                   // Vehicle overlay
 
-                // Post processing effects
-                render2FBO.use();
-                frameShader.renderDistorted(render1FBO);         // Camera distortion
-                blurShader.renderBlurred(render2FBO, screenFBO); // Blur
-                frameShader.render(vehicleOverlay);              // Vehicle overlay
-            }
-            else
-            {
-                screenFBO.use();
-                objectShader.render(objects, flyAroundCamera);
-                waterShader.render(objects, flyAroundCamera, screenFBO, objectShader);
-            }
+            // FLY AROUND VIEW
+            //-------------------------------------------------------
 
+            // Render desired view to the screen
+            screenFBO.use();
+            frameShader.render(finalRenderFBO);
             glfwSwapBuffers(window);
+
+            // Process mouse and keyboard inputs
+            processInput(window);
             glfwPollEvents();
 
-            // Proccess any pending ROS callbacks or timers
+            // Proccess any pending ROS2 callbacks or timers
             rclcpp::spin_some(shared_from_this());
         }
+        // Cleanup
         glfwTerminate();
     };
 
@@ -135,16 +132,38 @@ private:
         screenFBO.clear();
         render1FBO.clear();
         render2FBO.clear();
+        finalRenderFBO.clear();
     }
+
+    // Updates the robot's camera to match pose from new TF messages
     void updateRobotCamera()
     {
-        string cameraFrame = "odom/simulator/talos/zed2i/left_optical";
-        geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
-            cameraFrame, "world",
-            tf2::TimePointZero);
-        vehicleCamera.Front;
-        vehicleCamera.Right;
-        vehicleCamera.Up;
+        try
+        {
+            // Get camera TF frame
+            string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
+            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+                "world", targetFrame,
+                tf2::TimePointZero);
+
+            // Set camera position
+            robotCamera.setPosition(t.transform.translation.x,
+                                    t.transform.translation.y,
+                                    t.transform.translation.z);
+            // Set camera orientation
+            tf2::Quaternion q(t.transform.rotation.x,
+                              t.transform.rotation.y,
+                              t.transform.rotation.z,
+                              t.transform.rotation.w);
+            tf2::Matrix3x3 rotM(q);
+            double roll, pitch, yaw;
+            rotM.getEulerYPR(yaw, pitch, roll);
+            robotCamera.setYPR(yaw, pitch, roll);
+        }
+        catch (const tf2::TransformException &ex)
+        {
+            glfwSetWindowShouldClose(window, true);
+        }
     }
 
     //===============================//
@@ -159,7 +178,7 @@ private:
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
         // Creating window
-        window = glfwCreateWindow(1920, 1080, "Zed Faker", glfwGetPrimaryMonitor(), NULL);
+        window = glfwCreateWindow(IMG_WIDTH, IMG_HEIGHT, "Zed Faker", NULL, NULL);
         if (window == NULL)
         {
             // Window failed to be created
@@ -222,6 +241,11 @@ private:
         vsPath = fs::path(shaderFolder) / "blur.vs";
         fsPath = fs::path(shaderFolder) / "blur.fs";
         blurShader = BlurShader(vsPath, fsPath);
+
+        // Next up is waiting for TF frames so display another loading screen here while there are things available
+        loadingScreen = Texture(fs::path(textureFolder) / "overlays" / "Loading_Screen2.jpg");
+        frameShader.render(loadingScreen);
+        glfwSwapBuffers(window);
     }
     void objectSetup()
     {
@@ -234,11 +258,14 @@ private:
 
         // Task objects
         texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
-        Object bouy(texturePath, 1.2f, 1.2f, glm::vec3(0, 4.0, -.85));
+        Object bouy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
         texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
-        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2, 3.0, -.75), 0, 0, -30);
+        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(4, 3.0, -1.0), 0, 0, +90);
+        texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
+        Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260 + 90);
         objects.push_back(bouy);
         objects.push_back(torpedo);
+        objects.push_back(gate);
 
         // Surrounding ground
         std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
@@ -253,13 +280,15 @@ private:
         {
             try
             {
+                string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
                 geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
-                    "test", "world",
+                    targetFrame, "world",
                     tf2::TimePointZero);
                 tfFlag = false;
             }
             catch (const tf2::TransformException &ex)
             {
+                // cout << ex.what() << endl;
             }
         }
     }
@@ -268,10 +297,46 @@ private:
     //===============================//
     void publishImages()
     {
-        sensor_msgs::msg::Image img, depth;
-        imagePub->publish(img);
-        depthPub->publish(depth);
+        sensor_msgs::msg::Image imgMsg, depthMsg;
+
+        // Set up image message info
+        imgMsg.height = IMG_HEIGHT;
+        imgMsg.width = IMG_WIDTH;
+        imgMsg.encoding = "rgb8";
+        imgMsg.step = 3 * IMG_WIDTH;
+        imgMsg.is_bigendian = false;
+        // Set up depth message info
+        depthMsg.height = IMG_HEIGHT;
+        depthMsg.width = IMG_WIDTH;
+        depthMsg.encoding = "32FC1";
+        depthMsg.step = sizeof(float) * IMG_WIDTH;
+        depthMsg.is_bigendian = false;
+        // Copy image data into message
+        std::vector<uint8_t> imgData;
+        std::vector<uint8_t> depthData;
+        finalRenderFBO.copyData(imgData, depthData);
+        imgMsg.data = imgData;
+        depthMsg.data = depthData;
+
+        // Publish messages
+        imagePub->publish(imgMsg);
+        depthPub->publish(depthMsg);
+
+        // Fill in camera info messages
+        sensor_msgs::msg::CameraInfo camInfo, depthInfo;
+        camInfo.k[0] = CAMERA_FX; // Making the camera's 3x3 intrinsic matrix
+        camInfo.k[2] = CAMERA_CX; // [fx 0  cx
+        camInfo.k[4] = CAMERA_FY; //  0  fy cy
+        camInfo.k[5] = CAMERA_CY; //  0  0  1 ]
+        camInfo.k[8] = 1.0;
+        depthInfo = camInfo;
+
+        // Publish camera info messages
+        cameraInfoPub->publish(camInfo);
+        depthInfoPub->publish(depthInfo);
     }
+
+    // Handles keyboard input
     void processInput(GLFWwindow *window)
     {
         // Close window
@@ -281,6 +346,7 @@ private:
         // Handle camera movements
         if (cameraMode == FLY_ARROUND_MODE)
         {
+            // WASD + Space/LShift movement
             if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
                 flyAroundCamera.ProcessKeyboard(FORWARD, deltaTime);
             if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -297,7 +363,7 @@ private:
 
         // Show april tag when T is pressed
         if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS)
-            int a = 1;
+            int a = 1; // TODO
 
         // Toggle camera mode
         if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
@@ -306,10 +372,7 @@ private:
             {
                 cameraModeFlag = true;
                 if (cameraMode == ROBOT_MODE)
-                {
-                    // TODO move flyaround camera position
                     cameraMode = FLY_ARROUND_MODE;
-                }
                 else
                     cameraMode = ROBOT_MODE;
             }
@@ -322,6 +385,7 @@ private:
         glViewport(0, 0, width, height);
     }
 
+    // Handles fly around camera movement, called from mouse callback
     void moveCamera(double xpos, double ypos)
     {
         // The user can't use the mouse to control the robot's POV
@@ -330,15 +394,17 @@ private:
 
         // Figure out how much the mouse moved
         float xoffset = lastX - xpos;
-        float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+        float yoffset = lastY - ypos;
         lastX = xpos;
         lastY = ypos;
 
         // Update where the camera is looking
         flyAroundCamera.ProcessMouseMovement(xoffset, yoffset);
     }
+    // Handles mouse movement
     static void mouseCallback(GLFWwindow *window, double xpos, double ypos)
     {
+        // Need to do this goofy thing because callback function can't be an object specific function
         node->moveCamera(xpos, ypos);
     }
     //===============================//
@@ -353,28 +419,29 @@ private:
     bool cameraModeFlag = false;
     float lastX = IMG_WIDTH / 2.0;
     float lastY = IMG_HEIGHT / 2.0;
-    Shader testShader;
-    ObjectShader objectShader;
-    WaterShader waterShader;
-    FrameShader frameShader;
-    BlurShader blurShader;
-    Camera vehicleCamera = Camera();
+    Camera robotCamera = Camera();
     Camera flyAroundCamera = Camera();
     CameraMode cameraMode = FLY_ARROUND_MODE;
-    Texture vehicleOverlay;
 
-    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
-    std::shared_ptr<tf2_ros::TransformListener> tfListener;
-    std::vector<Object> objects;
-    GLFWwindow *window;
+    FBO screenFBO;
     FBO render1FBO;
     FBO render2FBO;
-    FBO screenFBO;
+    string robotName;
+    FBO finalRenderFBO;
+    GLFWwindow *window;
+    BlurShader blurShader;
+    Texture vehicleOverlay;
+    WaterShader waterShader;
+    FrameShader frameShader;
+    ObjectShader objectShader;
+    std::vector<Object> objects;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imagePub;
-    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr zedInfoPub;
+    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr depthInfoPub;
 };
 

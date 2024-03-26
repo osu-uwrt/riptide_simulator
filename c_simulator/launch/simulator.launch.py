@@ -25,7 +25,7 @@ def generate_launch_description():
     # declare the path to the robot's vehicle description file
     obsstacleConfig = PathJoinSubstitution([
         get_package_share_directory('riptide_mapping2'),
-        'config','dummy_detections.yaml'
+        'config','config.yaml'
     ])
 
     # declare the path to collision data folder

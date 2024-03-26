@@ -484,8 +484,9 @@ private:
         string obstacleConfigPath;
         this->declare_parameter("obstacle_config", "");
         this->get_parameter("obstacle_config", obstacleConfigPath);
+        cout << obstacleConfigPath << endl;
         YAML::Node obstacleConfig = YAML::LoadFile(obstacleConfigPath);
-        YAML::Node obstacleList = obstacleConfig["/**/dummydetections"]["ros__parameters"]["detection_data"];
+        YAML::Node obstacleList = obstacleConfig["/**/riptide_mapping2"]["ros__parameters"]["init_data"];
         // Add available obstacles to list of names
         std::set<string> obstacleNames;
         for (const auto &obstacle : obstacleList)
@@ -509,19 +510,21 @@ private:
             if (obstacleNames.count(obstacleModel->getName()) > 0) // name matches obstacle name list
             {
                 // Get position and orientation of object
-                std::vector<double> objPose = obstacleList[obstacleModel->getName()]["pose"].as<std::vector<double>>();
+                double poseX = obstacleList[obstacleModel->getName()]["pose"]["x"].as<double>();
+                double poseY = obstacleList[obstacleModel->getName()]["pose"]["y"].as<double>();
+                double poseZ = obstacleList[obstacleModel->getName()]["pose"]["z"].as<double>();
+                double poseYaw = obstacleList[obstacleModel->getName()]["pose"]["yaw"].as<double>();
                 tf2::Quaternion tf2Quat;
-                tf2Quat.setRPY(objPose[3], objPose[4], objPose[5]);
+                tf2Quat.setRPY(0, 0, poseYaw);
                 tf2Quat.normalize();
+                Eigen::AngleAxisd yawing(poseYaw * M_PI / 180, v3d::UnitZ());
+                quat objQuat(yawing);
                 // Unpack URDF, set position and orientation to the object
                 std::vector<collisionBox> newBoxes = unpackURDF(obstacleModel,
-                                                                v3d(objPose[0],
-                                                                    objPose[1],
-                                                                    objPose[2]),
-                                                                quat(tf2Quat.w(),
-                                                                     tf2Quat.x(),
-                                                                     tf2Quat.y(),
-                                                                     tf2Quat.z()));
+                                                                v3d(poseX,
+                                                                    poseY,
+                                                                    poseZ),
+                                                                objQuat);
                 // Add all new boxes to obstacle list
                 for (collisionBox newBox : newBoxes)
                     obstacleBoxes.push_back(newBox);
@@ -534,6 +537,16 @@ private:
                 continue;
             }
         }
+        // Add box to list
+        collisionBox floor = collisionBox("floor",
+                                          25,
+                                          50,
+                                          1,
+                                          v3d(0, 0, -2.6336),
+                                          v3d(0, 0, 0),
+                                          quat(1, 0, 0, 0),
+                                          quat(1, 0, 0, 0));
+        obstacleBoxes.push_back(floor);
         if (obstacleBoxes.empty())
         {
             RCLCPP_FATAL(this->get_logger(), "No obstacle could not be found or properly parsed");
@@ -911,11 +924,9 @@ private:
             // Setting up TF messages
             geometry_msgs::msg::TransformStamped robotFrame;
             geometry_msgs::msg::TransformStamped cameraFrameL;
-            geometry_msgs::msg::TransformStamped cameraFrameR;
             rclcpp::Time clockTime = this->get_clock()->now();
             robotFrame.header.stamp = clockTime;
             cameraFrameL.header.stamp = clockTime;
-            cameraFrameR.header.stamp = clockTime;
             // Frame names
             robotFrame.header.frame_id = "odom";
             robotFrame.child_frame_id = "simulator/" + robot.getName() + "/base_link";

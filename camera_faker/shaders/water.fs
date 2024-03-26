@@ -1,5 +1,6 @@
 #version 330 core
-out vec4 FragColor;
+layout(location=0) out vec4 fragColor;
+layout(location=1) out vec4 fragDepth;
   
 in vec3 worldPos;
 in vec2 distCords;
@@ -52,7 +53,6 @@ void main()
         reflectionColor = refractionColor;
         refractionColor = vec4(0.568f, 0.878f, 1.0f, 1.0f);
     }
-    FragColor = mix(reflectionColor,refractionColor,fresnel);
-    //FragColor = mix(fogColor, FragColor, fogFactor);
-    //FragColor = vec4(reflectionColor.rgb,1.0);
+    fragColor = mix(reflectionColor,refractionColor,fresnel);
+    fragDepth = vec4(vec3(dist),1.0);
 }

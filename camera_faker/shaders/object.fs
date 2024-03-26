@@ -1,5 +1,6 @@
 #version 330 core
-out vec4 FragColor;
+layout(location=0) out vec4 fragColor;
+layout(location=1) out vec4 fragDepth;
   
 in vec2 TexCoord;
 in vec3 worldPos;
@@ -30,5 +31,7 @@ void main()
     vec4 texColor = texture(ourTexture, TexCoord);
     if (texColor.a < 0.5)
         discard;
-    FragColor = mix(fogColor,texColor*lightColor,fogFactor);
+    // Set the pixel color, and distance in the depth map
+    fragColor = mix(fogColor,texColor*lightColor,fogFactor);
+    fragDepth = vec4(vec3(dist),1.0);
 }

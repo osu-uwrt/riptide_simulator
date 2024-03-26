@@ -1,9 +1,11 @@
 #version 330 core
-out vec4 FragColor;
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 fragDepth;
   
 in vec2 TexCoords;
 
 uniform sampler2D image;
+uniform sampler2D depthTexture;
   
 uniform bool horizontal;
 uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
@@ -28,5 +30,8 @@ void main()
             result += texture(image, TexCoords - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
         }
     }
-    FragColor = vec4(result, 1.0);
+
+    fragColor = vec4(result, 1.0);
+    fragDepth = vec4(texture(depthTexture, TexCoords).rrr,fragColor.a);
+
 }
