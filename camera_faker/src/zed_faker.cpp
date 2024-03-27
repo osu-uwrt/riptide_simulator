@@ -99,9 +99,9 @@ public:
             objectShader.render(objects, robotCamera);
             waterShader.render(objects, robotCamera, render1FBO, objectShader);
             // Post processing effects
-            render2FBO.use();
+            finalRenderFBO.use();
             frameShader.renderDistorted(render1FBO);              // Camera distortion
-            blurShader.renderBlurred(render2FBO, finalRenderFBO); // Blur
+            //blurShader.renderBlurred(render2FBO, finalRenderFBO); // Blur
             frameShader.render(vehicleOverlay);                   // Vehicle overlay
 
             // FLY AROUND VIEW
