@@ -32,6 +32,8 @@
 #include "tf2_ros/transform_listener.h"
 #include <geometry_msgs/msg/pose.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <frameShader.hpp>
@@ -54,6 +56,7 @@ public:
         // Create a TF broadcaster
         tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer);
+        staticBroadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
@@ -247,6 +250,24 @@ private:
         frameShader.render(loadingScreen);
         glfwSwapBuffers(window);
     }
+    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string& name, const Object& object)
+    {
+        geometry_msgs::msg::TransformStamped static_transform;
+        static_transform.header.frame_id = "world";
+        static_transform.child_frame_id = "simulator/" + name;
+
+        glm::vec3 xyz = object.getPositionXYZ();
+        static_transform.transform.translation.x = xyz.x;
+        static_transform.transform.translation.y = xyz.y;
+        static_transform.transform.translation.z = xyz.z;
+
+        glm::vec3 rpy = object.getOrientationRPY();
+        tf2::Quaternion tf2Quat;
+        tf2Quat.setRPY(rpy.x, rpy.y, rpy.z);
+        tf2Quat.normalize();
+        static_transform.transform.rotation = tf2::toMsg(tf2Quat);
+        return static_transform;
+    }
     void objectSetup()
     {
         // Get texture folder path
@@ -258,14 +279,23 @@ private:
 
         // Task objects
         texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
-        Object bouy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
+        Object buoy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
         texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
-        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(4, 3.0, -1.0), 0, 0, +90);
+        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2.0, -3.0, -1.0), 0, 0, 90 + 90);
         texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
         Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260 + 90);
-        objects.push_back(bouy);
+        objects.push_back(buoy);
         objects.push_back(torpedo);
         objects.push_back(gate);
+
+        // before adding environment objects to the vector, publish the objects we care about as static transforms
+        // this will help with visualization of the ground-truth positions in RViz as well as provide infrastructure
+        // for automated testing of the system
+        std::vector<geometry_msgs::msg::TransformStamped> transforms;
+        transforms.push_back(getStaticTransformForObject("buoy", buoy));
+        transforms.push_back(getStaticTransformForObject("torpedo", torpedo));
+        transforms.push_back(getStaticTransformForObject("gate", gate));
+        staticBroadcaster->sendTransform(transforms);
 
         // Surrounding ground
         std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
@@ -300,6 +330,9 @@ private:
         sensor_msgs::msg::Image imgMsg, depthMsg;
 
         // Set up image message info
+        string robotPrefix = (robotName[0] == '/' ? robotName.substr(1) : robotName);
+        imgMsg.header.frame_id = robotPrefix + "/zed_left_camera_optical_frame";
+        imgMsg.header.stamp = this->get_clock()->now();
         imgMsg.height = IMG_HEIGHT;
         imgMsg.width = IMG_WIDTH;
         imgMsg.encoding = "rgb8";
@@ -439,6 +472,7 @@ private:
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
+    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> staticBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imagePub;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;

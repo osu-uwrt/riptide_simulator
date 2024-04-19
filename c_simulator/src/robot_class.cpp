@@ -290,7 +290,7 @@ geometry_msgs::msg::Transform Robot::getLCameraTransform()
 {
     if (!hasLCameraTransform)
     {
-        string fromFrameRel = name + "/zed2i/left_optical";
+        string fromFrameRel = name + "/zed_left_camera_optical_frame";
         string toFrameRel = name + "/base_link";
         lCameraTransform.translation = safeTransform(toFrameRel, fromFrameRel, hasLCameraTransform).translation;
     }
