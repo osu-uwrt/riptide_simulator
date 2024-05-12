@@ -117,29 +117,33 @@ private:
         {
             for (int i = 0; i < gridSize; i++)
             {
-                // Find coordinate of vertice
-                float x = i / (gridSize - 1.0);
-                float y = 1 - j / (gridSize - 1.0);
+                // Calculate normalized screen coordinates (range from -1 to 1)
+                float x = (i / (gridSize - 1.0f) * 2.0f - 1.0f);
+                float y = (1.0f - j / (gridSize - 1.0f) * 2.0f);
 
-                // move orgin from corner to center of screen so it's in range [-0.5, 0.5] for distorting
-                float xc = x - 0.5;
-                float yc = y - 0.5;
+                // Convert to normalized camera coordinates
+                float xc = x * CAMERA_FX + CAMERA_CX;
+                float yc = y * CAMERA_FY + CAMERA_CY;
 
-                // Distort the coordinates
-                float r = sqrt(pow(xc, 2) + pow(yc, 2));
-                float xDist = xc * (1 + DIST_K1 * pow(r, 2) + DIST_K2 * pow(r, 4) + DIST_K3 * pow(r, 6)) + 2 * DIST_P1 * xc * yc + DIST_P2 * (pow(r, 2) + 2 * pow(xc, 2));
-                float yDist = yc * (1 + DIST_K1 * pow(r, 2) + DIST_K2 * pow(r, 4) + DIST_K3 * pow(r, 6)) + DIST_P1 * (pow(r, 2) + 2 * pow(yc, 2)) + 2 * DIST_P2 * xc * yc;
-                // Rescale distortaed cords to [-1, 1]
-                xDist *= 2;
-                yDist *= 2;
-                // Fill in elements of vertice array with distorted position and texture position
-                int startIndex = (gridSize * j + i) * 4;
-                // Vertex positions
-                distVertices[startIndex + 0] = xDist;
-                distVertices[startIndex + 1] = yDist;
-                // Texture coordinates
-                distVertices[startIndex + 2] = x;
-                distVertices[startIndex + 3] = y;
+                // Calculate radial distance from the center of the image
+                float r2 = xc * xc + yc * yc;
+
+                // Apply radial and tangential distortion
+                float xDistorted = xc * (1 + DIST_K1 * r2 + DIST_K2 * r2 * r2 + DIST_K3 * r2 * r2 * r2) +
+                                2 * DIST_P1 * xc * yc + DIST_P2 * (r2 + 2 * xc * xc);
+                float yDistorted = yc * (1 + DIST_K1 * r2 + DIST_K2 * r2 * r2 + DIST_K3 * r2 * r2 * r2) +
+                                DIST_P1 * (r2 + 2 * yc * yc) + 2 * DIST_P2 * xc * yc;
+
+                // Convert back to OpenGL screen coordinates
+                float xGL = (xDistorted - CAMERA_CX) / CAMERA_FX;
+                float yGL = (yDistorted - CAMERA_CY) / CAMERA_FY;
+
+                // Store the distorted vertex coordinates
+                int index = (j * gridSize + i) * 4;
+                distVertices[index] = xGL;
+                distVertices[index + 1] = yGL;
+                distVertices[index + 2] = i / (gridSize - 1.0f);
+                distVertices[index + 3] = j / (gridSize - 1.0f);
             }
         }
         //  Create indices array
