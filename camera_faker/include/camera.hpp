@@ -31,11 +31,39 @@ class Camera
 {
 public:
     // constructor with vectors
-    Camera(glm::vec3 position_ = glm::vec3(0.0f, 0.0f, -0.7f))
-    {
-        position = position_;
-        glm::mat3 rotM = rpy2rotM(glm::vec3(0, 0, 3.1415926535 / 2));
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.1f, float farPlane = 1000.0f)
+        : position(position), nearPlane(nearPlane), farPlane(farPlane) {
+        // Initialize with default orientation pointing along some axis, if needed
+        setInitialOrientation(glm::vec3(0, 0, M_PI_2)); // pi/2 radians rotation about z-axis, modify as needed
+        setIntrinsicParameters(CAMERA_FX, CAMERA_FY, CAMERA_CX, CAMERA_CY, IMG_WIDTH, IMG_HEIGHT);
     }
+
+    void setInitialOrientation(const glm::vec3& ypr) {
+        glm::mat3 rotM = rpy2rotM(ypr);
+        eulerAngles = ypr;  // Assuming eulerAngles should store the yaw, pitch, roll
+        // If rotM affects view or other transformations, apply changes accordingly
+    }
+
+    void setIntrinsicParameters(float fx, float fy, float cx, float cy, int width, int height) {
+        this->fx = fx;
+        this->fy = fy;
+        this->cx = cx;
+        this->cy = cy;
+        this->width = width;
+        this->height = height;
+        updateProjectionMatrix();
+    }
+
+    void updateProjectionMatrix() {
+        float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+        float fovY = 2 * atan(height / (2 * fy)); // Calculate vertical field of view
+        projectionMatrix = glm::perspective(glm::radians(fovY), aspectRatio, nearPlane, farPlane);
+    }
+
+    glm::mat4 getProjectionMatrix() {
+        return projectionMatrix;
+    }
+
     glm::mat4 getViewMatrix()
     {
         // Get some vectors about where the camera is looking from the rotation matrix
@@ -108,6 +136,14 @@ public:
     }
 
 private:
+
+    glm::vec3 position;
+    glm::vec3 eulerAngles;
+    glm::mat4 projectionMatrix;
+    float fx, fy, cx, cy; // Intrinsic parameters
+    int width, height;    // Image dimensions
+    float nearPlane, farPlane; // Clipping planes
+
     // Converts a vector holding roll, pitch, yaw into a 3x3 rotation matrix
     glm::mat3 rpy2rotM(glm::vec3 ypr)
     {
@@ -119,6 +155,7 @@ private:
         return glm::mat3(rotM);
     }
 
-    glm::vec3 position;
-    glm::vec3 eulerAngles;
+    
+
+    
 };
