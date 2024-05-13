@@ -33,8 +33,7 @@ public:
         shader.use();
         glEnable(GL_DEPTH_TEST);
         //  Get camera matrixs
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
-        shader.setMat4("projection", projection);
+        shader.setMat4("projection", camera.getProjectionMatrix());
         shader.setMat4("view", camera.getViewMatrix());
 
         // Set uniform variables that are constant for all objects
