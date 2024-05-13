@@ -60,8 +60,8 @@ public:
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
-        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left_raw/camera_info", 10);
-        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left_raw/image_raw_color", 10);
+        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
+        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
 
         // Create timers
