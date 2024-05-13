@@ -31,17 +31,16 @@ class Camera
 {
 public:
     // constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.1f, float farPlane = 1000.0f)
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.1f, float farPlane = 100.0f)
         : position(position), nearPlane(nearPlane), farPlane(farPlane) {
-        // Initialize with default orientation pointing along some axis, if needed
+
         setInitialOrientation(glm::vec3(0, 0, M_PI_2)); // pi/2 radians rotation about z-axis, modify as needed
         setIntrinsicParameters(CAMERA_FX, CAMERA_FY, CAMERA_CX, CAMERA_CY, IMG_WIDTH, IMG_HEIGHT);
     }
 
     void setInitialOrientation(const glm::vec3& ypr) {
         glm::mat3 rotM = rpy2rotM(ypr);
-        eulerAngles = ypr;  // Assuming eulerAngles should store the yaw, pitch, roll
-        // If rotM affects view or other transformations, apply changes accordingly
+        eulerAngles = ypr;  
     }
 
     void setIntrinsicParameters(float fx, float fy, float cx, float cy, int width, int height) {
@@ -56,8 +55,8 @@ public:
 
     void updateProjectionMatrix() {
         float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
-        float fovY = 2 * atan(height / (2 * fy)); // Calculate vertical field of view
-        projectionMatrix = glm::perspective(glm::radians(fovY), aspectRatio, nearPlane, farPlane);
+        float fovY = 2.0f * glm::atan(0.5f * static_cast<float>(height) / fy);
+        projectionMatrix = glm::perspective(fovY, aspectRatio, nearPlane, farPlane);
     }
 
     glm::mat4 getProjectionMatrix() {
@@ -153,9 +152,5 @@ private:
         rotM = glm::rotate(rotM, ypr.y, glm::vec3(0, 1, 0)); // pitch
         rotM = glm::rotate(rotM, ypr.z, glm::vec3(1, 0, 0)); // roll
         return glm::mat3(rotM);
-    }
-
-    
-
-    
+    } 
 };
