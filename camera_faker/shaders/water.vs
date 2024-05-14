@@ -9,11 +9,14 @@ uniform mat4 projection;
 out vec3 worldPos;
 out vec4 clipspace;
 out vec2 distCords;
+out float fragDepth;
 
 void main()
 {
     worldPos = (model * vec4(aPos, 1.0f)).xyz;
-    clipspace = projection * view * model * vec4(aPos, 1.0f);
+    vec4 viewPos = view * model * vec4(aPos, 1.0f);
+    clipspace = projection * viewPos;
     gl_Position = clipspace;
+    fragDepth = viewPos.z / viewPos.w; 
     distCords = aDistCord;
 }
