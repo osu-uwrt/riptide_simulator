@@ -60,8 +60,8 @@ public:
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
-        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left_raw/camera_info", 10);
-        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left_raw/image_raw_color", 10);
+        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
+        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
 
         // Create timers
@@ -77,6 +77,7 @@ public:
         render1FBO = FBO(false);
         render2FBO = FBO(false);
         finalRenderFBO = FBO(false);
+        depthRenderFBO = FBO(false);
     }
 
     //===============================//
@@ -98,13 +99,17 @@ public:
             // ROBOT'S VIEW
             //-------------------------------------------------------
             updateRobotCamera();
+
+            depthRenderFBO.use();
+            objectShader.render(objects, robotCamera);
+            waterShader.render(objects, robotCamera, depthRenderFBO, objectShader);
+
             render1FBO.use();
-            
             objectShader.render(objects, robotCamera);
             waterShader.render(objects, robotCamera, render1FBO, objectShader);
             // Post processing effects
             finalRenderFBO.use();
-            frameShader.renderDistorted(render1FBO);              // Camera distortion
+            frameShader.render(render1FBO);              // Camera distortion
             //blurShader.renderBlurred(render2FBO, finalRenderFBO); // Blur
             frameShader.render(vehicleOverlay);                   // Vehicle overlay
             
@@ -138,6 +143,7 @@ private:
         render1FBO.clear();
         render2FBO.clear();
         finalRenderFBO.clear();
+        depthRenderFBO.clear();
     }
 
     // Updates the robot's camera to match pose from new TF messages
@@ -349,7 +355,8 @@ private:
         // Copy image data into message
         std::vector<uint8_t> imgData;
         std::vector<uint8_t> depthData;
-        finalRenderFBO.copyData(imgData, depthData);
+        finalRenderFBO.copyColorData(imgData); // Use finalRenderFBO for color data
+        depthRenderFBO.copyDepthData(depthData);
         imgMsg.data = imgData;
         depthMsg.data = depthData;
 
@@ -463,6 +470,7 @@ private:
     FBO render2FBO;
     string robotName;
     FBO finalRenderFBO;
+    FBO depthRenderFBO;
     GLFWwindow *window;
     BlurShader blurShader;
     Texture vehicleOverlay;

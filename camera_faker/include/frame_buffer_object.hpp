@@ -86,7 +86,7 @@ public:
     {
         return colorTextureBuffer;
     }
-    void copyData(std::vector<uint8_t> &imgData, std::vector<uint8_t> &depthData)
+    void copyColorData(std::vector<uint8_t> &imgData)
     {
         use();
         // Copy color information
@@ -96,24 +96,33 @@ public:
         glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, imgData.data());
 
+        // Flip the image vertically
+        for (int i = 0; i < IMG_HEIGHT / 2; ++i)
+        {
+            std::swap_ranges(imgData.begin() + i * IMG_WIDTH * numChannels,
+                            imgData.begin() + (i + 1) * IMG_WIDTH * numChannels,
+                            imgData.begin() + (IMG_HEIGHT - i - 1) * IMG_WIDTH * numChannels);
+        }
+        glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
+    }
+
+    void copyDepthData(std::vector<uint8_t> &depthData)
+    {
+        use();
         // Copy depth information
-        data_size = IMG_HEIGHT * IMG_WIDTH * sizeof(float);
+        size_t data_size = IMG_HEIGHT * IMG_WIDTH * sizeof(float);
         depthData.resize(data_size);
         glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, depthData.data());
 
-        // Flip the image vertically, idk why but I guess OpenGL stores images reversed of ROS2
+        // Flip the image vertically
         for (int i = 0; i < IMG_HEIGHT / 2; ++i)
         {
-            // Thanks ChatGPT lol
-            std::swap_ranges(imgData.begin() + i * IMG_WIDTH * numChannels,
-                             imgData.begin() + (i + 1) * IMG_WIDTH * numChannels,
-                             imgData.begin() + (IMG_HEIGHT - i - 1) * IMG_WIDTH * numChannels);
             std::swap_ranges(depthData.begin() + i * IMG_WIDTH * sizeof(float),
                              depthData.begin() + (i + 1) * IMG_WIDTH * sizeof(float),
                              depthData.begin() + (IMG_HEIGHT - i - 1) * IMG_WIDTH * sizeof(float));
         }
-        glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
+        glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
     }
 
 private:

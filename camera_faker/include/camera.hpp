@@ -31,7 +31,7 @@ class Camera
 {
 public:
     // constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.1f, float farPlane = 100.0f)
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.2f, float farPlane = 100.0f)
         : position(position), nearPlane(nearPlane), farPlane(farPlane) {
 
         setInitialOrientation(glm::vec3(0, 0, M_PI_2)); // pi/2 radians rotation about z-axis, modify as needed
