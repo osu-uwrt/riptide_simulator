@@ -11,14 +11,11 @@ uniform mat4 view;
 uniform mat4 projection;
 
 out vec3 worldPos;
-out float fragDepth;
 
 void main()
 {
     worldPos = (model * vec4(aPos, 1.0f)).xyz;
-    vec4 viewPos = view * model * vec4(aPos, 1.0f);
-    gl_Position = projection * viewPos;
-    fragDepth = viewPos.z / viewPos.w; 
+    gl_Position = projection * view * model * vec4(aPos, 1.0f);;
     TexCoord = aTexCoord;
     causticTexCoord = aCausticCoord;
 }
