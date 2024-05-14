@@ -13,6 +13,8 @@
 //===============================//
 #define MOUSE_SENSITIVITY 0.005  // Lower number makes fly around camera rotate slower
 #define MOVEMENT_SPEED 5.0       // m/s translation speed of fly around camera
+#define MOUSE_SENSITIVITY 0.005  // Lower number makes fly around camera rotate slower
+#define MOVEMENT_SPEED 5.0       // m/s translation speed of fly around camera
 
 //===============================//
 //        CAMERA SETTINGS        //
@@ -45,13 +47,13 @@
 //===============================//
 //     CAUSTIC SETTINGS          //
 //===============================//
-#define CAUSTIC_STRENGTH 0.5 // [0.0-1.0+] High number represets stronger caustics
-#define CAUSTIC_SPEED 20.5   // Speed of caustic image animation
-#define CAUSTIC_SCALE 3.0    // m  - size of caustic texture square
+#define CAUSTIC_STRENGTH 0.5     // [0.0-1.0+] High number represets stronger caustics
+#define CAUSTIC_SPEED 20.5       // Speed of caustic image animation
+#define CAUSTIC_SCALE 3.0        // m  - size of caustic texture square
 
 //===============================//
 //         WATER SETTINGS        //
 //===============================//
-#define WAVE_SPEED 0.075     // Controls how fast the water waves move
-#define WAVE_DISTORTION 0.03 // Controls how much distortion the waves create
-#define WAVE_SCALE 10.0      // Controls the size of the waves
+#define WAVE_SPEED 0.075         // Controls how fast the water waves move
+#define WAVE_DISTORTION 0.03     // Controls how much distortion the waves create
+#define WAVE_SCALE 10.0          // Controls the size of the waves
