@@ -29,6 +29,7 @@ Robot::Robot(string name_)
     hasLCameraTransform = false;
     hasDVLTransform = false;
     hasIMUTransform = false;
+    hasAcousticsTransform = false;
     hasMapFrame = false;
 }
 
@@ -145,6 +146,11 @@ void Robot::storeConfigData(YAML::Node config)
     // Initialize thruster forces and torques to zero
     forces.Zero();
     torques.Zero();
+
+    //acoustics stuff
+    speedOfSound = config["acoustics"]["speed_of_sound"].as<double>();
+    std::vector<double> fakePingerPose = config["acoustics"]["fake_pinger"]["pose"].as<std::vector<double>>();
+    fakePingerPosition = v3d(fakePingerPose[0], fakePingerPose[1], fakePingerPose[2]);
 }
 
 //================================//
@@ -326,6 +332,23 @@ bool Robot::imuTransformAvailable()
     }
     return hasIMUTransform;
 }
+bool Robot::acousticsTransformAvailable()
+{
+    if(!hasAcousticsTransform){
+        string toFrameRel_port = name + "/acoustics_port_link";
+        string toFrameRel_starboard = name + "/acoustics_starboard_link";
+        string fromFrameRel = name + "/base_link";
+
+        bool port, starboard = false;
+
+        safeTransform(toFrameRel_port, fromFrameRel, port);
+        safeTransform(toFrameRel_starboard, fromFrameRel, starboard);
+
+        hasAcousticsTransform = port && starboard;
+    }
+
+    return hasAcousticsTransform;
+}
 double Robot::getMass()
 {
     return mass;
@@ -417,6 +440,25 @@ quat Robot::getDVLQuat()
 int Robot::getThrusterCount()
 {
     return thrusterCount;
+}
+double Robot::getAcousticsPingTime(){
+    //calculate the time between the port and starboard acoustics pods recieving pulses
+    //port_time - starboard_time
+    
+
+    //get the pod locations
+    string portFrame = name + "/acoustics_port_link";
+    string starboardFrame = name + "/acoustics_starboard_link";
+    string worldFrame = "world";
+
+    bool success = false;
+    geometry_msgs::msg::Vector3 portTranslation = safeTransform(worldFrame, portFrame, success).translation;
+    geometry_msgs::msg::Vector3 starboardTranslation = safeTransform(worldFrame, starboardFrame, success).translation;
+
+    double portDistance = sqrt(pow(portTranslation.x - fakePingerPosition[0],2) + pow(portTranslation.y - fakePingerPosition[1], 2) + pow(portTranslation.z - fakePingerPosition[2], 2));
+    double starboardDistance = sqrt(pow(starboardTranslation.x - fakePingerPosition[0],2) + pow(starboardTranslation.y - fakePingerPosition[1],2) + pow(starboardTranslation.z - fakePingerPosition[2],2));
+
+    return (portDistance - starboardDistance) / this->speedOfSound;
 }
 
 //================================//

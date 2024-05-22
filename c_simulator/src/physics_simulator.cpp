@@ -50,6 +50,7 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <robot_localization/srv/set_pose.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
+#include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <riptide_msgs2/msg/kill_switch_report.hpp>
 #include <riptide_msgs2/msg/dshot_partial_telemetry.hpp>
@@ -86,6 +87,7 @@ public:
         statePub = this->create_publisher<geometry_msgs::msg::Pose>("simulator/state", 10);
         dvlPub = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("dvl_twist", 10);
         depthPub = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("depth/pose", 10);
+        acousticsPub = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("acoustics/delta_t", 10);
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
@@ -126,6 +128,7 @@ public:
             imuTimer = this->create_wall_timer(imuRate, std::bind(&PhysicsSimNode::publishFakeIMUData, this));
             dvlTimer = this->create_wall_timer(dvlRate, std::bind(&PhysicsSimNode::publishFakeDVLData, this));
             depthTimer = this->create_wall_timer(depthRate, std::bind(&PhysicsSimNode::publishFakeDepthData, this));
+            acousticsTimer = this->create_wall_timer(2s, std::bind(&PhysicsSimNode::publishFakeAcousticsData, this));
         }
         else
         {
@@ -799,6 +802,21 @@ private:
         }
     }
 
+    void publishFakeAcousticsData(){
+        //if the acoustics transform is availbe
+        if(robot.acousticsTransformAvailable()){
+            if(robot.mapAvailable()){
+
+                auto msg = geometry_msgs::msg::Vector3Stamped();
+                msg.header.stamp = this->get_clock()->now();
+                msg.vector.x = robot.getAcousticsPingTime();
+
+                acousticsPub->publish(msg);
+            }
+
+        }
+    }
+
     //================================//
     //       CALLBACK FUNCTIONS       //
     //================================//
@@ -996,6 +1014,7 @@ private:
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
+    rclcpp::TimerBase::SharedPtr acousticsTimer;
     std::vector<collisionBox> obstacleBoxes;
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
@@ -1010,6 +1029,7 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisionBoxPub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
+    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr acousticsPub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
 };
