@@ -42,6 +42,15 @@ def generate_launch_description():
         'models'
     ])
 
+    # declare the path to font data folder
+    fontFolder = PathJoinSubstitution([
+        package_src_dir,
+        'src',
+        "riptide_simulator",
+        'camera_faker',
+        'fonts'
+    ])
+
     return launch.LaunchDescription([
         DeclareLaunchArgument(
             "robot",
@@ -63,6 +72,7 @@ def generate_launch_description():
                     {"shader_folder": shaderFolder},
                     {"texture_folder": textureFolder},
                     {"model_folder": modelFolder},
+                    {"font_folder": fontFolder},
                     {"robot": robot},
                 ]
             ),

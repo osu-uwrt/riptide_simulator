@@ -26,6 +26,8 @@ find_package(tf2_ros REQUIRED)
 find_package(urdf REQUIRED)
 find_package(robot_localization REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(assimp REQUIRED)
+find_package(Freetype REQUIRED)
 
 add_executable(zed_faker include/external/glad/glad.c src/zed_faker.cpp)
 
@@ -33,7 +35,8 @@ target_include_directories(zed_faker PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/external>
     $<INSTALL_INTERFACE:include>
-    ${YAML_CPP_INCLUDEDIR})
+    ${YAML_CPP_INCLUDEDIR}
+    ${FREETYPE_INCLUDE_DIRS})
 
 ament_target_dependencies(zed_faker 
   Eigen3 
@@ -49,9 +52,15 @@ ament_target_dependencies(zed_faker
   sensor_msgs
   nav_msgs
   yaml-cpp
-  glfw3)
+  glfw3
+  assimp
+  Freetype)
 
-target_link_libraries(zed_faker glfw)
+target_link_libraries(zed_faker 
+  ${ASSIMP_LIBRARIES}
+  ${FREETYPE_LIBRARIES}
+  glfw
+)
 
 install(TARGETS zed_faker
   DESTINATION lib/${PROJECT_NAME}

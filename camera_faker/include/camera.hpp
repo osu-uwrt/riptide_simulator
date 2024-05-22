@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <settings.h>
 #include <vector>
+#include <algorithm>
 
 using std::cout, std::endl;
 
@@ -15,7 +16,7 @@ enum CameraMode
     FLY_ARROUND_MODE
 };
 
-// Defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
+// Camera movement options
 enum Camera_Movement
 {
     FORWARD,
@@ -34,7 +35,7 @@ public:
     Camera(glm::vec3 position_ = glm::vec3(0.0f, 0.0f, -0.7f))
     {
         position = position_;
-        glm::mat3 rotM = rpy2rotM(glm::vec3(0, 0, 3.1415926535 / 2));
+        eulerAngles = glm::vec3(0, 0, 0);
     }
     glm::mat4 getViewMatrix()
     {
@@ -78,10 +79,8 @@ public:
         eulerAngles.y -= yoffset; // pitch
         eulerAngles.z = 0;        // roll
 
-        if (eulerAngles.y > M_PI / 2)
-            eulerAngles.y = M_PI / 2;
-        else if (eulerAngles.y < -M_PI / 2)
-            eulerAngles.y = -M_PI / 2;
+        // Clamping pitch to +/- 90 degrees
+        eulerAngles.y = std::clamp(eulerAngles.y, -(float)M_PI / 2, (float)M_PI / 2);
     }
 
     // Flips camera position and orientation about water surface
@@ -101,6 +100,10 @@ public:
     void setPosition(float x, float y, float z)
     {
         position = glm::vec3(x, y, z);
+    }
+    void setPosition(glm::vec3 position_)
+    {
+        position = position_;
     }
     glm::vec3 getPosition()
     {

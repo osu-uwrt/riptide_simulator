@@ -12,10 +12,9 @@
 #include <shader.hpp>
 #include <texture.hpp>
 #include <camera.hpp>
-#include <light.hpp>
 #include <object.hpp>
 #include <cmath>
-#include <frame_buffer_object.hpp>
+#include <frameBufferObject.hpp>
 namespace fs = std::filesystem;
 using std::string, std::cout, std::endl;
 
@@ -70,10 +69,6 @@ public:
 private:
     void createVertexInfo()
     {
-        // glGenBuffers(1, &distVBO);
-        // glGenBuffers(1, &distVAO);
-        // glGenBuffers(1, &distEBO);
-
         //===============================//
         //      SIMPLE SCREEN QUAD       //
         //===============================//

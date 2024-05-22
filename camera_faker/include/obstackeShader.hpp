@@ -12,7 +12,6 @@
 #include <shader.hpp>
 #include <texture.hpp>
 #include <camera.hpp>
-#include <light.hpp>
 #include <object.hpp>
 #include <cmath>
 namespace fs = std::filesystem;
@@ -42,15 +41,12 @@ public:
         shader.setFloat("fogStrength", FOG_STRENGTH);
         shader.setFloat("causticStrength", CAUSTIC_STRENGTH);
         shader.setVec4("fogColor", glm::vec4(FOG_COLOR, 1.0));
-        shader.setFloat("fogFactor", FOG_STRENGTH);
         shader.setInt("ourTexture", 1);
         shader.setInt("causticTexture", 2);
         shader.setInt("depthTexture", 3);
         // Figure out what caustic image from the animation to use then use it
         unsigned int index = ((int)(CAUSTIC_SPEED * glfwGetTime())) % causticsImgs.size();
         causticsImgs[index].use(2);
-        // Set uniform stuff for directional light
-
         // Loop through each object to render
         for (Object object : objects)
         {
@@ -80,12 +76,10 @@ private:
             string fileName = "Caustics_Texture (" + std::to_string(i) + ").jpg";
             string texturePath = fs::path(causticPath) / fileName;
             // Make a texture for the file and add it to the list
-            causticsImgs.push_back(Texture(texturePath));
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            causticsImgs.push_back(Texture(texturePath, false));
             i++;
         }
-        std::cout << "done loading textures" << std::endl;
+        std::cout << "Done loading textures" << std::endl;
     }
 
     //===============================//

@@ -12,10 +12,10 @@
 #include <shader.hpp>
 #include <texture.hpp>
 #include <camera.hpp>
-#include <light.hpp>
 #include <object.hpp>
 #include <cmath>
-#include <frame_buffer_object.hpp>
+#include "frameBufferObject.hpp"
+#include "modelShader.hpp"
 
 using std::string;
 
@@ -23,9 +23,11 @@ class WaterShader
 {
 public:
     WaterShader() {}
-    WaterShader(string &vsPath, string &fsPath, string &waterPath)
+    WaterShader(string &vsPath, string &fsPath, string &waterPath, ObjectShader objectShader_, ModelShader modelShader_)
     {
         waterShader = Shader(vsPath, fsPath);
+        objectShader = objectShader_;
+        modelShader = modelShader_;
         createWaterPlane();
         reflectionFBO = FBO(false);
         string test123;
@@ -34,14 +36,16 @@ public:
         test123 = fs::path(waterPath) / "waterNormalMap.png";
         normalMap = Texture(test123, false);
     }
-    void render(std::vector<Object> objects, Camera camera, FBO renderFBO, ObjectShader objectShader)
+    void render(std::vector<Object> objects, Model model, Camera camera, FBO renderFBO)
     {
+        glEnable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
         // Mirror camera accross water plane and render reflected scene
         reflectionFBO.use();
         reflectionFBO.clear();
         camera.flip();
         objectShader.render(objects, camera);
+        modelShader.render(model, camera);
 
         // Move camera back
         camera.flip();
@@ -108,6 +112,8 @@ private:
     //===============================//
     unsigned int VBO, waterVAO, EBO;
     Texture distortionTexture;
+    ObjectShader objectShader;
+    ModelShader modelShader;
     Shader waterShader;
     Texture normalMap;
     FBO reflectionFBO;

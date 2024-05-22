@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <iostream>
+#include "settings.h"
+using std::vector;
 
 class FBO
 {
@@ -13,7 +15,10 @@ public:
     {
         // Screen is a bool that holds whether the screen is the default screen buffer or not
         screen = screen_;
-        if (!screen)
+        if (screen)
+            // This is a screen buffer, make the framebuffer ID = 0 which is the default screen
+            framebuffer = 0;
+        else
         {
             // Frame buffer setup
             glGenFramebuffers(1, &framebuffer);
@@ -50,19 +55,12 @@ public:
                 std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
-        else
-            // This is a screen buffer, make the framebuffer ID = 0 which is the default screen
-            framebuffer = 0;
     }
     void use()
     {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
         glDrawBuffers(2, drawBuffers);
-    }
-    void read()
-    {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
     }
     void useTexture(int textureSlot, bool useDepth = false)
     {
@@ -86,7 +84,7 @@ public:
     {
         return colorTextureBuffer;
     }
-    void copyData(std::vector<uint8_t> &imgData, std::vector<uint8_t> &depthData)
+    void copyData(vector<uint8_t> &imgData, vector<uint8_t> &depthData)
     {
         use();
         // Copy color information

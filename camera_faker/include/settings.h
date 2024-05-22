@@ -12,7 +12,7 @@
 //      MOVEMENT SETTINGS        //
 //===============================//
 #define MOUSE_SENSITIVITY 0.005 // Lower number makes fly around camera rotate slower
-#define MOVEMENT_SPEED 5.0      // m/s translation speed of fly around camera
+#define MOVEMENT_SPEED 1.75     // m/s translation speed of fly around camera
 
 //===============================//
 //        CAMERA SETTINGS        //
@@ -55,3 +55,10 @@
 #define WAVE_SPEED 0.075     // Controls how fast the water waves move
 #define WAVE_DISTORTION 0.03 // Controls how much distortion the waves create
 #define WAVE_SCALE 10.0      // Controls the size of the waves
+
+//===============================//
+//      F3 SCREEN SETTINGS       //
+//===============================//
+#define TEXT_HEIGHT 16    // Text height in pixels
+#define MARGIN 10         // Pixels gap from text to edge of the screen
+#define LINE_SPACING 1.15 // Line spacing between text rows

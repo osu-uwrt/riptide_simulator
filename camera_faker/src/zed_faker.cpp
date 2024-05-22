@@ -36,8 +36,13 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <frameShader.hpp>
 #include <blurShader.hpp>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <modelShader.hpp>
+#include <textShader.hpp>
 
-using std::string, std::cout, std::endl;
+using std::string, std::vector, std::cout, std::endl;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -73,7 +78,8 @@ public:
         screenFBO = FBO(true);
         render1FBO = FBO(false);
         render2FBO = FBO(false);
-        finalRenderFBO = FBO(false);
+        robotFinalFBO = FBO(false);
+        flycamFinalFBO = FBO(false);
     }
 
     //===============================//
@@ -86,35 +92,56 @@ public:
         {
             // Starting things
             clearBuffers();
+
+            // Process mouse and keyboard inputs
+            processKeyboard(window);
+            glfwPollEvents();
+
             // Get the time between frames, used for camera movement
             double currentFrame = glfwGetTime();
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
-            // std::cout << "FPS: " << 1.0 / deltaTime << std::endl;
+
+            // Update positions
+            updateRobotCamera();
+            updateRobotModel();
 
             // ROBOT'S VIEW
             //-------------------------------------------------------
-            updateRobotCamera();
+            // The robot's view is rendered every loop regardless of what camera is being used to display onto window
+            // This is because even if not being displayed, the images are still needed to publish fake ROS cameara images from the robot's POV
             render1FBO.use();
             objectShader.render(objects, robotCamera);
-            waterShader.render(objects, robotCamera, render1FBO, objectShader);
+            waterShader.render(objects, robot, robotCamera, render1FBO);
             // Post processing effects
-            finalRenderFBO.use();
-            frameShader.renderDistorted(render1FBO);              // Camera distortion
-            //blurShader.renderBlurred(render2FBO, finalRenderFBO); // Blur
-            frameShader.render(vehicleOverlay);                   // Vehicle overlay
+            render2FBO.use();
+            frameShader.renderDistorted(render1FBO);             // Camera distortion
+            blurShader.renderBlurred(render2FBO, robotFinalFBO); // Blur
+            frameShader.render(vehicleOverlay);                  // Vehicle overlay
 
             // FLY AROUND VIEW
             //-------------------------------------------------------
+            // Only render if need to
+            if (cameraMode == FLY_ARROUND_MODE)
+            {
+                flycamFinalFBO.use();
+                modelShader.render(robot, flyAroundCamera);
+                objectShader.render(objects, flyAroundCamera);
+                waterShader.render(objects, robot, flyAroundCamera, flycamFinalFBO);
+                // Display F3 screen if active
+                if (f3Screen)
+                {
+                    displayF3Screen();
+                }
+            }
 
             // Render desired view to the screen
             screenFBO.use();
-            frameShader.render(finalRenderFBO);
+            if (cameraMode == ROBOT_MODE)
+                frameShader.render(robotFinalFBO);
+            else
+                frameShader.render(flycamFinalFBO);
             glfwSwapBuffers(window);
-
-            // Process mouse and keyboard inputs
-            processInput(window);
-            glfwPollEvents();
 
             // Proccess any pending ROS2 callbacks or timers
             rclcpp::spin_some(shared_from_this());
@@ -132,7 +159,8 @@ private:
         screenFBO.clear();
         render1FBO.clear();
         render2FBO.clear();
-        finalRenderFBO.clear();
+        robotFinalFBO.clear();
+        flycamFinalFBO.clear();
     }
 
     // Updates the robot's camera to match pose from new TF messages
@@ -166,6 +194,63 @@ private:
         }
     }
 
+    void updateRobotModel()
+    {
+        try
+        {
+            // Get camera TF frame
+            string targetFrame = "simulator" + robotName + "/base_link";
+            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+                "world", targetFrame,
+                tf2::TimePointZero);
+
+            // Set camera position
+            robot.setPosition(t.transform.translation.x,
+                              t.transform.translation.y,
+                              t.transform.translation.z);
+            // Set camera orientation
+            tf2::Quaternion q(t.transform.rotation.x,
+                              t.transform.rotation.y,
+                              t.transform.rotation.z,
+                              t.transform.rotation.w);
+            tf2::Matrix3x3 rotM(q);
+            double roll, pitch, yaw;
+            rotM.getRPY(roll, pitch, yaw);
+            robot.setRPY(roll, pitch, yaw);
+        }
+        catch (const tf2::TransformException &ex)
+        {
+            cout << "ROBOT TRANSFORM FAILED" << endl;
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+
+    // Draws f3 screen text onto screen
+    void displayF3Screen()
+    {
+        string f3Text;
+        int margin = MARGIN;
+        int yPos = IMG_HEIGHT - TEXT_HEIGHT - MARGIN;
+        // FPS Couner
+        f3Text = "FPS: " + std::to_string((int)(1 / deltaTime));
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // Camera positions
+        f3Text = "flyCamera XYZ: " + std::to_string(flyAroundCamera.getPosition().x) + " / " + std::to_string(flyAroundCamera.getPosition().y) + " / " + std::to_string(flyAroundCamera.getPosition().z);
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        f3Text = "talosCamera XYZ: " + std::to_string(robotCamera.getPosition().x) + " / " + std::to_string(robotCamera.getPosition().y) + " / " + std::to_string(robotCamera.getPosition().z);
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // Biome :P
+        f3Text = "Biome: minecraft:woollett_aquatics_center";
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // ROS time
+        f3Text = "ROS Time: " + std::to_string(this->get_clock()->now().seconds());
+        textShader.render(f3Text, margin, yPos);
+    }
+
     //===============================//
     //            SETUP              //
     //===============================//
@@ -189,8 +274,11 @@ private:
 
         // Setup window and callback functions
         glfwMakeContextCurrent(window);
-        glfwSetFramebufferSizeCallback(window, resizeWindow);
         glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetFramebufferSizeCallback(window, resizeWindow);
+
+        // VSync on (only swaps pixels onto screen every monitor refresh, not faster)
+        glfwSwapInterval(1);
 
         // Get GLAD library function pointers
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -200,6 +288,11 @@ private:
         }
         // STBI image library setup
         stbi_set_flip_vertically_on_load(true);
+
+        int width, height;
+        glfwGetWindowSize(window, &width, &height);
+        glfwSetWindowAspectRatio(window, IMG_WIDTH, IMG_HEIGHT);
+
         return true;
     }
 
@@ -232,23 +325,39 @@ private:
         fsPath = fs::path(shaderFolder) / "object.fs";
         objectShader = ObjectShader(vsPath, fsPath, causticsPath);
 
+        // Create model shader
+        vsPath = fs::path(shaderFolder) / "model.vs";
+        fsPath = fs::path(shaderFolder) / "model.fs";
+        modelShader = ModelShader(vsPath, fsPath);
+
         // Create water shader
         vsPath = fs::path(shaderFolder) / "water.vs";
         fsPath = fs::path(shaderFolder) / "water.fs";
-        waterShader = WaterShader(vsPath, fsPath, waterPath);
+        waterShader = WaterShader(vsPath, fsPath, waterPath, objectShader, modelShader);
 
         // Create blur shader
         vsPath = fs::path(shaderFolder) / "blur.vs";
         fsPath = fs::path(shaderFolder) / "blur.fs";
         blurShader = BlurShader(vsPath, fsPath);
 
-        // Next up is waiting for TF frames so display another loading screen here while there are things available
+        // Create text shader
+        string fontFolder, fontPath;
+        this->declare_parameter("font_folder", "");
+        this->get_parameter("font_folder", fontFolder);
+        vsPath = fs::path(shaderFolder) / "text.vs";
+        fsPath = fs::path(shaderFolder) / "text.fs";
+        fontPath = fs::path(fontFolder) / "Minecraft.ttf";
+        textShader = TextShader(vsPath, fsPath, fontPath);
+
+        // Next up is waiting for TF frames so display another loading screen in this function while all the path variables are here
         loadingScreen = Texture(fs::path(textureFolder) / "overlays" / "Loading_Screen2.jpg");
         frameShader.render(loadingScreen);
         glfwSwapBuffers(window);
     }
     void objectSetup()
     {
+        // PLANE OBJECTS
+        //-------------------------------------------------------
         // Get texture folder path
         string textureFolder, texturePath;
         this->get_parameter("texture_folder", textureFolder);
@@ -263,14 +372,24 @@ private:
         Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(4, 3.0, -1.0), 0, 0, +90);
         texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
         Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260 + 90);
+
+        // Pool
+        vector<Object> poolObjects = generatePoolObjects(textureFolder);
+
+        // Add objects to the vector
+        for (Object poolObject : poolObjects)
+            objects.push_back(poolObject);
         objects.push_back(bouy);
         objects.push_back(torpedo);
         objects.push_back(gate);
 
-        // Surrounding ground
-        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
-        for (Object poolObject : poolObjects)
-            objects.push_back(poolObject);
+        // 3D MODELS
+        //------------------------------
+        string modelFolder, modelPath;
+        this->declare_parameter("model_folder", "");
+        this->get_parameter("model_folder", modelFolder);
+        modelPath = fs::path(modelFolder) / "talos.obj";
+        robot = Model(modelPath, METER, glm::vec3(2, 0, -.5));
     }
     // Go into an infinite loop until the tf transform becomes available
     void waitForTF()
@@ -312,9 +431,9 @@ private:
         depthMsg.step = sizeof(float) * IMG_WIDTH;
         depthMsg.is_bigendian = false;
         // Copy image data into message
-        std::vector<uint8_t> imgData;
-        std::vector<uint8_t> depthData;
-        finalRenderFBO.copyData(imgData, depthData);
+        vector<uint8_t> imgData;
+        vector<uint8_t> depthData;
+        robotFinalFBO.copyData(imgData, depthData);
         imgMsg.data = imgData;
         depthMsg.data = depthData;
 
@@ -337,48 +456,54 @@ private:
     }
 
     // Handles keyboard input
-    void processInput(GLFWwindow *window)
+    void processKeyboard(GLFWwindow *window)
     {
         // Close window
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        if (isPressed(GLFW_KEY_ESCAPE))
             glfwSetWindowShouldClose(window, true);
 
         // Handle camera movements
         if (cameraMode == FLY_ARROUND_MODE)
         {
             // WASD + Space/LShift movement
-            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_W))
                 flyAroundCamera.ProcessKeyboard(FORWARD, deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_S))
                 flyAroundCamera.ProcessKeyboard(BACKWARD, deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_A))
                 flyAroundCamera.ProcessKeyboard(LEFT, deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_D))
                 flyAroundCamera.ProcessKeyboard(RIGHT, deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_SPACE))
                 flyAroundCamera.ProcessKeyboard(UP, deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+            if (isPressed(GLFW_KEY_LEFT_SHIFT))
                 flyAroundCamera.ProcessKeyboard(DOWN, deltaTime);
         }
 
         // Show april tag when T is pressed
-        if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS)
+        if (isPressed(GLFW_KEY_T))
             int a = 1; // TODO
 
         // Toggle camera mode
-        if (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS)
+        if ((isPressed(GLFW_KEY_TAB) || isPressed(GLFW_KEY_F4)) && !cameraModeFlag)
         {
-            if (!cameraModeFlag)
-            {
-                cameraModeFlag = true;
-                if (cameraMode == ROBOT_MODE)
-                    cameraMode = FLY_ARROUND_MODE;
-                else
-                    cameraMode = ROBOT_MODE;
-            }
+            cameraModeFlag = true;
+            if (cameraMode == ROBOT_MODE)
+                cameraMode = FLY_ARROUND_MODE;
+            else
+                cameraMode = ROBOT_MODE;
         }
         else
             cameraModeFlag = false;
+
+        // Toggle F3 menu
+        if (isPressed(GLFW_KEY_F3) && !f3ScreenFlag)
+        {
+            f3ScreenFlag = true;
+            f3Screen = !f3Screen;
+        }
+        else
+            f3ScreenFlag = false;
     }
     static void resizeWindow(GLFWwindow *window, int width, int height)
     {
@@ -411,11 +536,18 @@ private:
     //      UTILITY FUNCTIONS        //
     //===============================//
 
+    bool isPressed(int GLFW_KEY_XX)
+    {
+        return glfwGetKey(window, GLFW_KEY_XX) == GLFW_PRESS;
+    }
+
     //===============================//
     //          VARIABLES            //
     //===============================//
+    bool f3Screen = false;
     float lastFrame = 0.0;
     double deltaTime = 0.0;
+    bool f3ScreenFlag = false;
     bool cameraModeFlag = false;
     float lastX = IMG_WIDTH / 2.0;
     float lastY = IMG_HEIGHT / 2.0;
@@ -423,18 +555,22 @@ private:
     Camera flyAroundCamera = Camera();
     CameraMode cameraMode = FLY_ARROUND_MODE;
 
+    Model robot;
     FBO screenFBO;
     FBO render1FBO;
     FBO render2FBO;
     string robotName;
-    FBO finalRenderFBO;
+    FBO robotFinalFBO;
+    FBO flycamFinalFBO;
     GLFWwindow *window;
+    TextShader textShader;
     BlurShader blurShader;
+    vector<Object> objects;
     Texture vehicleOverlay;
     WaterShader waterShader;
     FrameShader frameShader;
+    ModelShader modelShader;
     ObjectShader objectShader;
-    std::vector<Object> objects;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;

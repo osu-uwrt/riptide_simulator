@@ -56,17 +56,16 @@
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/twist_with_covariance_stamped.hpp>
 
-using std::string, std::cout, std::endl;
+using std::placeholders::_1;
 typedef Eigen::Vector3d v3d;
 typedef Eigen::Vector4d v4d;
 typedef Eigen::VectorXd vXd;
 typedef Eigen::Matrix3d m3d;
 typedef Eigen::MatrixXd mXd;
-typedef Eigen::Quaterniond quat;
-
-using std::placeholders::_1;
 namespace fs = std::filesystem;
+typedef Eigen::Quaterniond quat;
 using namespace std::chrono_literals;
+using std::string, std::cout, std::endl;
 
 class PhysicsSimNode : public rclcpp::Node
 {
@@ -412,7 +411,7 @@ private:
         if (!box1.isInBox(point) || !box2.isInBox(point))
         {
             // The collision point needs a bit of persuasion to get to a reasonable location :P
-            // Shuffle the point back and force between the two boxes to iteratively move the vertex closer to the edge collision point
+            // Shuffle the point back and forth between the two boxes to iteratively move the vertex closer to the edge collision point
             point = box1.moveInBox(point);
             point = box2.moveInBox(point);
             point = box1.moveInBox(point);
@@ -603,9 +602,7 @@ private:
                     newBoxes.push_back(newBox);
                 }
                 else
-                {
                     RCLCPP_ERROR(this->get_logger(), "Link %s uses a non-box geometry, only boxes are supportede. Skipping element", link->name.c_str());
-                }
             }
         }
         return newBoxes;
@@ -747,8 +744,8 @@ private:
             imuAccel = robot.getIMUQuat().conjugate() * (q.conjugate() * imuAccel);
             // Transform orientation from robot -> IMU
             q = q * robot.getIMUQuat();
-            // Add nonise to sensor data if enabled, otherwise don't
-            v3d imu_sigma = robot.getIMUSigma();
+            // Add noise to sensor data if enabled, otherwise don't
+            v3d imu_sigma = robot.getIMUSigma(); // [imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle]
             if (SENSOR_NOISE_ENABLED)
             {
                 imuAccel = randomNorm(imuAccel, imu_sigma[0]);

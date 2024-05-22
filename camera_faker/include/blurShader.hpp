@@ -12,10 +12,9 @@
 #include <shader.hpp>
 #include <texture.hpp>
 #include <camera.hpp>
-#include <light.hpp>
 #include <object.hpp>
 #include <cmath>
-#include <frame_buffer_object.hpp>
+#include "frameBufferObject.hpp"
 namespace fs = std::filesystem;
 using std::string, std::cout, std::endl;
 
