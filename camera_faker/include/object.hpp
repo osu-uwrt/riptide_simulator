@@ -54,9 +54,17 @@ public:
         yaw = yaw_;
         generateModelMatrix();
     }
-    glm::mat4 getModelMatrix()
+    glm::mat4 getModelMatrix() const
     {
         return modelMatrix;
+    }
+    glm::vec3 getPositionXYZ() const
+    {
+        return position;
+    }
+    glm::vec3 getOrientationRPY() const
+    {
+        return glm::vec3(roll * M_PI / 180, pitch * M_PI / 180, (yaw - 90) * M_PI / 180);
     }
 
 private:

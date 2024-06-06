@@ -20,16 +20,25 @@ uniform sampler2D causticTexture;
 // Camera stuff
 uniform vec3 cameraPos;
 
+const float near = 0.2;  // Hardcoded near plane value
+const float far = 100.0; // Hardcoded far plane value
+
+float LinearizeDepth(float depth)
+{
+    float z = depth * 2.0 - 1.0; // Back to NDC
+    return (2.0 * near * far) / (far + near - z * (far - near));
+}
+
 void main()
 {
     // Get strength of caustics at current pixel, increase light according
     vec4 lightColor = vec4(0.8,0.95,0.95,1.0f);
-    vec4 causticColor = texture(causticTexture,causticTexCoord);
+    vec4 causticColor = texture(causticTexture, causticTexCoord);
     lightColor += causticStrength * causticColor;
 
     // Make it foggier the further away the point is
     float dist = length(worldPos - cameraPos);
-    float fogFactor = exp(-fogStrength*dist);
+    float fogFactor = exp(-fogStrength * dist);
     fogFactor = clamp(fogFactor, 0.0, 1.0);
 
     // Set the pixel color, and distance in the depth map
@@ -39,7 +48,8 @@ void main()
     // Otherwise, it would fill the depth testing buffer up and prevent other pixels from being drawn behind it
     if (texColor.a < 0.5)
         discard;
-
-    fragColor = mix(fogColor,texColor*lightColor,fogFactor);
-    fragDepth = vec4(vec3(dist),1.0);
+    // Set the pixel color, and distance in the depth map
+    fragColor = mix(fogColor, texColor * lightColor, fogFactor);
+    float linearDepth = LinearizeDepth(gl_FragCoord.z);
+    fragDepth = vec4(vec3(linearDepth), 1.0);
 }

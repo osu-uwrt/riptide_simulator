@@ -15,7 +15,7 @@ out vec3 worldPos;
 void main()
 {
     worldPos = (model * vec4(aPos, 1.0f)).xyz;
-    gl_Position =  projection * view * model * vec4(aPos, 1.0f);
+    gl_Position = projection * view * model * vec4(aPos, 1.0f);;
     TexCoord = aTexCoord;
     causticTexCoord = aCausticCoord;
 }

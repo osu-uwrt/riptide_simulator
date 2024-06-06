@@ -16,13 +16,13 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
 find_package(riptide_msgs2 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(urdf REQUIRED)
 find_package(robot_localization REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -39,22 +39,22 @@ target_include_directories(zed_faker PUBLIC
     ${FREETYPE_INCLUDE_DIRS})
 
 ament_target_dependencies(zed_faker 
-  Eigen3 
-  rclcpp 
-  urdf
-  tf2
-  tf2_ros
+  rclcpp
   std_msgs
-  riptide_msgs2
-  robot_localization
-  visualization_msgs
   geometry_msgs
   sensor_msgs
+  visualization_msgs
   nav_msgs
+  riptide_msgs2
+  Eigen3
   yaml-cpp
   glfw3
   assimp
-  Freetype)
+  Freetype
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  robot_localization)
 
 target_link_libraries(zed_faker 
   ${ASSIMP_LIBRARIES}

@@ -32,6 +32,8 @@
 #include "tf2_ros/transform_listener.h"
 #include <geometry_msgs/msg/pose.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <frameShader.hpp>
@@ -59,11 +61,12 @@ public:
         // Create a TF broadcaster
         tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener = std::make_shared<tf2_ros::TransformListener>(*tfBuffer);
+        staticBroadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
         // Create camera info and image publishers
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
         cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
-        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left_raw/image_raw_color", 10);
+        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
 
         // Create timers
@@ -110,14 +113,11 @@ public:
             //-------------------------------------------------------
             // The robot's view is rendered every loop regardless of what camera is being used to display onto window
             // This is because even if not being displayed, the images are still needed to publish fake ROS cameara images from the robot's POV
-            render1FBO.use();
+            robotFinalFBO.use();
             objectShader.render(objects, robotCamera);
             waterShader.render(objects, robot, robotCamera, render1FBO);
             // Post processing effects
-            render2FBO.use();
-            frameShader.renderDistorted(render1FBO);             // Camera distortion
-            blurShader.renderBlurred(render2FBO, robotFinalFBO); // Blur
-            frameShader.render(vehicleOverlay);                  // Vehicle overlay
+            frameShader.render(vehicleOverlay); // Vehicle overlay
 
             // FLY AROUND VIEW
             //-------------------------------------------------------
@@ -354,6 +354,24 @@ private:
         frameShader.render(loadingScreen);
         glfwSwapBuffers(window);
     }
+    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string &name, const Object &object)
+    {
+        geometry_msgs::msg::TransformStamped static_transform;
+        static_transform.header.frame_id = "world";
+        static_transform.child_frame_id = "simulator/" + name;
+
+        glm::vec3 xyz = object.getPositionXYZ();
+        static_transform.transform.translation.x = xyz.x;
+        static_transform.transform.translation.y = xyz.y;
+        static_transform.transform.translation.z = xyz.z;
+
+        glm::vec3 rpy = object.getOrientationRPY();
+        tf2::Quaternion tf2Quat;
+        tf2Quat.setRPY(rpy.x, rpy.y, rpy.z);
+        tf2Quat.normalize();
+        static_transform.transform.rotation = tf2::toMsg(tf2Quat);
+        return static_transform;
+    }
     void objectSetup()
     {
         // PLANE OBJECTS
@@ -367,21 +385,28 @@ private:
 
         // Task objects
         texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
-        Object bouy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
+        Object buoy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
         texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
-        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(4, 3.0, -1.0), 0, 0, +90);
+        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2.0, -3.0, -1.0), 0, 0, 90 + 90);
         texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
         Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260 + 90);
-
-        // Pool
-        vector<Object> poolObjects = generatePoolObjects(textureFolder);
-
-        // Add objects to the vector
-        for (Object poolObject : poolObjects)
-            objects.push_back(poolObject);
-        objects.push_back(bouy);
+        objects.push_back(buoy);
         objects.push_back(torpedo);
         objects.push_back(gate);
+
+        // before adding environment objects to the vector, publish the objects we care about as static transforms
+        // this will help with visualization of the ground-truth positions in RViz as well as provide infrastructure
+        // for automated testing of the system
+        std::vector<geometry_msgs::msg::TransformStamped> transforms;
+        transforms.push_back(getStaticTransformForObject("buoy", buoy));
+        transforms.push_back(getStaticTransformForObject("torpedo", torpedo));
+        transforms.push_back(getStaticTransformForObject("gate", gate));
+        staticBroadcaster->sendTransform(transforms);
+
+        // Surrounding ground
+        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
+        for (Object poolObject : poolObjects)
+            objects.push_back(poolObject);
 
         // 3D MODELS
         //------------------------------
@@ -419,6 +444,9 @@ private:
         sensor_msgs::msg::Image imgMsg, depthMsg;
 
         // Set up image message info
+        string robotPrefix = (robotName[0] == '/' ? robotName.substr(1) : robotName);
+        imgMsg.header.frame_id = robotPrefix + "/zed_left_camera_optical_frame";
+        imgMsg.header.stamp = this->get_clock()->now();
         imgMsg.height = IMG_HEIGHT;
         imgMsg.width = IMG_WIDTH;
         imgMsg.encoding = "rgb8";
@@ -431,9 +459,10 @@ private:
         depthMsg.step = sizeof(float) * IMG_WIDTH;
         depthMsg.is_bigendian = false;
         // Copy image data into message
-        vector<uint8_t> imgData;
-        vector<uint8_t> depthData;
-        robotFinalFBO.copyData(imgData, depthData);
+        std::vector<uint8_t> imgData;
+        std::vector<uint8_t> depthData;
+        robotFinalFBO.copyColorData(imgData);
+        robotFinalFBO.copyDepthData(depthData);
         imgMsg.data = imgData;
         depthMsg.data = depthData;
 
@@ -575,6 +604,7 @@ private:
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
+    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> staticBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imagePub;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;

@@ -17,13 +17,13 @@
 //===============================//
 //        CAMERA SETTINGS        //
 //===============================//
-#define IMG_WIDTH 640
-#define IMG_HEIGHT 360
+#define IMG_WIDTH 1280 / 2
+#define IMG_HEIGHT 720 / 2
 #define FRAME_RATE 30                // FPS data is published at, will still render at max speed
-#define CAMERA_CX 325.353            // Intrinsic camera parameter in projection matrix
-#define CAMERA_CY 187.794            // Intrinsic camera parameter in projection matrix
-#define CAMERA_FX 353.848            // Intrinsic camera parameter in projection matrix
-#define CAMERA_FY 353.627            // Intrinsic camera parameter in projection matrix
+#define CAMERA_CX 619.707 / 2        // Intrinsic camera parameter in projection matrix
+#define CAMERA_CY 360.589 / 2        // Intrinsic camera parameter in projection matrix
+#define CAMERA_FX 707.696 / 2        // Intrinsic camera parameter in projection matrix
+#define CAMERA_FY 707.254 / 2        // Intrinsic camera parameter in projection matrix
 #define DIST_K1 0.1816198718936867   // Radial camera distortion constant
 #define DIST_K2 0.4879032297013213   // Radial camera distortion constant
 #define DIST_K3 -0.438187135448847   // Radial camera distortion constant

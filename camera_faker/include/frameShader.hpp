@@ -137,6 +137,10 @@ private:
                 distVertices[startIndex + 3] = y;
             }
         }
+
+
+
+
         //  Create indices array
         triangleCount = pow((gridSize - 1), 2) * 2;
         unsigned int distIndices[3 * triangleCount];

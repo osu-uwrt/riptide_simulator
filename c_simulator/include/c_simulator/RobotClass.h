@@ -62,8 +62,11 @@ public:
     v3d getThrusterTorques();
     bool dvlTransformAvailable();
     bool imuTransformAvailable();
+    bool acousticsTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
     geometry_msgs::msg::Transform getLCameraTransform();
+    double getAcousticsPingTime();
+
 
     //========================//
     //        SETTERS         //
@@ -89,6 +92,7 @@ private:
     bool hasLCameraTransform;
     bool hasIMUTransform;
     bool hasDVLTransform;
+    bool hasAcousticsTransform;
     bool hasMapFrame;
 
     vXd state;
@@ -129,6 +133,9 @@ private:
     std::vector<double> dragCoef; // Drag coeffecients for each axis
     m3d invBodyInertia;           // Inverse inertia tensor in body frame
     mXd thrusterMatrix;           // 6xN matrix translating N thruster forces into body forces and torques
+
+    float speedOfSound;           // the speed of sound in water
+    v3d fakePingerPosition;       // the position of the fake pinger
 
     //========================//
     //       FUNCTIONS        //
