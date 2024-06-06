@@ -22,16 +22,20 @@ public:
     {
         shader = Shader(vsPath, fsPath);
     }
+    /**
+     * @brief Draws a 3D model onto the currently active FBO.
+     * @param model The 3D model that will be drawn
+     * @param camera the camera that is being used to look at the model
+     */
     void render(Model model, Camera camera)
     {
         // Activate shader
         shader.use();
         glEnable(GL_DEPTH_TEST);
         // Get camera matrixs
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
         shader.setMat4("model", model.getModelMatrix());
         shader.setMat4("view", camera.getViewMatrix());
-        shader.setMat4("projection", projection);
+        shader.setMat4("projection", camera.getProjectionMatrix());
 
         // Set uniform variables that are constant for all objects
         shader.setVec3("cameraPos", camera.getPosition());

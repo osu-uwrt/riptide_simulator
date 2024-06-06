@@ -5,6 +5,7 @@ layout(location=1) out vec4 fragDepth;
 
 // Pixel information from vertex shader  
 in vec3 worldPos;
+in vec3 relativePos;
 in vec3 norm;
 in vec4 color;
 
@@ -24,14 +25,12 @@ void main()
     float fogFactor = exp(-fogStrength*dist);
     fogFactor = clamp(fogFactor, 0.0, 1.0);
 
-    // Set the pixel color, and distance in the depth map
-    vec4 texColor = color;
-
+    vec4 lightStrength = vec4(vec3((dot(norm,vec3(0,0,1))+1.0)/2.0),1.0);
     // Discard pixel if it's pretty transparent (Uga booga method so objects don't need sorted by distance)
     // Otherwise, it would fill the depth testing buffer up and prevent other pixels from being drawn behind it
-    if (texColor.a < 0.5)
+    if (color.a < 0.5)
         discard;
 
-    fragColor = mix(fogColor,texColor*lightColor,fogFactor);
-    fragDepth = vec4(vec3(dist),1.0);
+    fragColor = mix(fogColor,color*lightColor*lightStrength,fogFactor);
+    fragDepth = vec4(vec3(-relativePos.z),1.0);
 }

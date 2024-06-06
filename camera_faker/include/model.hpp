@@ -63,7 +63,7 @@ public:
         }
 
         // Process ASSIMP's root node recursively
-        processNode(scene->mRootNode, scene);
+        processNode(scene->mRootNode, scene, glm::mat4(1.0f));
     }
 
     // Draws the model by drawing all its meshes
@@ -91,24 +91,25 @@ public:
 
 private:
     // processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-    void processNode(aiNode *node, const aiScene *scene)
+    void processNode(aiNode *node, const aiScene *scene, glm::mat4 parentTransform)
     {
+        glm::mat4 nodeTransform = parentTransform * (ai2mat4(node->mTransformation));
         // process each mesh located at the current node
         for (unsigned int i = 0; i < node->mNumMeshes; i++)
         {
             // the node object only contains indices to index the actual objects in the scene.
             // the scene contains all the data, node is just to keep stuff organized (like relations between nodes).
             aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-            meshes.push_back(processMesh(mesh));
+            meshes.push_back(processMesh(mesh, scene, nodeTransform));
         }
         // after we've processed all of the meshes (if any) we then recursively process each of the children nodes
         for (unsigned int i = 0; i < node->mNumChildren; i++)
         {
-            processNode(node->mChildren[i], scene);
+            processNode(node->mChildren[i], scene, glm::mat4(1.0));
         }
     }
 
-    Mesh processMesh(aiMesh *mesh)
+    Mesh processMesh(aiMesh *mesh, const aiScene *scene, glm::mat4 transform)
     {
         // data to fill
         vector<Vertex> vertices;
@@ -119,24 +120,29 @@ private:
         {
             Vertex vertex;
             glm::vec3 baseLinkOffset(-0.14, 0.03, -0.09);
+
+            glm::vec4 vertexPos = transform * glm::vec4(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z, 1.0f);
             // Positions
-            vertex.Position = glm::vec3(scaleFactor[units] * mesh->mVertices[i].x,
-                                        scaleFactor[units] * mesh->mVertices[i].y,
-                                        scaleFactor[units] * mesh->mVertices[i].z) -
+            vertex.Position = glm::vec3(scaleFactor[units] * vertexPos.x,
+                                        scaleFactor[units] * vertexPos.y,
+                                        scaleFactor[units] * vertexPos.z) -
                               baseLinkOffset;
             // Normals
             if (mesh->HasNormals())
-                vertex.Normal = glm::vec3(mesh->mNormals[i].x,
-                                          mesh->mNormals[i].y,
-                                          mesh->mNormals[i].z);
+                vertex.Normal = glm::normalize(glm::mat3(transform) * glm::vec3(mesh->mNormals[i].x,
+                                                                                mesh->mNormals[i].y,
+                                                                                mesh->mNormals[i].z));
             // Colors
-            if (mesh->HasVertexColors(0))
-                vertex.Color = glm::vec4(mesh->mColors[0][i].r,
-                                         mesh->mColors[0][i].g,
-                                         mesh->mColors[0][i].b,
-                                         mesh->mColors[0][i].a);
+            aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
+            aiColor4D diffuse;
+            if (AI_SUCCESS == aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &diffuse))
+                vertex.Color = glm::vec4(diffuse.r,
+                                         diffuse.g,
+                                         diffuse.b,
+                                         diffuse.a);
             else
                 vertex.Color = glm::vec4(0.2, 0.2, 0.2, 1.0);
+
             vertices.push_back(vertex);
         }
         // now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
@@ -150,6 +156,29 @@ private:
 
         // return a mesh object created from the extracted mesh data
         return Mesh(vertices, indices);
+    }
+
+    // I know this is cursed lol
+    glm::mat4 ai2mat4(const aiMatrix4x4 &from)
+    {
+        glm::mat4 to;
+        to[0][0] = from.a1;
+        to[0][1] = from.b1;
+        to[0][2] = from.c1;
+        to[0][3] = from.d1;
+        to[1][0] = from.a2;
+        to[1][1] = from.b2;
+        to[1][2] = from.c2;
+        to[1][3] = from.d2;
+        to[2][0] = from.a3;
+        to[2][1] = from.b3;
+        to[2][2] = from.c3;
+        to[2][3] = from.d3;
+        to[3][0] = from.a4;
+        to[3][1] = from.b4;
+        to[3][2] = from.c4;
+        to[3][3] = from.d4;
+        return to;
     }
 
     void updateModelMatrix()

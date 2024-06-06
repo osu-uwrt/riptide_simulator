@@ -1,13 +1,16 @@
 //===============================//
-/*     TABLE OF CONTENTS         //
+/*      NOTES/ASSUMPTIONS        //
 //===============================//
 
-//===============================//
-//      NOTES/ASSUMPTIONS        //
-//===============================//
+The graphics are made using OpenGL.
+To understand how it works, please go through the Getting Started section of:
+https://learnopengl.com/Getting-started/OpenGL
+(Much of the code from this website was used and modified for this project)
+
 1) Change settings in the "setting.h" file in the include directory
-2) If you want good frame rate, don't run in a virtual machine or WSL, do naitive linux boot
-3) The graphics are rendered using OpenGL, to understand how it works, I'd highly reccommend going through the getting started section of https://learnopengl.com/Getting-started/OpenGL
+2) There isn't a proper lighting system implemented (future project?)
+3) If you want good frame rate, don't run in a virtual machine or WSL, do naitive linux boot
+4) For 3D models, color data from file doesn't work and .dae files aren't supported yet (future project?)
 
 //===============================//
 //           INCLUDES            */
@@ -81,8 +84,8 @@ public:
         screenFBO = FBO(true);
         render1FBO = FBO(false);
         render2FBO = FBO(false);
-        robotFinalFBO = FBO(false);
-        flycamFinalFBO = FBO(false);
+        robotFBO = FBO(false);
+        flycamFBO = FBO(false);
     }
 
     //===============================//
@@ -96,14 +99,14 @@ public:
             // Starting things
             clearBuffers();
 
-            // Process mouse and keyboard inputs
-            processKeyboard(window);
-            glfwPollEvents();
-
             // Get the time between frames, used for camera movement
             double currentFrame = glfwGetTime();
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
+
+            // Process mouse and keyboard inputs
+            processKeyboard(window);
+            glfwPollEvents();
 
             // Update positions
             updateRobotCamera();
@@ -113,9 +116,9 @@ public:
             //-------------------------------------------------------
             // The robot's view is rendered every loop regardless of what camera is being used to display onto window
             // This is because even if not being displayed, the images are still needed to publish fake ROS cameara images from the robot's POV
-            robotFinalFBO.use();
+            robotFBO.use();
             objectShader.render(objects, robotCamera);
-            waterShader.render(objects, robot, robotCamera, render1FBO);
+            waterShader.render(objects, robot, robotCamera, robotFBO);
             // Post processing effects
             frameShader.render(vehicleOverlay); // Vehicle overlay
 
@@ -124,23 +127,21 @@ public:
             // Only render if need to
             if (cameraMode == FLY_ARROUND_MODE)
             {
-                flycamFinalFBO.use();
+                flycamFBO.use();
                 modelShader.render(robot, flyAroundCamera);
                 objectShader.render(objects, flyAroundCamera);
-                waterShader.render(objects, robot, flyAroundCamera, flycamFinalFBO);
+                waterShader.render(objects, robot, flyAroundCamera, flycamFBO);
                 // Display F3 screen if active
                 if (f3Screen)
-                {
                     displayF3Screen();
-                }
             }
 
             // Render desired view to the screen
             screenFBO.use();
             if (cameraMode == ROBOT_MODE)
-                frameShader.render(robotFinalFBO);
+                frameShader.render(robotFBO);
             else
-                frameShader.render(flycamFinalFBO);
+                frameShader.render(flycamFBO);
             glfwSwapBuffers(window);
 
             // Proccess any pending ROS2 callbacks or timers
@@ -152,108 +153,68 @@ public:
 
 private:
     //===============================//
-    //     RENDER FUNCTIONS          //
-    //===============================//
-    void clearBuffers()
-    {
-        screenFBO.clear();
-        render1FBO.clear();
-        render2FBO.clear();
-        robotFinalFBO.clear();
-        flycamFinalFBO.clear();
-    }
-
-    // Updates the robot's camera to match pose from new TF messages
-    void updateRobotCamera()
-    {
-        try
-        {
-            // Get camera TF frame
-            string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
-            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
-                "world", targetFrame,
-                tf2::TimePointZero);
-
-            // Set camera position
-            robotCamera.setPosition(t.transform.translation.x,
-                                    t.transform.translation.y,
-                                    t.transform.translation.z);
-            // Set camera orientation
-            tf2::Quaternion q(t.transform.rotation.x,
-                              t.transform.rotation.y,
-                              t.transform.rotation.z,
-                              t.transform.rotation.w);
-            tf2::Matrix3x3 rotM(q);
-            double roll, pitch, yaw;
-            rotM.getEulerYPR(yaw, pitch, roll);
-            robotCamera.setYPR(yaw, pitch, roll);
-        }
-        catch (const tf2::TransformException &ex)
-        {
-            glfwSetWindowShouldClose(window, true);
-        }
-    }
-
-    void updateRobotModel()
-    {
-        try
-        {
-            // Get camera TF frame
-            string targetFrame = "simulator" + robotName + "/base_link";
-            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
-                "world", targetFrame,
-                tf2::TimePointZero);
-
-            // Set camera position
-            robot.setPosition(t.transform.translation.x,
-                              t.transform.translation.y,
-                              t.transform.translation.z);
-            // Set camera orientation
-            tf2::Quaternion q(t.transform.rotation.x,
-                              t.transform.rotation.y,
-                              t.transform.rotation.z,
-                              t.transform.rotation.w);
-            tf2::Matrix3x3 rotM(q);
-            double roll, pitch, yaw;
-            rotM.getRPY(roll, pitch, yaw);
-            robot.setRPY(roll, pitch, yaw);
-        }
-        catch (const tf2::TransformException &ex)
-        {
-            cout << "ROBOT TRANSFORM FAILED" << endl;
-            glfwSetWindowShouldClose(window, true);
-        }
-    }
-
-    // Draws f3 screen text onto screen
-    void displayF3Screen()
-    {
-        string f3Text;
-        int margin = MARGIN;
-        int yPos = IMG_HEIGHT - TEXT_HEIGHT - MARGIN;
-        // FPS Couner
-        f3Text = "FPS: " + std::to_string((int)(1 / deltaTime));
-        textShader.render(f3Text, margin, yPos);
-        yPos -= LINE_SPACING * TEXT_HEIGHT;
-        // Camera positions
-        f3Text = "flyCamera XYZ: " + std::to_string(flyAroundCamera.getPosition().x) + " / " + std::to_string(flyAroundCamera.getPosition().y) + " / " + std::to_string(flyAroundCamera.getPosition().z);
-        textShader.render(f3Text, margin, yPos);
-        yPos -= LINE_SPACING * TEXT_HEIGHT;
-        f3Text = "talosCamera XYZ: " + std::to_string(robotCamera.getPosition().x) + " / " + std::to_string(robotCamera.getPosition().y) + " / " + std::to_string(robotCamera.getPosition().z);
-        textShader.render(f3Text, margin, yPos);
-        yPos -= LINE_SPACING * TEXT_HEIGHT;
-        // Biome :P
-        f3Text = "Biome: minecraft:woollett_aquatics_center";
-        textShader.render(f3Text, margin, yPos);
-        yPos -= LINE_SPACING * TEXT_HEIGHT;
-        // ROS time
-        f3Text = "ROS Time: " + std::to_string(this->get_clock()->now().seconds());
-        textShader.render(f3Text, margin, yPos);
-    }
-
-    //===============================//
     //            SETUP              //
     //===============================//
+
+    /**
+     * @brief Creats all the objects and adds them into the scene
+     * This is where the object size, position, orientation, texture, etc. is set
+     * Loads in 3D robot model
+     */
+    void objectSetup()
+    {
+        // PLANE OBJECTS
+        //-------------------------------------------------------
+        // Get texture folder path
+        string textureFolder, texturePath;
+        this->get_parameter("texture_folder", textureFolder);
+
+        // Overlay graphic
+        vehicleOverlay = Texture(fs::path(textureFolder) / "overlays" / "talos_L_overlay.png");
+
+        // Task objects
+        texturePath = fs::path(textureFolder) / "task_objects" / "April Tag.jpg";
+        aprilTag = Object(texturePath, 0.6096f, 0.9144, glm::vec3(POOL_WIDTH / 2.0 - LANE_WIDTH / 32.0, 0, -.37), 0, 0, 180);
+        texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
+        Object buoy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260);
+        texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
+        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2.0, -3.0, -1.0), 0, 0, 90);
+        texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
+        Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260);
+
+        /** @note DO NOT PUSH APRIL TAG TO THE "OBJECTS" VECTOR
+         * Push newly created objects to the back of the "objects" vector */
+        objects.push_back(buoy);
+        objects.push_back(torpedo);
+        objects.push_back(gate);
+
+        // Before adding environment objects to the vector, publish the objects we care about as static transforms
+        // This will help with visualization of the ground-truth positions in RViz as well as provide infrastructure
+        // for automated testing of the system
+        std::vector<geometry_msgs::msg::TransformStamped> transforms;
+        transforms.push_back(getStaticTransformForObject("buoy", buoy));
+        transforms.push_back(getStaticTransformForObject("torpedo", torpedo));
+        transforms.push_back(getStaticTransformForObject("gate", gate));
+        staticBroadcaster->sendTransform(transforms);
+
+        // Surrounding pool enviroment
+        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
+        for (Object poolObject : poolObjects)
+            objects.push_back(poolObject);
+
+        // 3D MODELS
+        //-------------------------------------------------------
+        string modelFolder, modelPath;
+        this->declare_parameter("model_folder", "");
+        this->get_parameter("model_folder", modelFolder);
+        modelPath = fs::path(modelFolder) / "Talos.dae";
+        robot = Model(modelPath, METER, glm::vec3(2, 0, -.5));
+    }
+
+    /**
+     * @brief Setups up OpenGL and related libraries; creats window
+     * @return whether the setup was successful
+     */
     bool openGlSetup()
     {
         // OpenGL initialization
@@ -293,9 +254,13 @@ private:
         glfwGetWindowSize(window, &width, &height);
         glfwSetWindowAspectRatio(window, IMG_WIDTH, IMG_HEIGHT);
 
+        // Enable anti-aliasing
+        glfwWindowHint(GLFW_SAMPLES, 4); // Request 4x MSAA
+        glEnable(GL_MULTISAMPLE);
         return true;
     }
 
+    // Creates shaders objects from file locations
     void shaderSetup()
     {
         // Get shader folder path
@@ -354,69 +319,8 @@ private:
         frameShader.render(loadingScreen);
         glfwSwapBuffers(window);
     }
-    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string &name, const Object &object)
-    {
-        geometry_msgs::msg::TransformStamped static_transform;
-        static_transform.header.frame_id = "world";
-        static_transform.child_frame_id = "simulator/" + name;
 
-        glm::vec3 xyz = object.getPositionXYZ();
-        static_transform.transform.translation.x = xyz.x;
-        static_transform.transform.translation.y = xyz.y;
-        static_transform.transform.translation.z = xyz.z;
-
-        glm::vec3 rpy = object.getOrientationRPY();
-        tf2::Quaternion tf2Quat;
-        tf2Quat.setRPY(rpy.x, rpy.y, rpy.z);
-        tf2Quat.normalize();
-        static_transform.transform.rotation = tf2::toMsg(tf2Quat);
-        return static_transform;
-    }
-    void objectSetup()
-    {
-        // PLANE OBJECTS
-        //-------------------------------------------------------
-        // Get texture folder path
-        string textureFolder, texturePath;
-        this->get_parameter("texture_folder", textureFolder);
-
-        // Overlay graphic
-        vehicleOverlay = Texture(fs::path(textureFolder) / "overlays" / "talos_L_overlay.png");
-
-        // Task objects
-        texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
-        Object buoy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260 + 90);
-        texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
-        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2.0, -3.0, -1.0), 0, 0, 90 + 90);
-        texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
-        Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260 + 90);
-        objects.push_back(buoy);
-        objects.push_back(torpedo);
-        objects.push_back(gate);
-
-        // before adding environment objects to the vector, publish the objects we care about as static transforms
-        // this will help with visualization of the ground-truth positions in RViz as well as provide infrastructure
-        // for automated testing of the system
-        std::vector<geometry_msgs::msg::TransformStamped> transforms;
-        transforms.push_back(getStaticTransformForObject("buoy", buoy));
-        transforms.push_back(getStaticTransformForObject("torpedo", torpedo));
-        transforms.push_back(getStaticTransformForObject("gate", gate));
-        staticBroadcaster->sendTransform(transforms);
-
-        // Surrounding ground
-        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
-        for (Object poolObject : poolObjects)
-            objects.push_back(poolObject);
-
-        // 3D MODELS
-        //------------------------------
-        string modelFolder, modelPath;
-        this->declare_parameter("model_folder", "");
-        this->get_parameter("model_folder", modelFolder);
-        modelPath = fs::path(modelFolder) / "talos.obj";
-        robot = Model(modelPath, METER, glm::vec3(2, 0, -.5));
-    }
-    // Go into an infinite loop until the tf transform becomes available
+    // Go into an infinite loop until the TF transform becomes available
     void waitForTF()
     {
         bool tfFlag = true;
@@ -437,8 +341,113 @@ private:
         }
     }
     //===============================//
+    //     RENDER FUNCTIONS          //
+    //===============================//
+
+    // clears all frame buffers with the sky color
+    void clearBuffers()
+    {
+        screenFBO.clear();
+        render1FBO.clear();
+        render2FBO.clear();
+        robotFBO.clear();
+        flycamFBO.clear();
+    }
+
+    // Updates the robot's camera position from TF frames
+    void updateRobotCamera()
+    {
+        try
+        {
+            // Get camera TF frame
+            string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
+            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+                "world", targetFrame,
+                tf2::TimePointZero);
+
+            // Set camera position
+            robotCamera.setPosition(t.transform.translation.x,
+                                    t.transform.translation.y,
+                                    t.transform.translation.z);
+            // Set camera orientation
+            tf2::Quaternion q(t.transform.rotation.x,
+                              t.transform.rotation.y,
+                              t.transform.rotation.z,
+                              t.transform.rotation.w);
+            tf2::Matrix3x3 rotM(q);
+            double roll, pitch, yaw;
+            rotM.getEulerYPR(yaw, pitch, roll);
+            robotCamera.setYPR(yaw, pitch, roll);
+        }
+        catch (const tf2::TransformException &ex)
+        {
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+
+    // Updates the position and orientation of robot model from TF frames
+    void updateRobotModel()
+    {
+        try
+        {
+            // Get camera TF frame
+            string targetFrame = "simulator" + robotName + "/base_link";
+            geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
+                "world", targetFrame,
+                tf2::TimePointZero);
+
+            // Set camera position
+            robot.setPosition(t.transform.translation.x,
+                              t.transform.translation.y,
+                              t.transform.translation.z);
+            // Set camera orientation
+            tf2::Quaternion q(t.transform.rotation.x,
+                              t.transform.rotation.y,
+                              t.transform.rotation.z,
+                              t.transform.rotation.w);
+            tf2::Matrix3x3 rotM(q);
+            double roll, pitch, yaw;
+            rotM.getRPY(roll, pitch, yaw);
+            robot.setRPY(roll, pitch, yaw);
+        }
+        catch (const tf2::TransformException &ex)
+        {
+            cout << "ROBOT TRANSFORM FAILED" << endl;
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+
+    // Draws f3 screen text onto screen (only shown in fly around mode)
+    void displayF3Screen()
+    {
+        string f3Text;
+        int margin = MARGIN;
+        int yPos = IMG_HEIGHT - TEXT_HEIGHT - MARGIN;
+        // FPS Couner
+        f3Text = "FPS: " + std::to_string((int)(1 / deltaTime));
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // Camera positions
+        f3Text = "flyCamera XYZ: " + std::to_string(flyAroundCamera.getPosition().x) + " / " + std::to_string(flyAroundCamera.getPosition().y) + " / " + std::to_string(flyAroundCamera.getPosition().z);
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        f3Text = "talosCamera XYZ: " + std::to_string(robotCamera.getPosition().x) + " / " + std::to_string(robotCamera.getPosition().y) + " / " + std::to_string(robotCamera.getPosition().z);
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // Biome :P
+        f3Text = "Biome: minecraft:woollett_aquatics_center";
+        textShader.render(f3Text, margin, yPos);
+        yPos -= LINE_SPACING * TEXT_HEIGHT;
+        // ROS time
+        f3Text = "ROS Time: " + std::to_string(this->get_clock()->now().seconds());
+        textShader.render(f3Text, margin, yPos);
+    }
+
+    //===============================//
     //      CALLBACK FUNCTIONS       //
     //===============================//
+
+    // Copies raw OpenGL image data into ROS message and publishes
     void publishImages()
     {
         sensor_msgs::msg::Image imgMsg, depthMsg;
@@ -461,8 +470,8 @@ private:
         // Copy image data into message
         std::vector<uint8_t> imgData;
         std::vector<uint8_t> depthData;
-        robotFinalFBO.copyColorData(imgData);
-        robotFinalFBO.copyDepthData(depthData);
+        robotFBO.copyColorData(imgData);
+        robotFBO.copyDepthData(depthData);
         imgMsg.data = imgData;
         depthMsg.data = depthData;
 
@@ -510,19 +519,25 @@ private:
         }
 
         // Show april tag when T is pressed
-        if (isPressed(GLFW_KEY_T))
-            int a = 1; // TODO
+        if (isPressed(GLFW_KEY_T) && !aprilFlag)
+        {
+            aprilFlag = true;
+            if (aprilFlag2)
+                objects.push_back(aprilTag);
+            else
+                objects.pop_back();
+            aprilFlag2 = !aprilFlag2;
+        }
+        else if (!isPressed(GLFW_KEY_T))
+            aprilFlag = false;
 
         // Toggle camera mode
-        if ((isPressed(GLFW_KEY_TAB) || isPressed(GLFW_KEY_F4)) && !cameraModeFlag)
+        if ((isPressed(GLFW_KEY_TAB) || isPressed(GLFW_KEY_F5)) && !cameraModeFlag)
         {
             cameraModeFlag = true;
-            if (cameraMode == ROBOT_MODE)
-                cameraMode = FLY_ARROUND_MODE;
-            else
-                cameraMode = ROBOT_MODE;
+            cameraMode = (cameraMode == ROBOT_MODE) ? FLY_ARROUND_MODE : ROBOT_MODE;
         }
-        else
+        else if (!(isPressed(GLFW_KEY_TAB) || isPressed(GLFW_KEY_F5)))
             cameraModeFlag = false;
 
         // Toggle F3 menu
@@ -531,7 +546,7 @@ private:
             f3ScreenFlag = true;
             f3Screen = !f3Screen;
         }
-        else
+        else if (!isPressed(GLFW_KEY_F3))
             f3ScreenFlag = false;
     }
     static void resizeWindow(GLFWwindow *window, int width, int height)
@@ -570,12 +585,32 @@ private:
         return glfwGetKey(window, GLFW_KEY_XX) == GLFW_PRESS;
     }
 
+    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string &name, const Object &object)
+    {
+        geometry_msgs::msg::TransformStamped static_transform;
+        static_transform.header.frame_id = "world";
+        static_transform.child_frame_id = "simulator/" + name;
+
+        glm::vec3 xyz = object.getPositionXYZ();
+        static_transform.transform.translation.x = xyz.x;
+        static_transform.transform.translation.y = xyz.y;
+        static_transform.transform.translation.z = xyz.z;
+
+        glm::vec3 rpy = object.getOrientationRPY();
+        tf2::Quaternion tf2Quat;
+        tf2Quat.setRPY(rpy.x, rpy.y, rpy.z);
+        tf2Quat.normalize();
+        static_transform.transform.rotation = tf2::toMsg(tf2Quat);
+        return static_transform;
+    }
     //===============================//
     //          VARIABLES            //
     //===============================//
     bool f3Screen = false;
     float lastFrame = 0.0;
     double deltaTime = 0.0;
+    bool aprilFlag = false;
+    bool aprilFlag2 = true;
     bool f3ScreenFlag = false;
     bool cameraModeFlag = false;
     float lastX = IMG_WIDTH / 2.0;
@@ -588,9 +623,10 @@ private:
     FBO screenFBO;
     FBO render1FBO;
     FBO render2FBO;
+    Object aprilTag;
     string robotName;
-    FBO robotFinalFBO;
-    FBO flycamFinalFBO;
+    FBO robotFBO;
+    FBO flycamFBO;
     GLFWwindow *window;
     TextShader textShader;
     BlurShader blurShader;

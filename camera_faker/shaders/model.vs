@@ -11,12 +11,14 @@ uniform mat4 projection;
 
 // Outputs to fragment shader
 out vec3 worldPos;
+out vec3 relativePos;
 out vec3 norm;
 out vec4 color;
 
 void main()
 {
     worldPos = (model * vec4(aPos, 1.0f)).xyz;
+    relativePos = (view * model * vec4(aPos, 1.0f)).xyz;
     gl_Position =  projection * view * model * vec4(aPos, 1.0f);
 
     norm = aNorm;

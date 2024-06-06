@@ -33,8 +33,8 @@ public:
         glGenBuffers(1, &VBO);
         glGenBuffers(1, &EBO);
 
-        generateBuffers();
         generateModelMatrix();
+        generateBuffers();
     }
     void use()
     {
@@ -70,13 +70,17 @@ public:
 private:
     void generateBuffers()
     {
-        // Verteex information
+        // Stretch the caustic texture as the plane gets more vertical
+        glm::vec3 unitZ(0, 0, 1);
+        float stretchW = 1 - CAUSTIC_STRETCH * abs(glm::dot(unitZ, glm::vec3((modelMatrix)[1])));
+        float stretchH = 1 - CAUSTIC_STRETCH * abs(glm::dot(unitZ, glm::vec3(modelMatrix[2])));
+        // Vertex information
         float vertices[28] = {
             // positions                    // texture coords                   // cautic cords
-            0.5f * width, 0.0, 0.5f * height, textCountW, textCountH, width / (float)CAUSTIC_SCALE, height / (float)CAUSTIC_SCALE, // top right
-            0.5f * width, 0.0, -0.5f * height, textCountW, 0.0, width / (float)CAUSTIC_SCALE, 0.0,                                 // bottom right
-            -0.5f * width, 0.0, -0.5f * height, 0.0, 0.0, 0.0, 0.0,                                                                // bottom left
-            -0.5f * width, 0.0, 0.5f * height, 0.0, textCountH, 0.0, height / (float)CAUSTIC_SCALE                                 // top left
+            0.0f, 0.5f * width, 0.5f * height, textCountW, textCountH, width / (float)CAUSTIC_SCALE * stretchW, height / (float)CAUSTIC_SCALE * stretchH, // top right
+            0.0f, 0.5f * width, -0.5f * height, textCountW, 0.0, width / (float)CAUSTIC_SCALE * stretchW, 0.0,                                            // bottom right
+            0.0f, -0.5f * width, -0.5f * height, 0.0, 0.0, 0.0, 0.0,                                                                                      // bottom left
+            0.0f, -0.5f * width, 0.5f * height, 0.0, textCountH, 0.0, height / (float)CAUSTIC_SCALE * stretchH                                            // top left
         };
         // Indices of triangle vertices
         unsigned int indices[6] = {
@@ -133,45 +137,45 @@ std::vector<Object> generatePoolObjects(string textureFolder)
     // Made up of 9 objects, 4 corner objects, 4 edge objects, 1 middle object.
     // Edges are 1.5 pool lanes wide
 
-    int laneCountX = round((POOL_LENGTH * 1.0) / LANE_WIDTH) - 2;
-    int laneCountY = round((POOL_WIDTH * 1.0) / LANE_WIDTH) - 2;
+    int laneCountX = round((POOL_LENGTH * 1.0) / LANE_WIDTH) - 3;
+    int laneCountY = round((POOL_WIDTH * 1.0) / LANE_WIDTH) - 3;
     // Middle
     string poolTexture = poolFolder / "Pool_Cross.jpg";
-    Object poolFloorMiddle(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, 0, -POOL_DEPTH), 0, -90, -90, 17, 7);
+    Object poolFloorMiddle(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, 0, -POOL_DEPTH), 0, 90, 0, laneCountX, laneCountY);
     // Edges
     poolTexture = poolFolder / "Pool_Black_T.jpg";
-    Object poolFloorEdge1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, -90, -90, laneCountX, 1);
-    Object poolFloorEdge2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, 90, -90, laneCountX, 1);
+    Object poolFloorEdge1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, -90, 0, laneCountX, 1);
+    Object poolFloorEdge2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, 0, -POOL_DEPTH), 0, 90, 0, laneCountX, 1);
     poolTexture = poolFolder / "Pool_Blue_T.jpg";
-    Object poolFloorEdge3(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, laneCountY);
-    Object poolFloorEdge4(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, laneCountY);
+    Object poolFloorEdge3(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 0, 1, laneCountY);
+    Object poolFloorEdge4(poolTexture, LANE_WIDTH * 1.5, POOL_WIDTH - 3 * LANE_WIDTH, glm::vec3(0, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -180, 1, laneCountY);
     // Corners
     poolTexture = poolFolder / "Pool_Corner.jpg";
-    Object poolFloorCorner1(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, 90, 1, 1);
-    Object poolFloorCorner2(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 90, 1, 1);
-    Object poolFloorCorner3(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, -90, 1, 1);
-    Object poolFloorCorner4(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, -90, 1, 1);
+    Object poolFloorCorner1(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, 0, 1, 1);
+    Object poolFloorCorner2(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 0, 1, 1);
+    Object poolFloorCorner3(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, -90, 180, 1, 1);
+    Object poolFloorCorner4(poolTexture, LANE_WIDTH * 1.5, LANE_WIDTH * 1.5, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, -POOL_DEPTH), 0, 90, 180, 1, 1);
 
     // POOL WALLS
     //-------------------------------------
     // Wall Sides
     poolTexture = poolFolder / "Pool_Wall_Black.jpg";
-    Object poolWallSide1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, laneCountX, 1);
-    Object poolWallSide2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, laneCountX, 1);
+    Object poolWallSide1(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, laneCountX, 1);
+    Object poolWallSide2(poolTexture, POOL_LENGTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, 0, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, laneCountX, 1);
     poolTexture = poolFolder / "Pool_Wall_Blue.jpg";
-    Object poolWallSide3(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, laneCountY, 1);
-    Object poolWallSide4(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0, laneCountY, 1);
+    Object poolWallSide3(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, laneCountY, 1);
+    Object poolWallSide4(poolTexture, POOL_WIDTH - 3 * LANE_WIDTH, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(0, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90, laneCountY, 1);
     // Wall corners
     poolTexture = poolFolder / "Pool_Wall_Blue_Corner.jpg";
-    Object poolWallCorner1(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
-    Object poolWallCorner2(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
-    Object poolWallCorner3(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 180);
-    Object poolWallCorner4(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 180);
+    Object poolWallCorner1(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+    Object poolWallCorner2(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2 - 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+    Object poolWallCorner3(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
+    Object poolWallCorner4(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2 + 0.75 * LANE_WIDTH, -POOL_LENGTH / 2, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
     poolTexture = poolFolder / "Pool_Wall_Black_Corner.jpg";
-    Object poolWallCorner5(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
-    Object poolWallCorner6(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 90);
-    Object poolWallCorner7(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
-    Object poolWallCorner8(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -90);
+    Object poolWallCorner5(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
+    Object poolWallCorner6(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, POOL_LENGTH / 2 - 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, 0);
+    Object poolWallCorner7(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -180);
+    Object poolWallCorner8(poolTexture, LANE_WIDTH * 1.5, POOL_DEPTH + LEDGE_HEIGHT, glm::vec3(-POOL_WIDTH / 2, -POOL_LENGTH / 2 + 0.75 * LANE_WIDTH, (LEDGE_HEIGHT - POOL_DEPTH) / 2), 0, 0, -180);
 
     // Add objects to list and return
     poolObjects.push_back(poolFloorMiddle);

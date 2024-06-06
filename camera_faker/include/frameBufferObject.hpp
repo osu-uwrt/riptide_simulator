@@ -41,7 +41,7 @@ public:
             // Set up depth texture for holding camera depth data (Can be values not 0-1 unlike depth stencil for depth testing)
             glGenTextures(1, &depthTextureBuffer);
             glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, IMG_WIDTH, IMG_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, IMG_WIDTH, IMG_HEIGHT, 0, GL_RED, GL_FLOAT, NULL); // Depth data stored as 32 bit floats in the red channel
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

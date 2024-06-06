@@ -27,6 +27,11 @@ public:
         shader = Shader(vsPath, fsPath);
         loadCaustics(causticsPath);
     }
+    /**
+     * @brief Draws a plane object onto the currently active FBO.
+     * @param objects vector containing all the objects that will be drawn
+     * @param camera the camera that is being used to look at the objects
+     */
     void render(std::vector<Object> objects, Camera camera)
     {
         // Activate shader
@@ -58,6 +63,10 @@ public:
     }
 
 private:
+    /**
+     * @brief Loads and creates textures for all the ~250 caustic files.
+     * This is used to make the caustic animations, it takes a few seconds to run
+     */
     void loadCaustics(string causticPath)
     {
         // Vector to hold directory entries

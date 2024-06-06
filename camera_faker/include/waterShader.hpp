@@ -36,6 +36,13 @@ public:
         test123 = fs::path(waterPath) / "waterNormalMap.png";
         normalMap = Texture(test123, false);
     }
+    /**
+     * @brief Renders water surface with reflection and distortions
+     * @param objects Plane objects to be seen in reflections
+     * @param model 3D models to be seen in reflections
+     * @param camera The camera that is viewing the scene
+     * @param renderFBO The FBO that the water will be drawn onto
+     */
     void render(std::vector<Object> objects, Model model, Camera camera, FBO renderFBO)
     {
         glEnable(GL_BLEND);
@@ -53,8 +60,7 @@ public:
         renderFBO.use();
         waterShader.use();
         // Set uniform variables and things
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)IMG_WIDTH / (float)IMG_HEIGHT, 0.1f, 100.0f);
-        waterShader.setMat4("projection", projection);
+        waterShader.setMat4("projection", camera.getProjectionMatrix());
         waterShader.setMat4("view", camera.getViewMatrix());
         waterShader.setMat4("model", glm::mat4(1.0f));
         waterShader.setVec3("cameraPos", camera.getPosition());

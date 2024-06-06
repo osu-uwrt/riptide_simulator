@@ -6,6 +6,7 @@ layout(location=1) out vec4 fragDepth;
 // Pixel information from vertex shader  
 in vec2 TexCoord;
 in vec3 worldPos;
+in vec3 relativePos;
 in vec2 causticTexCoord;
 
 // Water settings values
@@ -19,15 +20,6 @@ uniform sampler2D causticTexture;
 
 // Camera stuff
 uniform vec3 cameraPos;
-
-const float near = 0.2;  // Hardcoded near plane value
-const float far = 100.0; // Hardcoded far plane value
-
-float LinearizeDepth(float depth)
-{
-    float z = depth * 2.0 - 1.0; // Back to NDC
-    return (2.0 * near * far) / (far + near - z * (far - near));
-}
 
 void main()
 {
@@ -50,6 +42,5 @@ void main()
         discard;
     // Set the pixel color, and distance in the depth map
     fragColor = mix(fogColor, texColor * lightColor, fogFactor);
-    float linearDepth = LinearizeDepth(gl_FragCoord.z);
-    fragDepth = vec4(vec3(linearDepth), 1.0);
+    fragDepth = vec4(vec3(-relativePos.z), 1.0);
 }

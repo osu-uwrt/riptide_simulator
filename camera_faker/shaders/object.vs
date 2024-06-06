@@ -11,11 +11,13 @@ uniform mat4 view;
 uniform mat4 projection;
 
 out vec3 worldPos;
+out vec3 relativePos;
 
 void main()
 {
     worldPos = (model * vec4(aPos, 1.0f)).xyz;
-    gl_Position = projection * view * model * vec4(aPos, 1.0f);;
+    relativePos = (view * model * vec4(aPos, 1.0f)).xyz;
+    gl_Position = projection * view * model * vec4(aPos, 1.0f);
     TexCoord = aTexCoord;
     causticTexCoord = aCausticCoord;
 }

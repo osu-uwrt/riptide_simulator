@@ -27,7 +27,10 @@ public:
         shader = Shader(vsPath, fsPath);
         createVertexInfo();
     }
-    // Render distorted texture on whole screen
+    /**
+     * @brief Renders distorted view of the color buffer from a FBO on the actively bound FBO
+     * @param frame FBO to be drawn distorted onto screen
+     */
     void renderDistorted(FBO &frame)
     {
         shader.use();
@@ -39,7 +42,10 @@ public:
         glBindVertexArray(distVAO);
         glDrawElements(GL_TRIANGLES, 3 * triangleCount, GL_UNSIGNED_INT, 0);
     }
-    // Render texture buffer on whole screen
+    /**
+     * @brief Renders color buffer from an FBO on the actively bound FBO
+     * @param frame FBO to be drawn onto screem
+     */
     void render(FBO &frame)
     {
         shader.use();
@@ -51,7 +57,10 @@ public:
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
-    // Render texture on whole screen
+    /**
+     * @brief Renders texture across the whole window of the actively bound FBO
+     * @param texture Texture to be drawn onto screen
+     */
     void render(Texture &texture)
     {
         shader.use();
@@ -137,9 +146,6 @@ private:
                 distVertices[startIndex + 3] = y;
             }
         }
-
-
-
 
         //  Create indices array
         triangleCount = pow((gridSize - 1), 2) * 2;

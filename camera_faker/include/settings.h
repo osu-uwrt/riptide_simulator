@@ -46,8 +46,9 @@
 //     CAUSTIC SETTINGS          //
 //===============================//
 #define CAUSTIC_STRENGTH 0.5 // [0.0-1.0+] High number represets stronger caustics
-#define CAUSTIC_SPEED 20.5   // Speed of caustic image animation
+#define CAUSTIC_SPEED 42.69  // Speed of caustic image animation
 #define CAUSTIC_SCALE 3.0    // m  - size of caustic texture square
+#define CAUSTIC_STRETCH 0.8  // [0.0-1.0) How stretched caustics are on a vertical wall. 0.0 for no stretch
 
 //===============================//
 //         WATER SETTINGS        //

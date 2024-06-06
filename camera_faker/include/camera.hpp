@@ -32,7 +32,7 @@ class Camera
 {
 public:
     // constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.2f, float farPlane = 100.0f)
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -0.7f), float nearPlane = 0.05f, float farPlane = 100.0f)
         : position(position), nearPlane(nearPlane), farPlane(farPlane)
     {
 
@@ -115,8 +115,10 @@ public:
         eulerAngles.y = std::clamp(eulerAngles.y, -(float)M_PI / 2, (float)M_PI / 2);
     }
 
-    // Flips camera position and orientation about water surface
-    // Used for rendering reflections
+    /**
+     * @brief Flips camera position and orientation about water surface
+     * Used for rendering reflections
+     */
     void flip()
     {
         position.z = -position.z;       // Flip z position

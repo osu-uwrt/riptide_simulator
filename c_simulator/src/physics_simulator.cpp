@@ -19,10 +19,11 @@
 2) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
 3) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
 4) Collision detection only works with boxes and assumes obstacles are stationary
-5) Assumes thrusters will not be running while out of water
-6) Assumes center of drag is at center of bouyancy
-7) Everything is in SI units (kg, m, s, N)
-8) This will cook your CPU
+5) There are several helpful links in the code, they are good reads
+6) Assumes thrusters will not be running while out of water
+7) Assumes center of drag is at center of bouyancy
+8) Everything is in SI units (kg, m, s, N)
+9) This will cook your CPU
 
 //===============================//
 //           INCLUDES            */
@@ -174,7 +175,8 @@ public:
 
             // Get state, and modify it to account for any collisions
             vXd state = robot.getState();
-            state = handleCollisions(state);
+            if (COLLISION_TOGGLE)
+                state = handleCollisions(state);
 
             // For more info on Runge Kutta:
             // https://www.youtube.com/watch?v=HOWJp8NV5xU
@@ -799,18 +801,18 @@ private:
         }
     }
 
-    void publishFakeAcousticsData(){
-        //if the acoustics transform is availbe
-        if(robot.acousticsTransformAvailable()){
-            if(robot.mapAvailable()){
+    void publishFakeAcousticsData()
+    {
+        // if the acoustics transform is availbe
+        if (robot.acousticsTransformAvailable() &&
+            robot.mapAvailable() &&
+            ACOUSTIC_DATA)
+        {
+            auto msg = geometry_msgs::msg::Vector3Stamped();
+            msg.header.stamp = this->get_clock()->now();
+            msg.vector.x = robot.getAcousticsPingTime();
 
-                auto msg = geometry_msgs::msg::Vector3Stamped();
-                msg.header.stamp = this->get_clock()->now();
-                msg.vector.x = robot.getAcousticsPingTime();
-
-                acousticsPub->publish(msg);
-            }
-
+            acousticsPub->publish(msg);
         }
     }
 
@@ -819,7 +821,8 @@ private:
     //================================//
 
     // Publishes fake thruster telemtry messages to make controller work
-    void pubThrusterTelemetry()
+    void
+    pubThrusterTelemetry()
     {
         // Create messages
         riptide_msgs2::msg::DshotPartialTelemetry msgLow;
@@ -962,6 +965,25 @@ private:
             statePub->publish(poseMsg);
             tf_broadcaster->sendTransform(robotFrame);
             tf_broadcaster->sendTransform(cameraFrameL);
+
+            // If enabled, constantly sync odomotry's position to physic's position
+            if (SYNC_ODOM)
+            {
+                // Fill messasge with robot's position
+                auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
+                request->pose.pose.pose.position.x = state.x();
+                request->pose.pose.pose.position.y = state.y();
+                request->pose.pose.pose.position.z = state.z();
+                request->pose.pose.pose.orientation.w = q.w();
+                request->pose.pose.pose.orientation.x = q.x();
+                request->pose.pose.pose.orientation.y = q.y();
+                request->pose.pose.pose.orientation.z = q.z();
+                request->pose.pose.covariance = {0.0};
+                request->pose.header.stamp = this->get_clock()->now();
+                request->pose.header.frame_id = "odom";
+                // Send request
+                auto result = poseClient->async_send_request(request);
+            }
         }
     }
 
