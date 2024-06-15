@@ -8,48 +8,58 @@ https://learnopengl.com/Getting-started/OpenGL
 (Much of the code from this website was used and modified for this project)
 
 1) Change settings in the "setting.h" file in the include directory
-2) There isn't a proper lighting system implemented (future project?)
-3) If you want good frame rate, don't run in a virtual machine or WSL, do naitive linux boot
-4) For 3D models, color data from file doesn't work and .dae files aren't supported yet (future project?)
+2) Add new objects and models or modify existing ones in the "scene_info.yaml"
+3) There isn't a proper lighting system implemented (future project?)
+4) If you want good frame rate, don't run in a virtual machine or WSL, do naitive linux boot
 
 //===============================//
 //           INCLUDES            */
 //===============================//
-#include "rclcpp/rclcpp.hpp"
-#include <glad/glad.h>
+
+// General Libraries
+//--------------------------------------------
 #include <chrono>
-#include <GLFW/glfw3.h>
-#define STB_IMAGE_IMPLEMENTATION
-#include <glm/glm.hpp>
-#include <stb_image.h>
-#include <shader.hpp>
-#include <camera.hpp>
+#include <fstream>
 #include <iostream>
 #include <filesystem>
-#include <fstream>
-#include <obstackeShader.hpp>
-#include <waterShader.hpp>
-#include <object.hpp>
+#include <yaml-cpp/yaml.h>
+// ROS Libraries
+//---------------------------------------------
 #include <tf2/exceptions.h>
 #include <tf2_ros/buffer.h>
-#include "tf2_ros/transform_listener.h"
+#include "rclcpp/rclcpp.hpp"
+#include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include "tf2_ros/transform_listener.h"
+#include <sensor_msgs/msg/camera_info.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <frameShader.hpp>
-#include <blurShader.hpp>
-#include <assimp/Importer.hpp>
+// OpenGL Libraries
+//-------------------------------------------------
+#define STB_IMAGE_IMPLEMENTATION
+#include <shader.hpp>
+#include <camera.hpp>
+#include <object.hpp>
+#include <glm/glm.hpp>
+#include <glad/glad.h>
+#include <stb_image.h>
+#include <GLFW/glfw3.h>
 #include <assimp/scene.h>
-#include <assimp/postprocess.h>
-#include <modelShader.hpp>
+#include <blurShader.hpp>
 #include <textShader.hpp>
+#include <modelShader.hpp>
+#include <frameShader.hpp>
+#include <waterShader.hpp>
+#include <objectShader.hpp>
+#include <skyboxShader.hpp>
+#include <causticsManager.hpp>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
 
 using std::string, std::vector, std::cout, std::endl;
 using namespace std::chrono_literals;
-namespace fs = std::filesystem;
+using glm::vec3;
 
 // This initialization is needed for callback functions
 class zedFakerNode;
@@ -67,25 +77,22 @@ public:
         staticBroadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
         // Create camera info and image publishers
-        depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
-        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
         imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
+        depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
+        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
 
         // Create timers
         std::chrono::duration<double> imgPubTime(1.0 / FRAME_RATE);
         imgPubTimer = this->create_wall_timer(imgPubTime, std::bind(&zedFakerNode::publishImages, this));
 
-        // Setup OpenGL, shaders, and objects
+        // Go through setup
+        folderSetup();
         openGlSetup();
         shaderSetup();
-        objectSetup();
-        // Set up FBO's (Things that can be rendered to)
-        screenFBO = FBO(true);
-        render1FBO = FBO(false);
-        render2FBO = FBO(false);
-        robotFBO = FBO(false);
-        flycamFBO = FBO(false);
+        sceneSetup();
+        waitForTF();
+        fboSetup();
     }
 
     //===============================//
@@ -93,24 +100,25 @@ public:
     //===============================//
     void fakeImages()
     {
-        waitForTF();
+        //  RENDER LOOP
+        //----------------------------------------------------------
         while (rclcpp::ok() && !glfwWindowShouldClose(window))
         {
-            // Starting things
+            // POLL UPDATES
+            //------------------------------------------------------
+            // Proccess any pending ROS2 callbacks or timers
+            rclcpp::spin_some(shared_from_this());
+            // Clear the screen
             clearBuffers();
 
             // Get the time between frames, used for camera movement
             double currentFrame = glfwGetTime();
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
-
-            // Process mouse and keyboard inputs
+            // Process mouse and keyboard inputs, updates
             processKeyboard(window);
             glfwPollEvents();
-
-            // Update positions
-            updateRobotCamera();
-            updateRobotModel();
+            updateRobot();
 
             // ROBOT'S VIEW
             //-------------------------------------------------------
@@ -118,7 +126,9 @@ public:
             // This is because even if not being displayed, the images are still needed to publish fake ROS cameara images from the robot's POV
             robotFBO.use();
             objectShader.render(objects, robotCamera);
-            waterShader.render(objects, robot, robotCamera, robotFBO);
+            modelShader.render(models, robotCamera);
+            skyboxShader.render(robotCamera);
+            waterShader.render(objects, modelsAndRobot, robotCamera, robotFBO);
             // Post processing effects
             frameShader.render(vehicleOverlay); // Vehicle overlay
 
@@ -128,26 +138,23 @@ public:
             if (cameraMode == FLY_ARROUND_MODE)
             {
                 flycamFBO.use();
-                modelShader.render(robot, flyAroundCamera);
                 objectShader.render(objects, flyAroundCamera);
-                waterShader.render(objects, robot, flyAroundCamera, flycamFBO);
-                // Display F3 screen if active
+                modelShader.render(modelsAndRobot, flyAroundCamera);
+                skyboxShader.render(flyAroundCamera);
+                waterShader.render(objects, modelsAndRobot, flyAroundCamera, flycamFBO);
+                //  Display F3 screen if active
                 if (f3Screen)
                     displayF3Screen();
             }
 
             // Render desired view to the screen
             screenFBO.use();
-            if (cameraMode == ROBOT_MODE)
-                frameShader.render(robotFBO);
-            else
-                frameShader.render(flycamFBO);
-            glfwSwapBuffers(window);
+            frameShader.render(cameraMode == ROBOT_MODE ? robotFBO : flycamFBO);
 
-            // Proccess any pending ROS2 callbacks or timers
-            rclcpp::spin_some(shared_from_this());
+            glfwSwapBuffers(window);
         }
         // Cleanup
+        glfwDestroyWindow(window);
         glfwTerminate();
     };
 
@@ -156,59 +163,176 @@ private:
     //            SETUP              //
     //===============================//
 
+    void fboSetup()
+    {
+        screenFBO = FBO(true);
+        render1FBO = FBO(false); // Not used atm, but would be needed to do other post processing like blur or distortion
+        render2FBO = FBO(false); // Not used atm, but would be needed to do other post processing like blur or distortion
+        robotFBO = FBO(false);
+        flycamFBO = FBO(false);
+    }
+    void folderSetup()
+    {
+        string modelFolder_, textureFolder_, fontFolder_, shaderFolder_;
+        // Declare and get ROS parameters with folder locations
+        this->declare_parameter("model_folder", "");
+        this->get_parameter("model_folder", modelFolder_);
+        this->declare_parameter("texture_folder", "");
+        this->get_parameter("texture_folder", textureFolder_);
+        this->declare_parameter("font_folder", "");
+        this->get_parameter("font_folder", fontFolder_);
+        this->declare_parameter("shader_folder", "");
+        this->get_parameter("shader_folder", shaderFolder_);
+
+        // Save folder locations as a file system variable
+        modelFolder = std::filesystem::path(modelFolder_);
+        textureFolder = std::filesystem::path(textureFolder_);
+        fontFolder = std::filesystem::path(fontFolder_);
+        shaderFolder = std::filesystem::path(shaderFolder_);
+    }
     /**
      * @brief Creats all the objects and adds them into the scene
      * This is where the object size, position, orientation, texture, etc. is set
      * Loads in 3D robot model
      */
-    void objectSetup()
+    void sceneSetup()
     {
-        // PLANE OBJECTS
-        //-------------------------------------------------------
-        // Get texture folder path
-        string textureFolder, texturePath;
-        this->get_parameter("texture_folder", textureFolder);
+        // ADDING 2D/3D OBJECTS
+        //------------------------------------------------------
+        // creating objects from "scene_info.yaml"
+        string sceneFile;
+        YAML::Node scene;
+        this->declare_parameter("scene_config", "");
+        this->get_parameter("scene_config", sceneFile);
+        try
+        {
+            // Loading YAML file for parsing
+            RCLCPP_INFO(this->get_logger(), "Opening scene YAML file: %s", sceneFile.c_str());
+            scene = YAML::LoadFile(sceneFile);
+            objectSetup(scene["objects"]);
+            robotSetup(scene["robot"]);
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(node->get_logger(), "Failed to parse the config file: %s", e.what());
+        }
 
-        // Overlay graphic
-        vehicleOverlay = Texture(fs::path(textureFolder) / "overlays" / "talos_L_overlay.png");
+        // APRIL TAG
+        //------------------------------------------------------
+        bool relativeToTag = scene["april_tag"]["relative_to_tag"].as<bool>();
+        // Adding April tag (DON'T PUSH TO OBJECTS LIST)
+        vec3 tagPosition = vec3(toDouble(scene["april_tag"]["pose"]["x"]), toDouble(scene["april_tag"]["pose"]["y"]), 0);
+        float tagYaw = toDouble(scene["april_tag"]["pose"]["yaw"]);
+        string tagPath = textureFolder / "objects" / "April Tag.jpg";
+        if (relativeToTag)
+        {
+            aprilTag = Object(tagPath, 0.6096f, 0.9144, vec3(0, 0, -0.345), vec3(0, 0, 0));
+            waterShader.applyTagOffset(tagPosition, tagYaw);
+        }
+        else
+            aprilTag = Object(tagPath, 0.6096f, 0.9144, tagPosition + vec3(0, 0, -0.345), vec3(0, 0, tagYaw));
 
-        // Task objects
-        texturePath = fs::path(textureFolder) / "task_objects" / "April Tag.jpg";
-        aprilTag = Object(texturePath, 0.6096f, 0.9144, glm::vec3(POOL_WIDTH / 2.0 - LANE_WIDTH / 32.0, 0, -.37), 0, 0, 180);
-        texturePath = fs::path(textureFolder) / "task_objects" / "buoys.png";
-        Object buoy(texturePath, 1.2f, 1.2f, glm::vec3(7.84, 10.37, -1.0), 0, 0, 260);
-        texturePath = fs::path(textureFolder) / "task_objects" / "torpedoes.png";
-        Object torpedo(texturePath, 1.2f, 1.2f, glm::vec3(2.0, -3.0, -1.0), 0, 0, 90);
-        texturePath = fs::path(textureFolder) / "task_objects" / "gate.png";
-        Object gate(texturePath, 3.124f, 1.6f, glm::vec3(3.89, 6.49, -1.3), 0, 0, 260);
-
-        /** @note DO NOT PUSH APRIL TAG TO THE "OBJECTS" VECTOR
-         * Push newly created objects to the back of the "objects" vector */
-        objects.push_back(buoy);
-        objects.push_back(torpedo);
-        objects.push_back(gate);
-
-        // Before adding environment objects to the vector, publish the objects we care about as static transforms
-        // This will help with visualization of the ground-truth positions in RViz as well as provide infrastructure
-        // for automated testing of the system
-        std::vector<geometry_msgs::msg::TransformStamped> transforms;
-        transforms.push_back(getStaticTransformForObject("buoy", buoy));
-        transforms.push_back(getStaticTransformForObject("torpedo", torpedo));
-        transforms.push_back(getStaticTransformForObject("gate", gate));
-        staticBroadcaster->sendTransform(transforms);
-
-        // Surrounding pool enviroment
-        std::vector<Object> poolObjects = generatePoolObjects(textureFolder);
+        // ADDING POOL ENVIROMENT
+        //------------------------------------------------------
+        vector<Object> poolObjects = generatePoolObjects(textureFolder);
         for (Object poolObject : poolObjects)
+        {
+            if (relativeToTag)
+                poolObject.applyTagOffset(tagPosition, tagYaw);
             objects.push_back(poolObject);
+        }
+        // Making robot overlay graphic
+        vehicleOverlay = Texture(textureFolder / "overlays" / "talos_L_overlay.png");
+    }
 
-        // 3D MODELS
-        //-------------------------------------------------------
-        string modelFolder, modelPath;
-        this->declare_parameter("model_folder", "");
-        this->get_parameter("model_folder", modelFolder);
-        modelPath = fs::path(modelFolder) / "Talos.dae";
-        robot = Model(modelPath, METER, glm::vec3(2, 0, -.5));
+    /**
+     * @brief Unpacks scene YAML information and makes a 2D or 3D object and into the scene
+     */
+    void objectSetup(YAML::Node objectsInfo)
+    {
+        vector<geometry_msgs::msg::TransformStamped> transforms;
+        // Go through each input in the objects section of YAML file
+        for (const auto &objectInfoPair : objectsInfo)
+        {
+            YAML::Node objectInfo = objectInfoPair.second;
+
+            vec3 position(toDouble(objectInfo["pose"]["x"]),
+                          toDouble(objectInfo["pose"]["y"]),
+                          toDouble(objectInfo["pose"]["z"]));
+            vec3 rpy(toDouble(objectInfo["pose"]["roll"]),
+                     toDouble(objectInfo["pose"]["pitch"]),
+                     toDouble(objectInfo["pose"]["yaw"]));
+            // Object is a 2D image
+            if (objectInfo["image"].IsDefined())
+            {
+                // Unpack values from YAML into useful variables
+                string imagePath = textureFolder / "objects" / objectInfo["image"]["file"].as<string>();
+                double imgWidth = objectInfo["image"]["size"][0].as<double>();
+                double imgHeight = objectInfo["image"]["size"][1].as<double>();
+                // Use this information to create a Object to add to "list" that needs rendered
+                objects.push_back(Object(imagePath,
+                                         imgWidth,
+                                         imgHeight,
+                                         position,
+                                         rpy));
+            }
+            // Object is a 3D model
+            else if (objectInfo["model"].IsDefined())
+            {
+                // Unpack values from YAML into useful variables
+                string modelPath = modelFolder / objectInfo["model"]["file"].as<string>();
+                double units = parseUnits(objectInfo["model"]["units"]);
+                vector<double> modelOffset(6, 0.0);
+                if (objectInfo["model_offset"].IsDefined())
+                    modelOffset = objectInfo["model_offset"].as<vector<double>>();
+                vec3 offsetPos(modelOffset[0], modelOffset[1], modelOffset[2]);
+                vec3 offsetRPY(modelOffset[3], modelOffset[4], modelOffset[5]);
+                vec3 color(-1, -1, -1);
+                if (objectInfo["model"]["color"].IsDefined())
+                    color = vec3(objectInfo["model"]["color"][0].as<double>(),  // R
+                                 objectInfo["model"]["color"][1].as<double>(),  // G
+                                 objectInfo["model"]["color"][2].as<double>()); // B
+                // Use this information to create a Model to add to "list" that needs rendered
+                models.push_back(Model(modelPath,
+                                       units,
+                                       position,
+                                       offsetPos,
+                                       rpy,
+                                       offsetRPY,
+                                       color));
+            }
+            else
+            {
+                RCLCPP_ERROR(this->get_logger(), "Object %s did not contain 'image:' or 'model:'", objectInfoPair.first.as<string>().c_str());
+                continue;
+            }
+            // Send a transform message with all the objects once complete
+            transforms.push_back(getStaticTransformForObject(objectInfoPair.first.as<string>(), position, glm::radians(rpy)));
+        }
+        staticBroadcaster->sendTransform(transforms);
+    }
+
+    /**
+     * @brief Unpacks scene YAML file to create a robot model
+     */
+    void robotSetup(YAML::Node robotInfo)
+    {
+        // Unpack values from YAML into useful variables
+        string modelPath = modelFolder / robotInfo["model"]["file"].as<string>();
+        double units = parseUnits(robotInfo["model"]["units"]);
+        vector<double> modelOffset = robotInfo["model"]["model_offset"].as<vector<double>>();
+        vec3 offsetPos(modelOffset[0], modelOffset[1], modelOffset[2]);
+        vec3 offsetRPY(modelOffset[3], modelOffset[4], modelOffset[5]);
+        // Get model color if it has one, negative values indicate it doesn't
+        vec3 color(-1, -1, -1);
+        if (robotInfo["model"]["color"].IsDefined())
+            color = vec3(robotInfo["model"]["color"][0].as<double>(),  // R
+                         robotInfo["model"]["color"][1].as<double>(),  // G
+                         robotInfo["model"]["color"][2].as<double>()); // B
+        // Use this information to create a Model robot object
+        Model robot(modelPath, units, vec3(), offsetPos, vec3(), offsetRPY, color);
+        modelsAndRobot = models;
+        modelsAndRobot.push_back(robot);
     }
 
     /**
@@ -247,82 +371,96 @@ private:
             std::cout << "Failed to initialize GLAD" << std::endl;
             return false;
         }
+        setWindowIcon(window);
         // STBI image library setup
         stbi_set_flip_vertically_on_load(true);
-
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        glfwSetWindowAspectRatio(window, IMG_WIDTH, IMG_HEIGHT);
-
-        // Enable anti-aliasing
-        glfwWindowHint(GLFW_SAMPLES, 4); // Request 4x MSAA
-        glEnable(GL_MULTISAMPLE);
         return true;
+    }
+
+    // Set window icon in task bar to UWRT logo
+    void setWindowIcon(GLFWwindow *window)
+    {
+        string iconPath = textureFolder / "overlays" / "uwrt_icon.png";
+        int width, height, channels;
+        unsigned char *image = stbi_load(iconPath.c_str(), &width, &height, &channels, 4); // Force 4 channels (RGBA)
+        if (image)
+        {
+            GLFWimage icons[1];
+            icons[0].width = width;
+            icons[0].height = height;
+            icons[0].pixels = image;
+            glfwSetWindowIcon(window, 1, icons);
+            stbi_image_free(image);
+        }
+        else
+            std::cerr << "Failed to load icon: " << iconPath << std::endl;
     }
 
     // Creates shaders objects from file locations
     void shaderSetup()
     {
-        // Get shader folder path
-        string shaderFolder, vsPath, fsPath;
-        this->declare_parameter("shader_folder", "");
-        this->get_parameter("shader_folder", shaderFolder);
-        // Get texture folder path
-        string textureFolder, causticsPath, waterPath;
-        this->declare_parameter("texture_folder", "");
-        this->get_parameter("texture_folder", textureFolder);
-        waterPath = fs::path(textureFolder) / "water";
-        causticsPath = fs::path(textureFolder) / "water" / "caustics";
+        // Get file paths
+        string waterPath = textureFolder / "water";
+        string causticsPath = textureFolder / "water" / "caustics";
 
         // Create post processing shaders
-        vsPath = fs::path(shaderFolder) / "frame.vs";
-        fsPath = fs::path(shaderFolder) / "frame.fs";
+        string vsPath = shaderFolder / "frame.vs";
+        string fsPath = shaderFolder / "frame.fs";
         frameShader = FrameShader(vsPath, fsPath);
 
-        // Making the object shader takes a lot of time to load the 200+ caustic textures xD
+        // Loading the causings takes a lot of time to load the 200+ caustic textures xD
         // Use the newly created frameShader to display a loading screen for some eye candy
-        Texture loadingScreen = Texture(fs::path(textureFolder) / "overlays" / "Loading_Screen.jpg");
+        Texture loadingScreen = Texture(textureFolder / "overlays" / "Loading_Screen.jpg");
         frameShader.render(loadingScreen);
         glfwSwapBuffers(window);
+        CausticsManager::loadCaustics(causticsPath);
 
         // Create object shader
-        vsPath = fs::path(shaderFolder) / "object.vs";
-        fsPath = fs::path(shaderFolder) / "object.fs";
-        objectShader = ObjectShader(vsPath, fsPath, causticsPath);
+        vsPath = shaderFolder / "object.vs";
+        fsPath = shaderFolder / "object.fs";
+        objectShader = ObjectShader(vsPath, fsPath);
 
         // Create model shader
-        vsPath = fs::path(shaderFolder) / "model.vs";
-        fsPath = fs::path(shaderFolder) / "model.fs";
+        vsPath = shaderFolder / "model.vs";
+        fsPath = shaderFolder / "model.fs";
         modelShader = ModelShader(vsPath, fsPath);
 
-        // Create water shader
-        vsPath = fs::path(shaderFolder) / "water.vs";
-        fsPath = fs::path(shaderFolder) / "water.fs";
-        waterShader = WaterShader(vsPath, fsPath, waterPath, objectShader, modelShader);
-
         // Create blur shader
-        vsPath = fs::path(shaderFolder) / "blur.vs";
-        fsPath = fs::path(shaderFolder) / "blur.fs";
+        vsPath = shaderFolder / "blur.vs";
+        fsPath = shaderFolder / "blur.fs";
         blurShader = BlurShader(vsPath, fsPath);
 
         // Create text shader
-        string fontFolder, fontPath;
-        this->declare_parameter("font_folder", "");
-        this->get_parameter("font_folder", fontFolder);
-        vsPath = fs::path(shaderFolder) / "text.vs";
-        fsPath = fs::path(shaderFolder) / "text.fs";
-        fontPath = fs::path(fontFolder) / "Minecraft.ttf";
+        vsPath = shaderFolder / "text.vs";
+        fsPath = shaderFolder / "text.fs";
+        string fontPath = fontFolder / "Minecraft.ttf";
         textShader = TextShader(vsPath, fsPath, fontPath);
 
-        // Next up is waiting for TF frames so display another loading screen in this function while all the path variables are here
-        loadingScreen = Texture(fs::path(textureFolder) / "overlays" / "Loading_Screen2.jpg");
-        frameShader.render(loadingScreen);
-        glfwSwapBuffers(window);
+        // Create skybox shader
+        vsPath = shaderFolder / "skybox.vs";
+        fsPath = shaderFolder / "skybox.fs";                                          // Order needs to be:
+        vector<string> faces = {textureFolder / "skybox" / "Daylight Box_Right.jpg",  // Needs to be right
+                                textureFolder / "skybox" / "Daylight Box_Left.jpg",   // Needs to be left
+                                textureFolder / "skybox" / "Daylight Box_Bottom.jpg", // Needs to be bottom
+                                textureFolder / "skybox" / "Daylight Box_Top.jpg",    // Needs to be top
+                                textureFolder / "skybox" / "Daylight Box_Front.jpg",  // Needs to be front
+                                textureFolder / "skybox" / "Daylight Box_Back.jpg"};  // Needs to be back
+        skyboxShader = SkyboxShader(vsPath, fsPath, faces);
+
+        // Create water shader
+        vsPath = shaderFolder / "water.vs";
+        fsPath = shaderFolder / "water.fs";
+        waterShader = WaterShader(vsPath, fsPath, waterPath, objectShader, modelShader, skyboxShader);
     }
 
     // Go into an infinite loop until the TF transform becomes available
     void waitForTF()
     {
+        // Next up is waiting for TF frames so display another loading screen
+        Texture loadingScreen(textureFolder / "overlays" / "Loading_Screen2.jpg");
+        frameShader.render(loadingScreen);
+        glfwSwapBuffers(window);
+
         bool tfFlag = true;
         while (rclcpp::ok() && tfFlag)
         {
@@ -354,9 +492,10 @@ private:
         flycamFBO.clear();
     }
 
-    // Updates the robot's camera position from TF frames
-    void updateRobotCamera()
+    void updateRobot()
     {
+        // ROBOT CAMERA UPDATE
+        //---------------------------------------------------------------------------
         try
         {
             // Get camera TF frame
@@ -374,20 +513,18 @@ private:
                               t.transform.rotation.y,
                               t.transform.rotation.z,
                               t.transform.rotation.w);
-            tf2::Matrix3x3 rotM(q);
-            double roll, pitch, yaw;
-            rotM.getEulerYPR(yaw, pitch, roll);
+            tf2::Matrix3x3 rotM(q);             // Converting quaternioin to yaw pitch roll
+            double roll, pitch, yaw;            // ^
+            rotM.getEulerYPR(yaw, pitch, roll); // ^
             robotCamera.setYPR(yaw, pitch, roll);
         }
         catch (const tf2::TransformException &ex)
         {
             glfwSetWindowShouldClose(window, true);
         }
-    }
 
-    // Updates the position and orientation of robot model from TF frames
-    void updateRobotModel()
-    {
+        // ROBOT MODEL UPDATE
+        //----------------------------------------------------------------------
         try
         {
             // Get camera TF frame
@@ -397,9 +534,9 @@ private:
                 tf2::TimePointZero);
 
             // Set camera position
-            robot.setPosition(t.transform.translation.x,
-                              t.transform.translation.y,
-                              t.transform.translation.z);
+            modelsAndRobot.back().setPosition(t.transform.translation.x,
+                                              t.transform.translation.y,
+                                              t.transform.translation.z);
             // Set camera orientation
             tf2::Quaternion q(t.transform.rotation.x,
                               t.transform.rotation.y,
@@ -408,7 +545,7 @@ private:
             tf2::Matrix3x3 rotM(q);
             double roll, pitch, yaw;
             rotM.getRPY(roll, pitch, yaw);
-            robot.setRPY(roll, pitch, yaw);
+            modelsAndRobot.back().setRPY(glm::degrees(roll), glm::degrees(pitch), glm::degrees(yaw));
         }
         catch (const tf2::TransformException &ex)
         {
@@ -468,8 +605,8 @@ private:
         depthMsg.step = sizeof(float) * IMG_WIDTH;
         depthMsg.is_bigendian = false;
         // Copy image data into message
-        std::vector<uint8_t> imgData;
-        std::vector<uint8_t> depthData;
+        vector<uint8_t> imgData;
+        vector<uint8_t> depthData;
         robotFBO.copyColorData(imgData);
         robotFBO.copyDepthData(depthData);
         imgMsg.data = imgData;
@@ -518,7 +655,7 @@ private:
                 flyAroundCamera.ProcessKeyboard(DOWN, deltaTime);
         }
 
-        // Show april tag when T is pressed
+        // Show april tag when T is pressed (toggle)
         if (isPressed(GLFW_KEY_T) && !aprilFlag)
         {
             aprilFlag = true;
@@ -551,7 +688,12 @@ private:
     }
     static void resizeWindow(GLFWwindow *window, int width, int height)
     {
-        glViewport(0, 0, width, height);
+        // Goodbye compiler warnings
+        (void)window;
+        (void)width;
+        (void)height;
+        // Someone should actually make this work lol, I can't do better because I am pretty sure it's a WSL bug
+        glViewport(0, 0, IMG_WIDTH, IMG_HEIGHT);
     }
 
     // Handles fly around camera movement, called from mouse callback
@@ -573,6 +715,7 @@ private:
     // Handles mouse movement
     static void mouseCallback(GLFWwindow *window, double xpos, double ypos)
     {
+        (void)window; // Goodbye compiler warnings
         // Need to do this goofy thing because callback function can't be an object specific function
         node->moveCamera(xpos, ypos);
     }
@@ -585,18 +728,50 @@ private:
         return glfwGetKey(window, GLFW_KEY_XX) == GLFW_PRESS;
     }
 
-    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string &name, const Object &object)
+    // Safely convert a YAML parameter to a double ex. toDouble(robotInfo["pose"]["x"])
+    double toDouble(YAML::Node node)
+    {
+        try
+        {
+            return node.as<double>();
+        }
+        catch (const std::exception &e)
+        {
+            return 0.0;
+        }
+    }
+
+    double parseUnits(YAML::Node units)
+    {
+        // See if the user inputted a number
+        try
+        {
+            return units.as<double>();
+        }
+        catch (const YAML::BadConversion &)
+        {
+        }
+        // Convert string to Units enum
+        auto it = stringToUnits.find(units.as<std::string>());
+        if (it != stringToUnits.end())
+            return unitsToDouble.at(it->second);
+        // Log an error if an invalid string is provided and return the default unit (METER)
+        RCLCPP_INFO(this->get_logger(), "Invalid string for model units: %s", units.as<string>().c_str());
+        return unitsToDouble.at(METER);
+    }
+
+    geometry_msgs::msg::TransformStamped getStaticTransformForObject(const std::string &name, glm::vec3 position, glm::vec3 rpy)
     {
         geometry_msgs::msg::TransformStamped static_transform;
         static_transform.header.frame_id = "world";
         static_transform.child_frame_id = "simulator/" + name;
 
-        glm::vec3 xyz = object.getPositionXYZ();
-        static_transform.transform.translation.x = xyz.x;
-        static_transform.transform.translation.y = xyz.y;
-        static_transform.transform.translation.z = xyz.z;
+        // Get object position
+        static_transform.transform.translation.x = position.x;
+        static_transform.transform.translation.y = position.y;
+        static_transform.transform.translation.z = position.z;
 
-        glm::vec3 rpy = object.getOrientationRPY();
+        // Get object orientation
         tf2::Quaternion tf2Quat;
         tf2Quat.setRPY(rpy.x, rpy.y, rpy.z);
         tf2Quat.normalize();
@@ -619,15 +794,16 @@ private:
     Camera flyAroundCamera = Camera();
     CameraMode cameraMode = FLY_ARROUND_MODE;
 
-    Model robot;
+    FBO robotFBO;
+    FBO flycamFBO;
     FBO screenFBO;
     FBO render1FBO;
     FBO render2FBO;
     Object aprilTag;
     string robotName;
-    FBO robotFBO;
-    FBO flycamFBO;
     GLFWwindow *window;
+    vector<Model> models;
+    vector<Model> modelsAndRobot;
     TextShader textShader;
     BlurShader blurShader;
     vector<Object> objects;
@@ -635,14 +811,19 @@ private:
     WaterShader waterShader;
     FrameShader frameShader;
     ModelShader modelShader;
+    SkyboxShader skyboxShader;
     ObjectShader objectShader;
+    std::filesystem::path fontFolder;
+    std::filesystem::path modelFolder;
+    std::filesystem::path shaderFolder;
+    std::filesystem::path textureFolder;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
-    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> staticBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imagePub;
+    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> staticBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr depthInfoPub;
 };

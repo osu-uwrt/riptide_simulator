@@ -115,7 +115,7 @@ private:
         //===============================//
 
         int gridSize = DIST_REFINEMENT;
-        float distVertices[gridSize * gridSize * 4];
+        float distVertices[(int)(DIST_REFINEMENT * DIST_REFINEMENT * 4)];
         // Create grid of points
         for (int j = 0; j < gridSize; j++)
         {
@@ -147,9 +147,8 @@ private:
             }
         }
 
-        //  Create indices array
-        triangleCount = pow((gridSize - 1), 2) * 2;
-        unsigned int distIndices[3 * triangleCount];
+        //  Create indices array [3 * 2 * number of quads]
+        unsigned int distIndices[6 * (int)pow((DIST_REFINEMENT - 1), 2)];
         /* Loop through all squares in grid and split into two triangles
         Example indices shown for 4x4 grid
                  +i->

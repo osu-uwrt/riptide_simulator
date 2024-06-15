@@ -13,18 +13,15 @@ public:
     FBO() {}
     FBO(bool screen_)
     {
-        // Screen is a bool that holds whether the screen is the default screen buffer or not
         screen = screen_;
         if (screen)
-            // This is a screen buffer, make the framebuffer ID = 0 which is the default screen
-            framebuffer = 0;
+            framebuffer = 0; // Default screen buffer
         else
         {
-            // Frame buffer setup
             glGenFramebuffers(1, &framebuffer);
             glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
-            // generate color texture
+            // Generate color texture
             glGenTextures(1, &colorTextureBuffer);
             glBindTexture(GL_TEXTURE_2D, colorTextureBuffer);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, IMG_WIDTH, IMG_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -38,10 +35,10 @@ public:
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, IMG_WIDTH, IMG_HEIGHT);
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-            // Set up depth texture for holding camera depth data (Can be values not 0-1 unlike depth stencil for depth testing)
+            // Set up depth texture for holding camera depth data
             glGenTextures(1, &depthTextureBuffer);
             glBindTexture(GL_TEXTURE_2D, depthTextureBuffer);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, IMG_WIDTH, IMG_HEIGHT, 0, GL_RED, GL_FLOAT, NULL); // Depth data stored as 32 bit floats in the red channel
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, IMG_WIDTH, IMG_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -76,8 +73,8 @@ public:
     void clear()
     {
         use();
-        // Clear screen to skyish color
-        glClearColor(0.568f, 0.878f, 1.0f, 1.0f);
+        // Clear screen to black color
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
     int textureID()

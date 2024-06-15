@@ -57,6 +57,7 @@ ament_target_dependencies(zed_faker
   robot_localization)
 
 target_link_libraries(zed_faker 
+  ${YAML_CPP_LIBRARIES}
   ${ASSIMP_LIBRARIES}
   ${FREETYPE_LIBRARIES}
   glfw

@@ -3,25 +3,25 @@
 //===============================//
 16  - Notes/assumptions
 29  - Includes
-67  - Sim start up
-130 - Physics functions
-255 - Collision functions
-574 - Faking sensor data
-727 - Callback functions
-839 - Utility functions
-874 - Variables
-901 - Main
+76  - Sim start up
+145 - Physics functions
+286 - Collision functions
+616 - Faking sensor data
+767 - Callback functions
+937 - Utility functions
+991 - Variables
+1022 - Main
 
 //===============================//
 //      NOTES/ASSUMPTIONS        //
 //===============================//
 1) Change settings in the "setting.h" file in the include directory
 2) Assumes thruster force curves are accuarate (if not, what the controller does IRL may not reflect response in sim)
-3) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
-4) Collision detection only works with boxes and assumes obstacles are stationary
-5) There are several helpful links in the code, they are good reads
-6) Assumes thrusters will not be running while out of water
-7) Assumes center of drag is at center of bouyancy
+3) Assumes drag force curves are accuarate (if not, what the controller does IRL may not reflect response in sim), no lift forces are calculated,
+4) Bouyant force of robot is approximated as a cylinder when robot is partially submereged
+5) Collision detection only works with boxes and assumes obstacles are stationary
+6) There are several helpful links in the code, they are good reads
+7) Assumes thrusters will not be running while out of water
 8) Everything is in SI units (kg, m, s, N)
 9) This will cook your CPU
 
@@ -116,7 +116,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Loading robot's parameter data from YAML..");
         bool paramsLoaded = robot.loadParams(shared_from_this());
         RCLCPP_INFO(this->get_logger(), "Loading collision files...");
-        bool collisionBoxesLoaded = loadCollisionFiles();
+        bool collisionBoxesLoaded = (COLLISION_TOGGLE ? loadCollisionFiles() : true);
         // Loaded successfully if true
         if (paramsLoaded && collisionBoxesLoaded)
         {
@@ -433,129 +433,75 @@ private:
     }
 
     /**
-     * @brief Goes through collision folder and reads URDF files to populate robotBoxes and obstacleBoxes vector with elements
+     * @brief Goes through collsion .urdf files in "scene_info.yaml" and adds their collisionBoxes
      * @returns Whether the files could be read succesfully
      */
     bool loadCollisionFiles()
     {
         // Get folder path
-        string collisionFolder;
+        string _collisionFolder, _sceneFile;
         this->declare_parameter("collision_folder", "");
-        this->get_parameter("collision_folder", collisionFolder);
+        this->declare_parameter("scene_config", "");
+        this->get_parameter("scene_config", _sceneFile);
+        this->get_parameter("collision_folder", _collisionFolder);
+        std::filesystem::path collisionFolder(_collisionFolder);
 
-        // Check to make sure robot folder exists
-        fs::path robotFolder = fs::path(collisionFolder) / "robots";
-        if (!(fs::exists(robotFolder) && fs::is_directory(robotFolder)))
+        cout << collisionFolder << endl;
+        YAML::Node sceneFile = YAML::LoadFile(_sceneFile);
+        if (!sceneFile)
         {
-            RCLCPP_FATAL(this->get_logger(), "Robot folder could not be fould: %s", robotFolder.c_str());
+            RCLCPP_ERROR(this->get_logger(), "Failed to load scene file: %s", _sceneFile.c_str());
             return false;
         }
-        // Loop through each URDF in robot folder
-        for (const auto &entry : fs::directory_iterator(robotFolder))
+
+        // Add the robot collision boxes
+        if (sceneFile["robot"]["collision"].IsDefined())
         {
-            // Check if the file has a ".urdf" extension
-            if (entry.path().extension() != ".urdf")
-            {
-                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file: %s", entry.path().c_str());
-                continue;
-            }
-            urdf::ModelInterfaceSharedPtr robotModel = urdf::parseURDFFile(entry.path());
+            std::string robotCollisionPath = collisionFolder / "robots" / sceneFile["robot"]["collision"].as<string>();
+            urdf::ModelInterfaceSharedPtr robotModel = urdf::parseURDFFile(robotCollisionPath);
             if (!robotModel)
             {
-                RCLCPP_FATAL(this->get_logger(), "Failed to parse URDF file %s", entry.path().c_str());
+                RCLCPP_ERROR(this->get_logger(), "Failed to load robot model: %s", robotCollisionPath.c_str());
                 return false;
             }
-            // If URDF robot's name matches the robot that is being simulated, unpack file
-            if (robotModel->getName() == robot.getName())
+            robotBoxes = unpackURDF(robotModel, v3d(0, 0, 0), quat(1, 0, 0, 0));
+        }
+
+        // Add the objects collision boxes
+        for (auto const &entryPair : sceneFile["objects"])
+        {
+            // Get the .urdf file with some error checking
+            YAML::Node entry = entryPair.second;
+            if (!entry["collision"].IsDefined())
             {
-                robotBoxes = unpackURDF(robotModel, v3d(0, 0, 0), quat(1, 0, 0, 0));
-                break;
-            }
-        }
-        if (robotBoxes.empty())
-        {
-            RCLCPP_FATAL(this->get_logger(), "Could not find any robot collision boxes");
-            return false;
-        }
-        // Check to make sure obstacle foldeer exists
-        fs::path obstacleFolder = fs::path(collisionFolder) / "obstacles";
-        if (!(fs::exists(obstacleFolder)) && fs::is_directory(obstacleFolder))
-        {
-            RCLCPP_FATAL(this->get_logger(), "Obstacle folder could not be fould: %s", robotFolder.c_str());
-            return false;
-        }
-        // Load YAML file storing obstacle positions
-        string obstacleConfigPath;
-        this->declare_parameter("obstacle_config", "");
-        this->get_parameter("obstacle_config", obstacleConfigPath);
-        cout << obstacleConfigPath << endl;
-        YAML::Node obstacleConfig = YAML::LoadFile(obstacleConfigPath);
-        YAML::Node obstacleList = obstacleConfig["/**/riptide_mapping2"]["ros__parameters"]["init_data"];
-        // Add available obstacles to list of names
-        std::set<string> obstacleNames;
-        for (const auto &obstacle : obstacleList)
-            obstacleNames.insert(obstacle.first.as<string>());
-        // Loop through each URDF in obstacle folder
-        for (const auto &entry : fs::directory_iterator(obstacleFolder))
-        {
-            // Check if the file has a ".urdf" extension
-            if (entry.path().extension() != ".urdf")
-            {
-                RCLCPP_ERROR(this->get_logger(), "Encountered a non .urdf file, skipping: %s", entry.path().c_str());
+                RCLCPP_WARN(this->get_logger(), "Skipping entry  %s without collision info.", entryPair.first.as<string>().c_str());
                 continue;
             }
-            urdf::ModelInterfaceSharedPtr obstacleModel = urdf::parseURDFFile(entry.path());
-            if (!obstacleModel)
+            std::string objectCollisionPath = collisionFolder / "objects" / entry["collision"].as<string>();
+            urdf::ModelInterfaceSharedPtr objectModel = urdf::parseURDFFile(objectCollisionPath);
+            if (!objectModel)
             {
-                RCLCPP_ERROR(this->get_logger(), "Failed to parse URDF file %s", entry.path().c_str());
-                return false;
-            }
-            // Check if object is one of the known task objects
-            if (obstacleNames.count(obstacleModel->getName()) > 0) // name matches obstacle name list
-            {
-                // Get position and orientation of object
-                double poseX = obstacleList[obstacleModel->getName()]["pose"]["x"].as<double>();
-                double poseY = obstacleList[obstacleModel->getName()]["pose"]["y"].as<double>();
-                double poseZ = obstacleList[obstacleModel->getName()]["pose"]["z"].as<double>();
-                double poseYaw = obstacleList[obstacleModel->getName()]["pose"]["yaw"].as<double>();
-                tf2::Quaternion tf2Quat;
-                tf2Quat.setRPY(0, 0, poseYaw);
-                tf2Quat.normalize();
-                Eigen::AngleAxisd yawing(poseYaw * M_PI / 180, v3d::UnitZ());
-                quat objQuat(yawing);
-                // Unpack URDF, set position and orientation to the object
-                std::vector<collisionBox> newBoxes = unpackURDF(obstacleModel,
-                                                                v3d(poseX,
-                                                                    poseY,
-                                                                    poseZ),
-                                                                objQuat);
-                // Add all new boxes to obstacle list
-                for (collisionBox newBox : newBoxes)
-                    obstacleBoxes.push_back(newBox);
-                RCLCPP_DEBUG(this->get_logger(), "Succesfully added %s collision data into simulator", obstacleModel->getName().c_str());
-            }
-            else
-            {
-                // Obstacle does not match any known obstacle
-                RCLCPP_ERROR(this->get_logger(), "Obstacle %s does not match list of known obstacles, skipping obstacle", obstacleModel->getName().c_str());
+                RCLCPP_ERROR(this->get_logger(), "Failed to load object model: %s, continuing...", objectCollisionPath.c_str());
                 continue;
             }
+            // Get position and orientation
+            v3d position(toDouble(entry["pose"]["x"]),
+                         toDouble(entry["pose"]["y"]),
+                         toDouble(entry["pose"]["z"]));
+            tf2::Quaternion tf2Quat;
+            tf2Quat.setRPY(deg2rad(toDouble(entry["pose"]["roll"])),
+                           deg2rad(toDouble(entry["pose"]["pitch"])),
+                           deg2rad(toDouble(entry["pose"]["yaw"])));
+            tf2Quat.normalize();
+            quat objQuat(tf2Quat.w(), tf2Quat.x(), tf2Quat.y(), tf2Quat.z());
+            // Add all the new boxes to the vector
+            std::vector<collisionBox> newBoxes = unpackURDF(objectModel, position, objQuat);
+            for (collisionBox newBox : newBoxes)
+                obstacleBoxes.push_back(newBox);
         }
-        // Add box to list
-        collisionBox floor = collisionBox("floor",
-                                          25,
-                                          50,
-                                          1,
-                                          v3d(0, 0, -2.6336),
-                                          v3d(0, 0, 0),
-                                          quat(1, 0, 0, 0),
-                                          quat(1, 0, 0, 0));
+        // Add floor to list
+        collisionBox floor = collisionBox("floor", 25, 50, 1, v3d(0, 0, -2.6336));
         obstacleBoxes.push_back(floor);
-        if (obstacleBoxes.empty())
-        {
-            RCLCPP_FATAL(this->get_logger(), "No obstacle could not be found or properly parsed");
-            return false;
-        }
         return true;
     }
 
@@ -566,7 +512,8 @@ private:
      * @param baseOrientation Orientation of obstacle represented by quaternion.
      * @returns vector containing collision boxes for each object of URDF
      */
-    std::vector<collisionBox> unpackURDF(urdf::ModelInterfaceSharedPtr model, v3d basePosition, quat baseOrientation)
+    std::vector<collisionBox>
+    unpackURDF(urdf::ModelInterfaceSharedPtr model, v3d basePosition, quat baseOrientation)
     {
         std::vector<collisionBox> newBoxes;
         // Loop through each link in the URDF
@@ -577,37 +524,37 @@ private:
             for (const auto &collision : link->collision_array)
             {
                 const urdf::CollisionSharedPtr &collision_ptr = collision;
-                // Check if it's a box (current collision implementation only works with boxes)
-                if (collision_ptr->geometry->type == urdf::Geometry::BOX)
+                // Check if it's a or not box (current collision implementation only works with boxes)
+                if (collision_ptr->geometry->type != urdf::Geometry::BOX)
                 {
-                    const urdf::BoxSharedPtr &box = std::static_pointer_cast<urdf::Box>(collision_ptr->geometry);
-                    // Get information from box element
-                    double length = box->dim.x;
-                    double width = box->dim.y;
-                    double height = box->dim.z;
-                    // Get box posititon relative to obstacle's base
-                    v3d baseOffset(collision_ptr->origin.position.x,
-                                   collision_ptr->origin.position.y,
-                                   collision_ptr->origin.position.z);
-                    // Get box orientation relative to obstacle's base
-                    quat baseOrientationOffset(collision_ptr->origin.rotation.w,
-                                               collision_ptr->origin.rotation.x,
-                                               collision_ptr->origin.rotation.y,
-                                               collision_ptr->origin.rotation.z);
-
-                    // Add box to list
-                    collisionBox newBox = collisionBox(link->name,
-                                                       length,
-                                                       width,
-                                                       height,
-                                                       basePosition,
-                                                       baseOffset,
-                                                       baseOrientation,
-                                                       baseOrientationOffset);
-                    newBoxes.push_back(newBox);
-                }
-                else
                     RCLCPP_ERROR(this->get_logger(), "Link %s uses a non-box geometry, only boxes are supportede. Skipping element", link->name.c_str());
+                    continue;
+                }
+                const urdf::BoxSharedPtr &box = std::static_pointer_cast<urdf::Box>(collision_ptr->geometry);
+                // Get information from box element
+                double length = box->dim.x;
+                double width = box->dim.y;
+                double height = box->dim.z;
+                // Get box posititon relative to obstacle's base
+                v3d baseOffset(collision_ptr->origin.position.x,
+                               collision_ptr->origin.position.y,
+                               collision_ptr->origin.position.z);
+                // Get box orientation relative to obstacle's base
+                quat baseOrientationOffset(collision_ptr->origin.rotation.w,
+                                           collision_ptr->origin.rotation.x,
+                                           collision_ptr->origin.rotation.y,
+                                           collision_ptr->origin.rotation.z);
+
+                // Add box to list
+                collisionBox newBox = collisionBox(link->name,
+                                                   length,
+                                                   width,
+                                                   height,
+                                                   basePosition,
+                                                   baseOffset,
+                                                   baseOrientation,
+                                                   baseOrientationOffset);
+                newBoxes.push_back(newBox);
             }
         }
         return newBoxes;
@@ -821,8 +768,7 @@ private:
     //================================//
 
     // Publishes fake thruster telemtry messages to make controller work
-    void
-    pubThrusterTelemetry()
+    void pubThrusterTelemetry()
     {
         // Create messages
         riptide_msgs2::msg::DshotPartialTelemetry msgLow;
@@ -1020,6 +966,25 @@ private:
     {
         Eigen::VectorXf eigenVector = Eigen::Map<Eigen::VectorXf>(stdVector.data(), stdVector.size());
         return eigenVector.cast<double>();
+    }
+
+    // Tries to convert a YAML node to a double, if it doesn't exist return default of 0.0
+    // Example: toDouble(config["robot"]["position"]["x"])
+    double toDouble(YAML::Node node)
+    {
+        try
+        {
+            return node.as<double>();
+        }
+        catch (const std::exception &e)
+        {
+            return 0.0;
+        }
+    }
+
+    double deg2rad(double degrees)
+    {
+        return degrees * M_PI / 180;
     }
 
     //================================//

@@ -20,9 +20,9 @@ public:
                  double width_,
                  double height_,
                  v3d baseCenter,
-                 v3d baseOffset_,
-                 quat baseOrientation,
-                 quat baseOrientationOffset_);
+                 v3d baseOffset_ = v3d(0, 0, 0),
+                 quat baseOrientation = quat(1, 0, 0, 0),
+                 quat baseOrientationOffset_ = quat(1, 0, 0, 0));
 
     v3d getCenter();
     double getWidth();

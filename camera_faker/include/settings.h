@@ -11,7 +11,7 @@
 //===============================//
 //      MOVEMENT SETTINGS        //
 //===============================//
-#define MOUSE_SENSITIVITY 0.005 // Lower number makes fly around camera rotate slower
+#define MOUSE_SENSITIVITY 0.008 // Lower number makes fly around camera rotate slower
 #define MOVEMENT_SPEED 1.75     // m/s translation speed of fly around camera
 
 //===============================//
@@ -33,16 +33,6 @@
 #define BLUR_ITERATIONS 1            // Number of 5x5 gaussian blurs done on image, set to 0 to disable
 
 //===============================//
-//         LIGHT SETTINGS        //
-//===============================//
-
-//===============================//
-//         FOG SETTINGS          //
-//===============================//
-#define FOG_STRENGTH 0.10                // [0.0-1.0] High number represents stronger fog
-#define FOG_COLOR 0.004f, 0.552f, 0.645f // R,G,B values [0.0-1.0]
-
-//===============================//
 //     CAUSTIC SETTINGS          //
 //===============================//
 #define CAUSTIC_STRENGTH 0.5 // [0.0-1.0+] High number represets stronger caustics
@@ -53,9 +43,11 @@
 //===============================//
 //         WATER SETTINGS        //
 //===============================//
-#define WAVE_SPEED 0.075     // Controls how fast the water waves move
-#define WAVE_DISTORTION 0.03 // Controls how much distortion the waves create
-#define WAVE_SCALE 10.0      // Controls the size of the waves
+#define WAVE_SPEED 0.075                 // Controls how fast the water waves move
+#define WAVE_DISTORTION 0.03             // Controls how much distortion the waves create
+#define WAVE_SCALE 9.0                   // Controls the size of the waves
+#define FOG_STRENGTH 0.10                // [0.0-1.0] High number represents stronger fog
+#define FOG_COLOR 0.004f, 0.452f, 0.645f // R,G,B values [0.0-1.0]
 
 //===============================//
 //      F3 SCREEN SETTINGS       //

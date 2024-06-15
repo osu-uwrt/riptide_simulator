@@ -15,6 +15,15 @@ def generate_launch_description():
     # Read in the vehicle's namespace through the command line or use the default value one is not provided
     robot = LaunchConfiguration("robot")
     package_src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(get_package_share_directory("camera_faker")))))
+    
+    # declare the path to the scene info yaml
+    sceneConfig = PathJoinSubstitution([
+        package_src_dir,
+        'src',
+        "riptide_simulator",
+        "scene_info.yaml"
+    ])
+
     # declare the path to shader data folder
     shaderFolder = PathJoinSubstitution([
         package_src_dir,
@@ -74,6 +83,7 @@ def generate_launch_description():
                     {"model_folder": modelFolder},
                     {"font_folder": fontFolder},
                     {"robot": robot},
+                    {"scene_config": sceneConfig}
                 ]
             ),
         ], scoped=True)
