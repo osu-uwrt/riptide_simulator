@@ -28,6 +28,8 @@ find_package(robot_localization REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(cv_bridge REQUIRED)
 
 add_executable(zed_faker include/external/glad/glad.c src/zed_faker.cpp)
 
@@ -36,7 +38,10 @@ target_include_directories(zed_faker PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/external>
     $<INSTALL_INTERFACE:include>
     ${YAML_CPP_INCLUDEDIR}
-    ${FREETYPE_INCLUDE_DIRS})
+    ${FREETYPE_INCLUDE_DIRS}
+    ${cv_bridge_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+)
 
 ament_target_dependencies(zed_faker 
   rclcpp
@@ -54,7 +59,9 @@ ament_target_dependencies(zed_faker
   tf2
   tf2_ros
   tf2_geometry_msgs
-  robot_localization)
+  robot_localization
+  cv_bridge
+  OpenCV)
 
 target_link_libraries(zed_faker 
   ${YAML_CPP_LIBRARIES}

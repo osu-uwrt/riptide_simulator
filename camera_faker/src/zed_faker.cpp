@@ -18,11 +18,14 @@ https://learnopengl.com/Getting-started/OpenGL
 
 // General Libraries
 //--------------------------------------------
+#include <random>
 #include <chrono>
 #include <fstream>
 #include <iostream>
 #include <filesystem>
 #include <yaml-cpp/yaml.h>
+#include <opencv2/opencv.hpp>
+#include <cv_bridge/cv_bridge.h>
 // ROS Libraries
 //---------------------------------------------
 #include <tf2/exceptions.h>
@@ -33,6 +36,8 @@ https://learnopengl.com/Getting-started/OpenGL
 #include "tf2_ros/transform_listener.h"
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 // OpenGL Libraries
@@ -77,6 +82,7 @@ public:
         staticBroadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
         // Create camera info and image publishers
+        pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("simulator/point_cloud", 10);
         imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
         depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
         depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
@@ -84,7 +90,9 @@ public:
 
         // Create timers
         std::chrono::duration<double> imgPubTime(1.0 / FRAME_RATE);
+        std::chrono::duration<double> cloudPubTime(1.0 / POINT_CLOUD_PUB_FREQ);
         imgPubTimer = this->create_wall_timer(imgPubTime, std::bind(&zedFakerNode::publishImages, this));
+        cloudPubTimer = this->create_wall_timer(cloudPubTime, std::bind(&zedFakerNode::publishPointCloud, this));
 
         // Go through setup
         folderSetup();
@@ -630,6 +638,69 @@ private:
         depthInfoPub->publish(depthInfo);
     }
 
+    // Copies OpenGL image color and depth data, transforms pixels to 3D colored point cloud, and publishes for RViz
+    void publishPointCloud()
+    {
+        // Message set up
+        sensor_msgs::msg::PointCloud2 cloud;
+        cloud.header.stamp = this->get_clock()->now();
+        cloud.header.frame_id = "simulator" + robotName + "/zed2i/left_optical";
+        cloud.width = IMG_WIDTH;
+        cloud.height = IMG_HEIGHT;
+        cloud.is_dense = false;
+        cloud.is_bigendian = false;
+
+        // Set up data fields for moint cloud
+        sensor_msgs::PointCloud2Modifier modifier(cloud);
+        modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+        sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
+        sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
+        sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_r(cloud, "r");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(cloud, "g");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(cloud, "b");
+
+        // Copy data into OpenCV image format to work with it easier
+        vector<uint8_t> imgData;
+        vector<uint8_t> depthData;
+        robotFBO.copyColorData(imgData);
+        robotFBO.copyDepthData(depthData);
+        cv::Mat rgb_image(IMG_HEIGHT, IMG_WIDTH, CV_8UC3, imgData.data());
+        cv::Mat depth_image(IMG_HEIGHT, IMG_WIDTH, CV_32FC1, depthData.data());
+
+        // Loop through each pixel of the image, iterating through point cloud fields
+        for (int v = 0; v < IMG_HEIGHT; ++v)
+        {
+            for (int u = 0; u < IMG_WIDTH; ++u, ++iter_x, ++iter_y, ++iter_z, ++iter_r, ++iter_g, ++iter_b)
+            {
+                // Only display point if wanted, discard left side of image with overlay
+                if ((float)rand() / RAND_MAX < POINT_CLOUD_DENSITY && !(u < IMG_WIDTH * .2))
+                {
+                    float z = depth_image.at<float>(v, u);
+                    // Project 2D coordinates into 3D
+                    // Switching coordinate axis around some because TF frame is different
+                    *iter_x = z;
+                    *iter_y = -(u - CAMERA_CX) * z / (CAMERA_FX);
+                    *iter_z = -(v - CAMERA_CY) * z / (CAMERA_FY);
+
+                    // Store color info
+                    cv::Vec3b rgb = rgb_image.at<cv::Vec3b>(v, u);
+                    *iter_r = rgb[0];
+                    *iter_g = rgb[1];
+                    *iter_b = rgb[2];
+                }
+                // Don't show pixel
+                else
+                {
+                    *iter_x = *iter_y = *iter_z = std::numeric_limits<float>::quiet_NaN();
+                    *iter_r = *iter_g = *iter_b = 0;
+                }
+            }
+        }
+        // Publish the point cloud so it can be seen in RViz
+        pointCloudPub->publish(cloud);
+    }
+
     // Handles keyboard input
     void processKeyboard(GLFWwindow *window)
     {
@@ -819,13 +890,15 @@ private:
     std::filesystem::path textureFolder;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer;
+    rclcpp::TimerBase::SharedPtr cloudPubTimer;
     std::shared_ptr<tf2_ros::TransformListener> tfListener;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depthPub;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imagePub;
     std::unique_ptr<tf2_ros::StaticTransformBroadcaster> staticBroadcaster;
-    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr depthInfoPub;
+    rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr cameraInfoPub;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointCloudPub;
 };
 
 //===============================//

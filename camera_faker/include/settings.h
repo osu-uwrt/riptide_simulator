@@ -1,4 +1,10 @@
 //===============================//
+//     POINT CLOUD SETTINGS      //
+//===============================//
+#define POINT_CLOUD_DENSITY 0.05 // [0.0 - 1.0] Proportion of image pixels that are shown in point cloud, 1 = all pixels
+#define POINT_CLOUD_PUB_FREQ 1.0 // Hz
+
+//===============================//
 //         POOL SETTINGS         //
 //===============================//
 // Note that water height is at z = 0 m
@@ -17,8 +23,8 @@
 //===============================//
 //        CAMERA SETTINGS        //
 //===============================//
-#define IMG_WIDTH 1280 / 2
-#define IMG_HEIGHT 720 / 2
+#define IMG_WIDTH 1280 / 2           // Width in pixels of camera image
+#define IMG_HEIGHT 720 / 2           // Height in piels of camera image
 #define FRAME_RATE 30                // FPS data is published at, will still render at max speed
 #define CAMERA_CX 619.707 / 2        // Intrinsic camera parameter in projection matrix
 #define CAMERA_CY 360.589 / 2        // Intrinsic camera parameter in projection matrix

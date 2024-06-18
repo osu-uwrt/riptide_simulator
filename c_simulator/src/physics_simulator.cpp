@@ -621,7 +621,7 @@ private:
     {
         // Get depth and add noise to data
         double depthData = robot.getState().z();
-        if (SENSOR_NOISE_ENABLED)
+        if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
             depthData = randomNorm(depthData, robot.getDepthSigma());
 
         // Send message with depth sensor info
@@ -654,7 +654,7 @@ private:
             dvlData = robot.getDVLQuat().conjugate() * (q.conjugate() * dvlData);
 
             // Add nonise to sensor data if enabled, otherwise don't
-            if (SENSOR_NOISE_ENABLED)
+            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
                 dvlData = randomNorm(dvlData, robot.getDVLSigma());
             // Send message with DVL sensor info
             geometry_msgs::msg::TwistWithCovarianceStamped dvlMsg;
@@ -698,7 +698,7 @@ private:
             q = q * robot.getIMUQuat();
             // Add noise to sensor data if enabled, otherwise don't
             v3d imu_sigma = robot.getIMUSigma(); // [imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle]
-            if (SENSOR_NOISE_ENABLED)
+            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
             {
                 imuAccel = randomNorm(imuAccel, imu_sigma[0]);
                 angularVel = randomNorm(angularVel, imu_sigma[1]);
