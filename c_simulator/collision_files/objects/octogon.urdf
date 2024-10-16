@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+
+<robot name="octogon">
+  <link name="octogon">
+    <!-- Octogon side 1 -->
+    <visual>
+      <geometry>
+        <box size="0.04 1.136 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="1.3716 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 1.136 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="1.3716 0 0"/>
+    </collision>
+     <!-- Octogon side 2 -->
+    <visual>
+      <geometry>
+        <box size="0.04 1.136 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="-1.3716 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 1.136 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="-1.3716 0 0"/>
+    </collision>
+    <!-- Octogon side 3 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 1.3716 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 1.3716 0"/>
+    </collision>
+     <!-- Octogon side 4 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -1.3716 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -1.3716 0"/>
+    </collision>
+    <!-- Octogon side 5 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 -0.7853" xyz="0.97 0.97 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 -0.7854" xyz="0.97 0.97 0"/>
+    </collision>
+    <!-- Octogon side 6 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 -0.7853" xyz="-0.97 -0.97 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 -0.7854" xyz="-0.97 -0.97 0"/>
+    </collision>
+    <!-- Octogon side 7 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0.7853" xyz="0.97 -0.97 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0.7854" xyz="0.97 -0.97 0"/>
+    </collision>
+    <!-- Octogon side 8 -->
+    <visual>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0.7853" xyz="-0.97 0.97 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.136 0.04 0.04"/>
+      </geometry>
+      <origin rpy="0 0 0.7854" xyz="-0.97 0.97 0"/>
+    </collision>
+    
+  </link>
+</robot>

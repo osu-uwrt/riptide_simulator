@@ -14,12 +14,26 @@ def generate_launch_description():
 
     # Read in the vehicle's namespace through the command line or use the default value one is not provided
     robot = LaunchConfiguration("robot")
-
+    package_src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(get_package_share_directory("c_simulator")))))
+    
+    # declare the path to the scene info yaml
+    sceneConfig = PathJoinSubstitution([
+        package_src_dir,
+        'src',
+        "riptide_simulator",
+        "scene_info.yaml"
+    ])
     # declare the path to the robot's vehicle description file
     config = PathJoinSubstitution([
         get_package_share_directory('riptide_descriptions2'),
         'config',
         LaunchConfiguration("robot_yaml")
+    ])
+
+    # declare the path to collision data folder
+    collision = PathJoinSubstitution([
+        get_package_share_directory('c_simulator'),
+        'collision_files'
     ])
 
     return launch.LaunchDescription([
@@ -43,6 +57,8 @@ def generate_launch_description():
                 name="physics_simulator",
                 output="screen",
                 parameters=[
+                    {"scene_config": sceneConfig},
+                    {"collision_folder": collision},
                     {"vehicle_config": config},
                     {"robot": robot},
                 ]

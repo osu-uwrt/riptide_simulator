@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+<robot name="gate">
+  <link name="gate">
+    <!-- Gate Top Box -->
+    <visual>
+      <geometry>
+        <box size="0.0762 3.048 0.0762"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.6096"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.0762 3.048 0.0762"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.6096"/>
+    </collision>
+
+    <!-- Gate Middle Box -->
+    <visual>
+      <geometry>
+        <box size="0.0762 0.0762 0.6096"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.3048"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.0762 0.0762 0.6096"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.3048"/> 
+    </collision>
+
+    <!-- Gate Left Post Box -->
+    <visual>
+      <geometry>
+        <box size="0.0762 0.0762 1.524"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -1.524 -0.1524"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.0762 0.0762 1.524"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 -1.524 -0.1524"/> 
+    </collision>
+
+  <!-- Gate Right Post Box -->
+    <visual>
+      <geometry>
+        <box size="0.0762 0.0762 1.524"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 1.524 -0.1524"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.0762 0.0762 1.524"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 1.524 -0.1524"/> 
+    </collision>
+  </link>
+</robot>

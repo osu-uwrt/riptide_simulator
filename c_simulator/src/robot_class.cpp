@@ -4,17 +4,33 @@
 //     OBJECT INITIALIZATION      //
 //================================//
 
+thrusterForcesStamped::thrusterForcesStamped(vXd thrusterForces_, double time_)
+{
+    thrusterForces = thrusterForces_;
+    time = time_;
+}
+
 Robot::Robot()
 {
+    Robot("talos");
+}
+
+Robot::Robot(string name_)
+{
+    name = name_;
     state.resize(13);
 
     // INITIAL CONDITION
     state << 0, 0, -1, // Position, X Y Z
         1, 0, 0, 0,    // Orientation, W X Y Z
         0, 0, 0,       // Linear momentum, X Y Z
-        0, 0, 0;       // Angular momentum, X Y Z
-    imuTransform = false;
-    dvlTransform = false;
+        0, 0, 0.5;     // Angular momentum, X Y Z
+
+    hasLCameraTransform = false;
+    hasDVLTransform = false;
+    hasIMUTransform = false;
+    hasAcousticsTransform = false;
+    hasMapFrame = false;
 }
 
 /**
@@ -30,7 +46,7 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
     tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
     // Retrieve the path to the YAML config file from the parameters
-    std::string config_file;
+    string config_file;
     node->declare_parameter("vehicle_config", "");
     if (node->get_parameter("vehicle_config", config_file))
     {
@@ -63,22 +79,32 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
  */
 void Robot::storeConfigData(YAML::Node config)
 {
-    // Getting mass and bouyancy informtion
+    // Getting mass information
     mass = config["mass"].as<double>();
-    invBodyInertia = std2v3d(config["inertia"].as<std::vector<double>>()).asDiagonal().inverse();
     weightVector = {0, 0, -mass * GRAVITY};
+    v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
+    // Getting inertia information
+    std::vector<double> bodyInertiaArray = config["inertia3x3"].as<std::vector<double>>();
+    m3d bodyInertia;
+    bodyInertia << bodyInertiaArray[0], bodyInertiaArray[1], bodyInertiaArray[2],
+        bodyInertiaArray[3], bodyInertiaArray[4], bodyInertiaArray[5],
+        bodyInertiaArray[6], bodyInertiaArray[7], bodyInertiaArray[8];
+    invBodyInertia = bodyInertia.inverse();
+    // Get bouyancy vector from feed forward
     std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
     bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
-    v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
     // Calculate COB from feed forward: r = T/F
     r_cob = v3d(feedForward[4] / bouyancyVector.norm(), -feedForward[3] / bouyancyVector.norm(), 0.005);
-    r_cod = r_cob;
+    r_cod = std2v3d(config["cod"].as<std::vector<double>>()) - r_com;
 
     //  Getting base link position relative to center of mass
     r_baseLink = std2v3d(config["base_link"].as<std::vector<double>>());
     // Getting IMU information
-    r_imu = std2v3d(config["imu"]["pose"].as<std::vector<double>>()) - r_com;
+    std::vector<double> imu_pose = config["imu"]["pose"].as<std::vector<double>>();
+    r_imu = v3d(imu_pose[0], imu_pose[1], imu_pose[2]) - r_com;
+    q_imu = rpy2quat(imu_pose[3], imu_pose[4], imu_pose[5]);
     imu_rate = 1.0 / config["imu"]["rate"].as<double>();
+    imu_yawDrift = config["imu"]["yaw_drift"].as<double>();
     imu_sigmaAccel = config["imu"]["sigma_accel"].as<double>();
     imu_sigmaOmega = config["imu"]["sigma_omega"].as<double>() * M_PI / 180;
     imu_sigmaAngle = config["imu"]["sigma_angle"].as<double>() * M_PI / 180;
@@ -87,13 +113,13 @@ void Robot::storeConfigData(YAML::Node config)
     depth_rate = 1.0 / config["depth"]["rate"].as<double>();
     depth_sigma = config["depth"]["sigma"].as<double>();
     // Getting dvl sensor information
-    r_dvl = std2v3d(config["dvl"]["pose"].as<std::vector<double>>()) - r_com;
+    std::vector<double> dvl_pose = config["dvl"]["pose"].as<std::vector<double>>();
+    r_dvl = v3d(dvl_pose[0], dvl_pose[1], dvl_pose[2]) - r_com;
+    q_dvl = rpy2quat(dvl_pose[3], dvl_pose[4], dvl_pose[5]);
     dvl_rate = 1.0 / config["dvl"]["rate"].as<double>();
     dvl_sigma = config["dvl"]["sigma"].as<double>();
-
     // Drag information
-    std::vector<double> dragCoefStd = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
-    dragCoef = Eigen::Map<vXd>(dragCoefStd.data(), dragCoefStd.size());
+    dragCoef = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
 
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
     YAML::Node thrusters = config["thrusters"];
@@ -107,14 +133,9 @@ void Robot::storeConfigData(YAML::Node config)
         // Get thruster position and orientation
         std::vector<double> pose = thruster["pose"].as<std::vector<double>>();
         v3d thrusterPos = std2v3d(pose);
-        // I am not really sure why I needed to put the negative in front of pose, or the transpose
-        // but it matches the matrix the thruster solver gives so I'm not going to question it
-        m3d rotMat = Eigen::AngleAxisd(-pose[3], v3d::UnitX()).toRotationMatrix() *
-                     Eigen::AngleAxisd(-pose[4], v3d::UnitY()).toRotationMatrix() *
-                     Eigen::AngleAxisd(-pose[5], v3d::UnitZ()).toRotationMatrix();
-
+        quat thrusterDirection = rpy2quat(pose[3], pose[4], pose[5]);
         // Body force caused by unit thrust vector:
-        v3d bodyForce = rotMat.transpose() * v3d(1, 0, 0);
+        v3d bodyForce = thrusterDirection * v3d(1, 0, 0);
         // Body torque caused by unit thrust vector (T = r x F):
         v3d bodyTorque = (thrusterPos - r_com).cross(bodyForce);
         // Storing results into matrix
@@ -125,6 +146,14 @@ void Robot::storeConfigData(YAML::Node config)
     // Initialize thruster forces and torques to zero
     forces.Zero();
     torques.Zero();
+
+    if (ACOUSTIC_DATA)
+    {
+        // acoustics stuff
+        speedOfSound = config["acoustics"]["speed_of_sound"].as<double>();
+        std::vector<double> fakePingerPose = config["acoustics"]["fake_pinger"]["pose"].as<std::vector<double>>();
+        fakePingerPosition = v3d(fakePingerPose[0], fakePingerPose[1], fakePingerPose[2]);
+    }
 }
 
 //================================//
@@ -162,7 +191,7 @@ v3d Robot::calcDragTorques(const v3d &linVel, const v3d &angVel, const double &d
     double dragTorqY = -dragCoef[18] + dragCoef[17] * abs(angVel[1]) + dragCoef[18] * exp(abs(angVel[1]) / dragCoef[19]);
     double dragTorqZ = -dragCoef[22] + dragCoef[21] * abs(angVel[2]) + dragCoef[22] * exp(abs(angVel[2]) / dragCoef[23]);
     v3d dragTorques = getScaleFactor(depth) * v3d(dragTorqX, dragTorqY, dragTorqZ).norm() * -angVel.normalized();
-    // Adding drag torque caused by linear drag force caused by offset center of drag
+    // Adding drag torque caused by linear drag force and offset center of drag
     dragTorques += r_cod.cross(calcDragForces(linVel, depth));
     return dragTorques;
 }
@@ -211,6 +240,19 @@ void Robot::setState(vXd state_)
     state_.segment(4, 3) = q.vec();
     // Update state now that the quaternion has been normalized
     state = state_;
+
+    // Check thruster que
+    // The thruster commands are backlogged to fake delay IRL between being commanded and the thruster actually applying a force
+    if (!thrusterForceQue.empty())
+    {
+        // If true, it has been THRUSTER_DELAY since thrust was commanded, so it should be applied
+        if (node->get_clock()->now().seconds() - thrusterForceQue[0].time > THRUSTER_DELAY)
+        {
+            // Set forces and torques and remove element from thruster que
+            setForcesTorques(thrusterForceQue[0].thrusterForces);
+            thrusterForceQue.erase(thrusterForceQue.begin());
+        }
+    }
 }
 
 // Stores the latest acceleration vector in the world frame, used for IMU sensor data calcs
@@ -223,12 +265,20 @@ void Robot::setAccel(const vXd &stateDot)
     // 0  1  2  3   4   5   6   7    8    9    10   11   12    <- index
     // x' y' z' qw' qx' qy' qz' P_x' P_y' P_z' L_x' L_y' L_z'  <- parameter
     // where ' symbol is time derivative
-    quat q(state[3], state[4], state[5], state[6]);
+
     // a = F/m
-    linAccel = stateDot.segment(7, 3) / mass;
+    // Includes gravity acceleration for IMU, robot doesn't actually experience it
+    linAccel = stateDot.segment(7, 3) / mass + v3d(0, 0, GRAVITY);
     // alpha = I^-1 * T
+    quat q(state[3], state[4], state[5], state[6]);
     m3d invWorldInertia = q * invBodyInertia * q.conjugate();
     angAccel = invWorldInertia * (v3d)stateDot.segment(10, 3);
+}
+
+// Converts thruster forces into robot body forces and torques stored in class
+void Robot::addToThrusterQue(thrusterForcesStamped commandedThrust)
+{
+    thrusterForceQue.push_back(commandedThrust);
 }
 
 // Converts thruster forces into robot body forces and torques stored in class
@@ -242,52 +292,67 @@ void Robot::setForcesTorques(vXd thrusterForces)
     torques = forcesTorques.segment(3, 3);
 }
 
-// Tries to obtain DVL tf2 transform, returns whether it was successful
-// Assumes that loadParams() has already been called
-bool Robot::obtainDVLTransform()
-{
-    try
-    {
-        geometry_msgs::msg::TransformStamped dvlTransformation = tf_buffer->lookupTransform("talos/dvl_link", "talos/base_link", tf2::TimePointZero);
-        q_dvl.w() = dvlTransformation.transform.rotation.w;
-        q_dvl.x() = dvlTransformation.transform.rotation.x;
-        q_dvl.y() = dvlTransformation.transform.rotation.y;
-        q_dvl.z() = dvlTransformation.transform.rotation.z;
-        dvlTransform = true;
-        return true;
-    }
-    catch (const tf2::TransformException &ex)
-    {
-        RCLCPP_ERROR_SKIPFIRST_THROTTLE(node->get_logger(), *node->get_clock(), 500, "Could not transform to DVL frame: %s", ex.what());
-        return false;
-    }
-    return false;
-}
-
-// Tries to obtain IMU tf2 transform, returns whether it was successful
-// Assumes that loadParams() has already been called
-bool Robot::obtainIMUTransform()
-{
-    try
-    {
-        geometry_msgs::msg::TransformStamped imuTransformation = tf_buffer->lookupTransform("talos/imu_link", "talos/base_link", tf2::TimePointZero);
-        q_imu.w() = imuTransformation.transform.rotation.w;
-        q_imu.x() = imuTransformation.transform.rotation.x;
-        q_imu.y() = imuTransformation.transform.rotation.y;
-        q_imu.z() = imuTransformation.transform.rotation.z;
-        imuTransform = true;
-        return true;
-    }
-    catch (const tf2::TransformException &ex)
-    {
-        RCLCPP_ERROR_SKIPFIRST_THROTTLE(node->get_logger(), *node->get_clock(), 500, "Could not transform to IMU frame: %s", ex.what());
-        return false;
-    }
-    return false;
-}
 //================================//
 //       GETTER FUNCTIONS         //
 //================================//
+geometry_msgs::msg::Transform Robot::getLCameraTransform()
+{
+    if (!hasLCameraTransform)
+    {
+        string fromFrameRel = name + "/zed_left_camera_optical_frame";
+        string toFrameRel = name + "/base_link";
+        lCameraTransform.translation = safeTransform(toFrameRel, fromFrameRel, hasLCameraTransform).translation;
+    }
+    return lCameraTransform;
+}
+bool Robot::mapAvailable()
+{
+    if (!hasMapFrame)
+    {
+        string toFrameRel = "map";
+        string fromFrameRel = "world";
+        safeTransform(toFrameRel, fromFrameRel, hasMapFrame);
+    }
+    return hasMapFrame;
+}
+bool Robot::dvlTransformAvailable()
+{
+    if (!hasDVLTransform)
+    {
+        string toFrameRel = name + "/dvl_link";
+        string fromFrameRel = name + "/base_link";
+        safeTransform(toFrameRel, fromFrameRel, hasDVLTransform);
+    }
+    return hasDVLTransform;
+}
+bool Robot::imuTransformAvailable()
+{
+    if (!hasIMUTransform)
+    {
+        string toFrameRel = name + "/imu_link";
+        string fromFrameRel = name + "/base_link";
+        safeTransform(toFrameRel, fromFrameRel, hasIMUTransform);
+    }
+    return hasIMUTransform;
+}
+bool Robot::acousticsTransformAvailable()
+{
+    if (!hasAcousticsTransform)
+    {
+        string toFrameRel_port = name + "/acoustics_port_link";
+        string toFrameRel_starboard = name + "/acoustics_starboard_link";
+        string fromFrameRel = name + "/base_link";
+
+        bool port, starboard = false;
+
+        safeTransform(toFrameRel_port, fromFrameRel, port);
+        safeTransform(toFrameRel_starboard, fromFrameRel, starboard);
+
+        hasAcousticsTransform = port && starboard;
+    }
+
+    return hasAcousticsTransform;
+}
 double Robot::getMass()
 {
     return mass;
@@ -308,6 +373,10 @@ m3d Robot::getInvInertia()
 {
     return invBodyInertia;
 }
+double Robot::getIMUDrift()
+{
+    return imu_yawDrift;
+}
 v3d Robot::getThrusterForces()
 {
     return forces;
@@ -319,6 +388,10 @@ v3d Robot::getThrusterTorques()
 v3d Robot::getBaseLinkOffset()
 {
     return r_baseLink;
+}
+string Robot::getName()
+{
+    return name;
 }
 v3d Robot::getNetBouyantForce(const double &depth)
 {
@@ -352,10 +425,6 @@ quat Robot::getIMUQuat()
 {
     return q_imu;
 }
-bool Robot::hasIMUTransform()
-{
-    return imuTransform;
-}
 v3d Robot::getDVLOffset()
 {
     return r_dvl;
@@ -372,19 +441,60 @@ quat Robot::getDVLQuat()
 {
     return q_dvl;
 }
-bool Robot::hasDVLTransform()
-{
-    return dvlTransform;
-}
 int Robot::getThrusterCount()
 {
     return thrusterCount;
+}
+double Robot::getAcousticsPingTime()
+{
+    // calculate the time between the port and starboard acoustics pods recieving pulses
+    // port_time - starboard_time
+
+    // get the pod locations
+    string portFrame = name + "/acoustics_port_link";
+    string starboardFrame = name + "/acoustics_starboard_link";
+    string worldFrame = "world";
+
+    bool success = false;
+    geometry_msgs::msg::Vector3 portTranslation = safeTransform(worldFrame, portFrame, success).translation;
+    geometry_msgs::msg::Vector3 starboardTranslation = safeTransform(worldFrame, starboardFrame, success).translation;
+
+    double portDistance = sqrt(pow(portTranslation.x - fakePingerPosition[0], 2) + pow(portTranslation.y - fakePingerPosition[1], 2) + pow(portTranslation.z - fakePingerPosition[2], 2));
+    double starboardDistance = sqrt(pow(starboardTranslation.x - fakePingerPosition[0], 2) + pow(starboardTranslation.y - fakePingerPosition[1], 2) + pow(starboardTranslation.z - fakePingerPosition[2], 2));
+
+    return (portDistance - starboardDistance) / this->speedOfSound;
 }
 
 //================================//
 //       UTILITY FUNCTIONS        //
 //================================//
 
+geometry_msgs::msg::Transform Robot::safeTransform(string toFrame, string fromFrame, bool &transformFlag)
+{
+    try
+    {
+        geometry_msgs::msg::TransformStamped t = tf_buffer->lookupTransform(
+            toFrame, fromFrame,
+            tf2::TimePointZero);
+        transformFlag = true;
+        return t.transform;
+    }
+    catch (const tf2::TransformException &ex)
+    {
+        RCLCPP_ERROR_SKIPFIRST_THROTTLE(node->get_logger(),
+                                        *node->get_clock(),
+                                        2000,
+                                        "Could not transform %s to %s: %s",
+                                        toFrame.c_str(), fromFrame.c_str(), ex.what());
+        return geometry_msgs::msg::Transform();
+    }
+}
+quat Robot::rpy2quat(double roll, double pitch, double yaw)
+{
+    tf2::Quaternion tfQuat;
+    tfQuat.setRPY(roll, pitch, yaw);
+    return quat(tfQuat.w(), tfQuat.x(), tfQuat.y(), tfQuat.z()).normalized();
+}
 v3d Robot::std2v3d(std::vector<double> stdVect)
 {
     return v3d(stdVect[0], stdVect[1], stdVect[2]);
