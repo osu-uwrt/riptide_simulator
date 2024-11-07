@@ -90,11 +90,24 @@ void Robot::storeConfigData(YAML::Node config)
         bodyInertiaArray[3], bodyInertiaArray[4], bodyInertiaArray[5],
         bodyInertiaArray[6], bodyInertiaArray[7], bodyInertiaArray[8];
     invBodyInertia = bodyInertia.inverse();
+
     // Get bouyancy vector from feed forward
     std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
+    // Get the feed forward discrepnecy vector
+    std::vector<double> feedForwardDiscrepancy = config["controller"]["feed_forward"]["sim_discrepancy"].as<std::vector<double>>();
+
+    //apply sim discrepancy
+    if(feedForward.size() == 6 && feedForward.size() == 6){
+        for(int i = 0; i < 6; i++){
+            feedForward[i] -= feedForwardDiscrepancy[i];
+        }
+    }else{
+        RCLCPP_ERROR(this->node->get_logger(), "Feed forward or discrepancy vector is incorrectly sized");
+    }
+
     bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
     // Calculate COB from feed forward: r = T/F
-    r_cob = v3d(feedForward[4] / bouyancyVector.norm(), -feedForward[3] / bouyancyVector.norm(), 0.005);
+    r_cob = v3d(feedForward[4] / bouyancyVector.norm(), - feedForward[3] / bouyancyVector.norm(), 0.005);
     r_cod = std2v3d(config["cod"].as<std::vector<double>>()) - r_com;
 
     //  Getting base link position relative to center of mass

@@ -117,6 +117,11 @@ public:
         bool paramsLoaded = robot.loadParams(shared_from_this());
         RCLCPP_INFO(this->get_logger(), "Loading collision files...");
         bool collisionBoxesLoaded = (COLLISION_TOGGLE ? loadCollisionFiles() : true);
+
+        //wether or not to synchronize odometry
+        this->declare_parameter("sync_odom", false);
+        this->get_parameter("sync_odom", this->sync_odom);
+
         // Loaded successfully if true
         if (paramsLoaded && collisionBoxesLoaded)
         {
@@ -621,7 +626,7 @@ private:
     {
         // Get depth and add noise to data
         double depthData = robot.getState().z();
-        if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+        if (SENSOR_NOISE_ENABLED && !this->sync_odom)
             depthData = randomNorm(depthData, robot.getDepthSigma());
 
         // Send message with depth sensor info
@@ -654,7 +659,7 @@ private:
             dvlData = robot.getDVLQuat().conjugate() * (q.conjugate() * dvlData);
 
             // Add nonise to sensor data if enabled, otherwise don't
-            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
                 dvlData = randomNorm(dvlData, robot.getDVLSigma());
             // Send message with DVL sensor info
             geometry_msgs::msg::TwistWithCovarianceStamped dvlMsg;
@@ -698,7 +703,7 @@ private:
             q = q * robot.getIMUQuat();
             // Add noise to sensor data if enabled, otherwise don't
             v3d imu_sigma = robot.getIMUSigma(); // [imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle]
-            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
             {
                 imuAccel = randomNorm(imuAccel, imu_sigma[0]);
                 angularVel = randomNorm(angularVel, imu_sigma[1]);
@@ -913,7 +918,7 @@ private:
             tf_broadcaster->sendTransform(cameraFrameL);
 
             // If enabled, constantly sync odomotry's position to physic's position
-            if (SYNC_ODOM)
+            if (this->sync_odom)
             {
                 // Fill messasge with robot's position
                 auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
@@ -993,6 +998,7 @@ private:
     string name;
     Robot robot;
     bool enabled;
+    bool sync_odom;
     rclcpp::Time startTime;
     std::vector<collisionBox> robotBoxes;
     rclcpp::TimerBase::SharedPtr dvlTimer;
