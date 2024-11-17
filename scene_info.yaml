@@ -1,4 +1,3 @@
-
 robot:
   model: 
     file: "talos.dae"                             # needs to be in camera_faker/models folder, supports standard 3D model file formats
@@ -12,7 +11,7 @@ april_tag:
     y: 3                 # <-- OPTIONAL (default 0.0) y position of tag center in meters relative to pool center
     yaw: 215             # <-- OPTIONAL (default 0.0) yaw of tag in degrees
   relative_to_tag: false # <-- true = object positions are relative to April Tag cordinate frame
-                         # <-- false = positions are relative to pool center
+  #                       # <-- false = positions are relative to pool center
 
 # Note: objects do not move
 objects:
