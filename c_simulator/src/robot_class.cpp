@@ -466,14 +466,23 @@ double Robot::getAcousticsPingTime()
     // get the pod locations
     string portFrame = name + "/acoustics_port_link";
     string starboardFrame = name + "/acoustics_starboard_link";
-    string worldFrame = "world";
+    string worldFrame = "talos/base_inertia";
 
     bool success = false;
     geometry_msgs::msg::Vector3 portTranslation = safeTransform(worldFrame, portFrame, success).translation;
     geometry_msgs::msg::Vector3 starboardTranslation = safeTransform(worldFrame, starboardFrame, success).translation;
 
-    double portDistance = sqrt(pow(portTranslation.x - fakePingerPosition[0], 2) + pow(portTranslation.y - fakePingerPosition[1], 2) + pow(portTranslation.z - fakePingerPosition[2], 2));
-    double starboardDistance = sqrt(pow(starboardTranslation.x - fakePingerPosition[0], 2) + pow(starboardTranslation.y - fakePingerPosition[1], 2) + pow(starboardTranslation.z - fakePingerPosition[2], 2));
+    v3d portTranslation_v3d(portTranslation.x, portTranslation.y, portTranslation.z);
+    v3d starboardTranslation_v3d(starboardTranslation.x, starboardTranslation.y, starboardTranslation.z);
+    quat worldRotation(state[3], state[4], state[5], state[6]);
+    v3d worldTranslation_v3d(state[0], state[1], state[2]);
+
+    //transform these info world frame
+    portTranslation_v3d = (worldRotation * portTranslation_v3d) + worldTranslation_v3d;
+    starboardTranslation_v3d = (worldRotation * starboardTranslation_v3d) + worldTranslation_v3d;
+
+    double portDistance = sqrt(pow(portTranslation_v3d[0] - fakePingerPosition[0], 2) + pow(portTranslation_v3d[1] - fakePingerPosition[1], 2) + pow(portTranslation_v3d[2] - fakePingerPosition[2], 2));
+    double starboardDistance = sqrt(pow(starboardTranslation_v3d[0] - fakePingerPosition[0], 2) + pow(starboardTranslation_v3d[1] - fakePingerPosition[1], 2) + pow(starboardTranslation_v3d[2] - fakePingerPosition[2], 2));
 
     return (portDistance - starboardDistance) / this->speedOfSound;
 }
