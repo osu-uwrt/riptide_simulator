@@ -484,6 +484,10 @@ double Robot::getAcousticsPingTime()
 
 geometry_msgs::msg::Transform Robot::safeTransform(string toFrame, string fromFrame, bool &transformFlag)
 {
+    //NOTE: THIS IS A TRANSFORM BETWEEN EKF FRAMES AND IS NOT A PERFECT PHYSICAL TRANSFORM
+    //FOR PHYSICS BASED TRANSFORMATIONS, USE STATE
+
+
     try
     {
         geometry_msgs::msg::TransformStamped t = tf_buffer->lookupTransform(

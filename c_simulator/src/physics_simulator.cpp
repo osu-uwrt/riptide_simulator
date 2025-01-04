@@ -97,6 +97,7 @@ public:
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
         thrusterTelemetryTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
+        paramRefreshTimer = this->create_wall_timer(5.0s, std::bind(&PhysicsSimNode::refreshSimulationParameters, this));
 
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
@@ -938,6 +939,12 @@ private:
         }
     }
 
+    //use this function to refresh any ROS parameters pertaining to simulation
+    void refreshSimulationParameters(){
+        //reload the sync odom parameter
+        this->get_parameter("sync_odom", this->sync_odom);
+    }
+
     //================================//
     //       UTILITY FUNCTIONS        //
     //================================//
@@ -1009,6 +1016,7 @@ private:
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
+    rclcpp::TimerBase::SharedPtr paramRefreshTimer;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
