@@ -6,7 +6,7 @@
 /** @note If SYNC_ODOM is set to true, fake sensor data is ignored */
 #define SYNC_ODOM true            // Makes it so Odometry position perfically matches physics position
 #define SENSOR_NOISE_ENABLED true // Noise is added to sensor data when true
-#define ACOUSTIC_DATA false       // Toggle whether acoustic sensor data will be faked
+#define ACOUSTIC_DATA true       // Toggle whether acoustic sensor data will be faked
 #define COLLISION_TOGGLE true     // Toggle whether collisions are enabled or disabled
 #define STATE_PUB_TIME 0.01       // Time, in seconds, between simulator publishing state (for RViz)
 #define COEF_OF_RESTITUTION 0.3   // Ratio of velocity after vs before collision https://en.wikipedia.org/wiki/Coefficient_of_restitution

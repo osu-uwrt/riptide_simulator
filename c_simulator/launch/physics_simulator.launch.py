@@ -25,10 +25,17 @@ def generate_launch_description():
     ])
 
     # declare the path to the robot's vehicle description file
-    config = PathJoinSubstitution([
+    vehicle_config = PathJoinSubstitution([
         get_package_share_directory('riptide_descriptions2'),
         'config',
         LaunchConfiguration("robot_yaml")
+    ])
+
+    # declare the path to the simulator's description file
+    simulation_config = PathJoinSubstitution([
+        get_package_share_directory('riptide_descriptions2'),
+        'config',
+        "simulator.yaml"
     ])
 
     # declare the path to collision data folder
@@ -60,7 +67,8 @@ def generate_launch_description():
                 parameters=[
                     {"scene_config": sceneConfig},
                     {"collision_folder": collisionFolder},
-                    {"vehicle_config": config},
+                    {"vehicle_config": vehicle_config},
+                    {"simulator_config": simulation_config},
                     {"robot": robot},
                 ]
             ),

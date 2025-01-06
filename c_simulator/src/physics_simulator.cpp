@@ -97,6 +97,7 @@ public:
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
         thrusterTelemetryTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
+        paramRefreshTimer = this->create_wall_timer(5.0s, std::bind(&PhysicsSimNode::refreshSimulationParameters, this));
 
         // Services for setting odom and simulator
         poseClient = this->create_client<robot_localization::srv::SetPose>("/" + robot.getName() + "/set_pose");
@@ -117,6 +118,11 @@ public:
         bool paramsLoaded = robot.loadParams(shared_from_this());
         RCLCPP_INFO(this->get_logger(), "Loading collision files...");
         bool collisionBoxesLoaded = (COLLISION_TOGGLE ? loadCollisionFiles() : true);
+
+        //wether or not to synchronize odometry
+        this->declare_parameter("sync_odom", false);
+        this->get_parameter("sync_odom", this->sync_odom);
+
         // Loaded successfully if true
         if (paramsLoaded && collisionBoxesLoaded)
         {
@@ -446,7 +452,7 @@ private:
         this->get_parameter("collision_folder", _collisionFolder);
         std::filesystem::path collisionFolder(_collisionFolder);
 
-        cout << collisionFolder << endl;
+        RCLCPP_FATAL(get_logger(), "Loading scene from file: %s", _sceneFile.c_str());
         YAML::Node sceneFile = YAML::LoadFile(_sceneFile);
         if (!sceneFile)
         {
@@ -621,7 +627,7 @@ private:
     {
         // Get depth and add noise to data
         double depthData = robot.getState().z();
-        if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+        if (SENSOR_NOISE_ENABLED && !this->sync_odom)
             depthData = randomNorm(depthData, robot.getDepthSigma());
 
         // Send message with depth sensor info
@@ -654,7 +660,7 @@ private:
             dvlData = robot.getDVLQuat().conjugate() * (q.conjugate() * dvlData);
 
             // Add nonise to sensor data if enabled, otherwise don't
-            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
                 dvlData = randomNorm(dvlData, robot.getDVLSigma());
             // Send message with DVL sensor info
             geometry_msgs::msg::TwistWithCovarianceStamped dvlMsg;
@@ -698,7 +704,7 @@ private:
             q = q * robot.getIMUQuat();
             // Add noise to sensor data if enabled, otherwise don't
             v3d imu_sigma = robot.getIMUSigma(); // [imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle]
-            if (SENSOR_NOISE_ENABLED && !SYNC_ODOM)
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
             {
                 imuAccel = randomNorm(imuAccel, imu_sigma[0]);
                 angularVel = randomNorm(angularVel, imu_sigma[1]);
@@ -913,7 +919,7 @@ private:
             tf_broadcaster->sendTransform(cameraFrameL);
 
             // If enabled, constantly sync odomotry's position to physic's position
-            if (SYNC_ODOM)
+            if (this->sync_odom)
             {
                 // Fill messasge with robot's position
                 auto request = std::make_shared<robot_localization::srv::SetPose::Request>();
@@ -931,6 +937,12 @@ private:
                 auto result = poseClient->async_send_request(request);
             }
         }
+    }
+
+    //use this function to refresh any ROS parameters pertaining to simulation
+    void refreshSimulationParameters(){
+        //reload the sync odom parameter
+        this->get_parameter("sync_odom", this->sync_odom);
     }
 
     //================================//
@@ -993,6 +1005,7 @@ private:
     string name;
     Robot robot;
     bool enabled;
+    bool sync_odom;
     rclcpp::Time startTime;
     std::vector<collisionBox> robotBoxes;
     rclcpp::TimerBase::SharedPtr dvlTimer;
@@ -1003,6 +1016,7 @@ private:
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
+    rclcpp::TimerBase::SharedPtr paramRefreshTimer;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
