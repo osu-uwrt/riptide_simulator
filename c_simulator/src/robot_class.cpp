@@ -46,16 +46,18 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
     tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
     // Retrieve the path to the YAML config file from the parameters
-    string config_file;
+    string vehicle_config_file, simulator_config_file;
     node->declare_parameter("vehicle_config", "");
-    if (node->get_parameter("vehicle_config", config_file))
+    node->declare_parameter("simulator_config", "");
+    if (node->get_parameter("vehicle_config", vehicle_config_file) && node->get_parameter("simulator_config", simulator_config_file))
     {
         try
         {
-            RCLCPP_INFO(node->get_logger(), "Opening config file: %s", config_file.c_str());
+            RCLCPP_INFO(node->get_logger(), "Opening vehicle config file: %s and simulator config file %s", vehicle_config_file.c_str(), simulator_config_file.c_str());
             // Loading YAML file for parsing
-            YAML::Node config = YAML::LoadFile(config_file);
-            Robot::storeConfigData(config);
+            YAML::Node vehicle_config = YAML::LoadFile(vehicle_config_file);
+            YAML::Node simulator_config = YAML::LoadFile(simulator_config_file);
+            Robot::storeConfigData(vehicle_config, simulator_config);
 
             // Loading params successeeded
             return true;
@@ -77,14 +79,16 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
 /**
  * @brief Unpacks YAML contents and stores them into class variables
  */
-void Robot::storeConfigData(YAML::Node config)
+void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_config)
 {
+
     // Getting mass information
-    mass = config["mass"].as<double>();
+    mass = vehicle_config["mass"].as<double>();
     weightVector = {0, 0, -mass * GRAVITY};
-    v3d r_com = std2v3d(config["com"].as<std::vector<double>>());
+    v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>());
     // Getting inertia information
-    std::vector<double> bodyInertiaArray = config["inertia3x3"].as<std::vector<double>>();
+
+    std::vector<double> bodyInertiaArray = simulator_config["vehicle_properties"]["inertia3x3"].as<std::vector<double>>();
     m3d bodyInertia;
     bodyInertia << bodyInertiaArray[0], bodyInertiaArray[1], bodyInertiaArray[2],
         bodyInertiaArray[3], bodyInertiaArray[4], bodyInertiaArray[5],
@@ -92,9 +96,12 @@ void Robot::storeConfigData(YAML::Node config)
     invBodyInertia = bodyInertia.inverse();
 
     // Get bouyancy vector from feed forward
-    std::vector<double> feedForward = config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
+    std::vector<double> feedForward = vehicle_config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
     // Get the feed forward discrepnecy vector
-    std::vector<double> feedForwardDiscrepancy = config["controller"]["feed_forward"]["sim_discrepancy"].as<std::vector<double>>();
+    std::vector<double> feedForwardDiscrepancy = simulator_config["controller"]["sim_discrepancy"].as<std::vector<double>>();
+
+
+
 
     //apply sim discrepancy
     if(feedForward.size() == 6 && feedForward.size() == 6){
@@ -108,35 +115,35 @@ void Robot::storeConfigData(YAML::Node config)
     bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
     // Calculate COB from feed forward: r = T/F
     r_cob = v3d(feedForward[4] / bouyancyVector.norm(), - feedForward[3] / bouyancyVector.norm(), 0.005);
-    r_cod = std2v3d(config["cod"].as<std::vector<double>>()) - r_com;
+    r_cod = std2v3d(simulator_config["vehicle_properties"]["cod"].as<std::vector<double>>()) - r_com;
 
     //  Getting base link position relative to center of mass
-    r_baseLink = std2v3d(config["base_link"].as<std::vector<double>>());
+    r_baseLink = std2v3d(vehicle_config["base_link"].as<std::vector<double>>());
     // Getting IMU information
-    std::vector<double> imu_pose = config["imu"]["pose"].as<std::vector<double>>();
+    std::vector<double> imu_pose = vehicle_config["imu"]["pose"].as<std::vector<double>>();
     r_imu = v3d(imu_pose[0], imu_pose[1], imu_pose[2]) - r_com;
     q_imu = rpy2quat(imu_pose[3], imu_pose[4], imu_pose[5]);
-    imu_rate = 1.0 / config["imu"]["rate"].as<double>();
-    imu_yawDrift = config["imu"]["yaw_drift"].as<double>();
-    imu_sigmaAccel = config["imu"]["sigma_accel"].as<double>();
-    imu_sigmaOmega = config["imu"]["sigma_omega"].as<double>() * M_PI / 180;
-    imu_sigmaAngle = config["imu"]["sigma_angle"].as<double>() * M_PI / 180;
+    imu_rate = 1.0 / vehicle_config["imu"]["rate"].as<double>();
+    imu_yawDrift = vehicle_config["imu"]["yaw_drift"].as<double>();
+    imu_sigmaAccel = vehicle_config["imu"]["sigma_accel"].as<double>();
+    imu_sigmaOmega = vehicle_config["imu"]["sigma_omega"].as<double>() * M_PI / 180;
+    imu_sigmaAngle = vehicle_config["imu"]["sigma_angle"].as<double>() * M_PI / 180;
     // Getting depth sensor information
-    r_depth = std2v3d(config["depth"]["pose"].as<std::vector<double>>()) - r_com;
-    depth_rate = 1.0 / config["depth"]["rate"].as<double>();
-    depth_sigma = config["depth"]["sigma"].as<double>();
+    r_depth = std2v3d(vehicle_config["depth"]["pose"].as<std::vector<double>>()) - r_com;
+    depth_rate = 1.0 / vehicle_config["depth"]["rate"].as<double>();
+    depth_sigma = vehicle_config["depth"]["sigma"].as<double>();
     // Getting dvl sensor information
-    std::vector<double> dvl_pose = config["dvl"]["pose"].as<std::vector<double>>();
+    std::vector<double> dvl_pose = vehicle_config["dvl"]["pose"].as<std::vector<double>>();
     r_dvl = v3d(dvl_pose[0], dvl_pose[1], dvl_pose[2]) - r_com;
     q_dvl = rpy2quat(dvl_pose[3], dvl_pose[4], dvl_pose[5]);
-    dvl_rate = 1.0 / config["dvl"]["rate"].as<double>();
-    dvl_sigma = config["dvl"]["sigma"].as<double>();
+    dvl_rate = 1.0 / vehicle_config["dvl"]["rate"].as<double>();
+    dvl_sigma = vehicle_config["dvl"]["sigma"].as<double>();
     // Drag information
-    dragCoef = config["controller"]["SMC"]["damping"].as<std::vector<double>>();
+    dragCoef = vehicle_config["controller"]["SMC"]["damping"].as<std::vector<double>>();
 
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
-    YAML::Node thrusters = config["thrusters"];
-    maxThrust = config["thruster"]["max_force"].as<double>();
+    YAML::Node thrusters = vehicle_config["thrusters"];
+    maxThrust = simulator_config["vehicle_properties"]["thruster_max_force"].as<double>();
     thrusterCount = thrusters.size();
     thrusterMatrix.resize(thrusterCount, 6);
     // Thruster info
@@ -163,8 +170,8 @@ void Robot::storeConfigData(YAML::Node config)
     if (ACOUSTIC_DATA)
     {
         // acoustics stuff
-        speedOfSound = config["acoustics"]["speed_of_sound"].as<double>();
-        std::vector<double> fakePingerPose = config["acoustics"]["fake_pinger"]["pose"].as<std::vector<double>>();
+        speedOfSound = vehicle_config["acoustics"]["speed_of_sound"].as<double>();
+        std::vector<double> fakePingerPose = simulator_config["acoustics"]["fake_pinger"]["pose"].as<std::vector<double>>();
         fakePingerPosition = v3d(fakePingerPose[0], fakePingerPose[1], fakePingerPose[2]);
     }
 }

@@ -140,7 +140,7 @@ private:
     //========================//
     //       FUNCTIONS        //
     //========================//
-    void storeConfigData(YAML::Node config);
+    void storeConfigData(YAML::Node vehicle_config, YAML::Node simulation_config);
     v3d std2v3d(std::vector<double> stdVect);
     void setForcesTorques(vXd thrusterForces);
     double getScaleFactor(const double &depth);
