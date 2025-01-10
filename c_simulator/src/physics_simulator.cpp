@@ -91,6 +91,7 @@ public:
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
+        clawObjectSub = this->create_subscription<std_msgs::msg::String>("simulator/loaded_claw_object", 10, std::bind(&PhysicsSimNode::setLoadedClawObjectCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
 
         // Create timers
@@ -253,8 +254,10 @@ private:
     {
         // Some forces are easier to calculate in the body frame, like thruster forces and drag forces, doing those first
         // Linear velocity is converted to body frame before passing it to drag force function
+
         v3d body_forces = robot.getThrusterForces() + robot.calcDragForces(q.conjugate() * linVel, depth);
-        v3d world_forces = q * body_forces + robot.getNetBouyantForce(depth);
+        v3d world_forces = q * body_forces + robot.getNetBouyantForce(depth)+ robot.getClawObjectForces();
+        
         return world_forces;
     }
 
@@ -266,7 +269,7 @@ private:
     v3d calcTorques(const quat &q, const v3d &linVel, const v3d &angVel, const double &depth)
     {
         // Angular and linear velocity is converted to body frame before passing it to drag torque function
-        v3d body_torques = robot.getThrusterTorques() + robot.calcDragTorques(q.conjugate() * linVel, q.conjugate() * angVel, depth);
+        v3d body_torques = robot.getThrusterTorques() + robot.calcDragTorques(q.conjugate() * linVel, q.conjugate() * angVel, depth) + robot.getClawObjectTorques();
         v3d world_torques = q * body_torques + robot.calcBouyantTorque(q, depth);
         return world_torques;
     }
@@ -809,6 +812,13 @@ private:
         robot.addToThrusterQue(commandedThrust);
     }
 
+    void setLoadedClawObjectCallback(const std_msgs::msg::String &msg){
+
+
+        //have the robot set the claw object
+        robot.setLoadedClawObject(msg);
+    }
+
     // Mirrors software kill to firmware kill. This is done to make the enable/disable button in RViz work
     void killSwitchCallback(const riptide_msgs2::msg::KillSwitchReport &softwareKillMsg)
     {
@@ -1021,6 +1031,7 @@ private:
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr clawObjectSub;
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
     rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
@@ -1035,11 +1046,14 @@ private:
 //=========================//
 //          MAIN           //
 //=========================//
+
+
 int main(int argc, char *argv[])
 {
     // Create PhysicsSimNode
     rclcpp::init(argc, argv);
     auto node = std::make_shared<PhysicsSimNode>();
+
     // Load parameters into Robot class, don't start if unseccessful
     bool startUpSuccess = node->init();
     if (startUpSuccess)
