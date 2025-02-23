@@ -452,7 +452,7 @@ private:
         this->get_parameter("collision_folder", _collisionFolder);
         std::filesystem::path collisionFolder(_collisionFolder);
 
-        RCLCPP_FATAL(get_logger(), "Loading scene from file: %s", _sceneFile.c_str());
+        RCLCPP_INFO(get_logger(), "Loading scene from file: %s", _sceneFile.c_str());
         YAML::Node sceneFile = YAML::LoadFile(_sceneFile);
         if (!sceneFile)
         {
