@@ -64,6 +64,9 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
         }
         catch (const YAML::Exception &e)
         {
+            RCLCPP_ERROR(node->get_logger(), "Failed to parse the config file: %s, line %d, col %d, pos %d", e.what(), e.mark.line, e.mark.column, e.mark.pos);
+        } catch(const std::runtime_error& e)
+        {
             RCLCPP_ERROR(node->get_logger(), "Failed to parse the config file: %s", e.what());
         }
     }
@@ -79,85 +82,121 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
 /**
  * @brief Unpacks YAML contents and stores them into class variables
  */
-void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_config)
+void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& simulator_config)
 {
-
+    RCLCPP_INFO(node->get_logger(), "vehicle config is scalar: %s", (vehicle_config.IsScalar() ? "yes" : "no"));
     // Getting mass information
-    mass = vehicle_config["mass"].as<double>();
+    mass = getYamlNodeAs<double>(vehicle_config, {"mass"});
     weightVector = {0, 0, -mass * GRAVITY};
-    v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>());
+    
+    RCLCPP_INFO(node->get_logger(), "vehicle config is scalar: %s", (vehicle_config.IsScalar() ? "yes" : "no"));
+    v3d r_com = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"com"}));
+
     // Getting inertia information
 
-    std::vector<double> bodyInertiaArray = simulator_config["vehicle_properties"]["inertia3x3"].as<std::vector<double>>();
+    std::vector<double> bodyInertiaArray = getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "inertia3x3"});
     m3d bodyInertia;
     bodyInertia << bodyInertiaArray[0], bodyInertiaArray[1], bodyInertiaArray[2],
         bodyInertiaArray[3], bodyInertiaArray[4], bodyInertiaArray[5],
         bodyInertiaArray[6], bodyInertiaArray[7], bodyInertiaArray[8];
     invBodyInertia = bodyInertia.inverse();
 
-    // Get bouyancy vector from feed forward
-    std::vector<double> feedForward = vehicle_config["controller"]["feed_forward"]["base_wrench"].as<std::vector<double>>();
-    // Get the feed forward discrepnecy vector
-    std::vector<double> feedForwardDiscrepancy = simulator_config["controller"]["sim_discrepancy"].as<std::vector<double>>();
-
-
-
-
-    //apply sim discrepancy
-    if(feedForward.size() == 6 && feedForward.size() == 6){
-        for(int i = 0; i < 6; i++){
-            feedForward[i] -= feedForwardDiscrepancy[i];
-        }
-    }else{
-        RCLCPP_ERROR(this->node->get_logger(), "Feed forward or discrepancy vector is incorrectly sized");
+    try
+    {
+        // Get bouyancy vector from feed forward
+        std::vector<double> feedForward = getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "base_wrench"});
+    
+        bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
+        // Calculate COB from feed forward: r = T/F
+        r_cob = v3d(feedForward[4] / bouyancyVector.norm(), - feedForward[3] / bouyancyVector.norm(), 0.005);
+    } catch(std::runtime_error& e)
+    {
+        r_cob = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "cob"}));
     }
 
-    bouyancyVector = v3d(0, 0, -feedForward[2]) - weightVector;
-    // Calculate COB from feed forward: r = T/F
-    r_cob = v3d(feedForward[4] / bouyancyVector.norm(), - feedForward[3] / bouyancyVector.norm(), 0.005);
-    r_cod = std2v3d(simulator_config["vehicle_properties"]["cod"].as<std::vector<double>>()) - r_com;
+    //center of drag
+    r_cod = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "cod"})) - r_com;
 
     //  Getting base link position relative to center of mass
-    r_baseLink = std2v3d(vehicle_config["base_link"].as<std::vector<double>>());
+    r_baseLink = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"base_link"}));
+
     // Getting IMU information
-    std::vector<double> imu_pose = vehicle_config["imu"]["pose"].as<std::vector<double>>();
-    r_imu = v3d(imu_pose[0], imu_pose[1], imu_pose[2]) - r_com;
-    q_imu = rpy2quat(imu_pose[3], imu_pose[4], imu_pose[5]);
-    imu_rate = 1.0 / vehicle_config["imu"]["rate"].as<double>();
-    imu_yawDrift = vehicle_config["imu"]["yaw_drift"].as<double>();
-    imu_sigmaAccel = vehicle_config["imu"]["sigma_accel"].as<double>();
-    imu_sigmaOmega = vehicle_config["imu"]["sigma_omega"].as<double>() * M_PI / 180;
-    imu_sigmaAngle = vehicle_config["imu"]["sigma_angle"].as<double>() * M_PI / 180;
+    imu_enabled = false;
+    try
+    {
+        std::vector<double> imu_pose = getYamlNodeAs<std::vector<double>>(vehicle_config, {"imu", "pose"});
+        r_imu = v3d(imu_pose[0], imu_pose[1], imu_pose[2]) - r_com;
+        q_imu = rpy2quat(imu_pose[3], imu_pose[4], imu_pose[5]);
+        imu_rate = 1.0 / getYamlNodeAs<double>(vehicle_config, {"imu", "rate"});
+        imu_yawDrift = getYamlNodeAs<double>(vehicle_config, {"imu", "yaw_drift"});
+        imu_sigmaAccel = getYamlNodeAs<double>(vehicle_config, {"imu", "sigma_accel"});
+        imu_sigmaOmega = getYamlNodeAs<double>(vehicle_config, {"imu", "sigma_omega"}) * M_PI / 180;
+        imu_sigmaAngle = getYamlNodeAs<double>(vehicle_config, {"imu", "sigma_angle"}) * M_PI / 180;
+        
+        //all settings parsed correctly, enable IMU
+        imu_enabled = true;
+    } catch(std::runtime_error& e)
+    {
+        RCLCPP_INFO(node->get_logger(), "Could not parse all IMU Settings (%s). Continuing with IMU disabled", e.what());
+    }
+
     // Getting depth sensor information
-    r_depth = std2v3d(vehicle_config["depth"]["pose"].as<std::vector<double>>()) - r_com;
-    depth_rate = 1.0 / vehicle_config["depth"]["rate"].as<double>();
-    depth_sigma = vehicle_config["depth"]["sigma"].as<double>();
+    depth_enabled = false;
+    try
+    {
+        r_depth = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"depth", "pose"})) - r_com;
+        depth_rate = 1.0 / getYamlNodeAs<double>(vehicle_config, {"depth", "rate"});
+        depth_sigma = getYamlNodeAs<double>(vehicle_config, {"depth", "sigma"});
+
+        //all settings parsed correctly, enable depth
+        depth_enabled = true;
+    } catch(std::runtime_error& e)
+    {
+        RCLCPP_INFO(node->get_logger(), "Could not parse all depth sensor settings (%s). Continuing with depth disabled", e.what());
+    }
+
     // Getting dvl sensor information
-    std::vector<double> dvl_pose = vehicle_config["dvl"]["pose"].as<std::vector<double>>();
-    r_dvl = v3d(dvl_pose[0], dvl_pose[1], dvl_pose[2]) - r_com;
-    q_dvl = rpy2quat(dvl_pose[3], dvl_pose[4], dvl_pose[5]);
-    dvl_rate = 1.0 / vehicle_config["dvl"]["rate"].as<double>();
-    dvl_sigma = vehicle_config["dvl"]["sigma"].as<double>();
+    dvl_enabled = false;
+    try
+    {
+        std::vector<double> dvl_pose = getYamlNodeAs<std::vector<double>>(vehicle_config, {"dvl", "pose"});
+        r_dvl = v3d(dvl_pose[0], dvl_pose[1], dvl_pose[2]) - r_com;
+        q_dvl = rpy2quat(dvl_pose[3], dvl_pose[4], dvl_pose[5]);
+        dvl_rate = 1.0 / getYamlNodeAs<double>(vehicle_config, {"dvl", "rate"});
+        dvl_sigma = getYamlNodeAs<double>(vehicle_config, {"dvl", "sigma"});
+
+        //all settings parsed correctly, enable dvl
+        dvl_enabled = true;
+    } catch(std::runtime_error& e)
+    {
+        RCLCPP_INFO(node->get_logger(), "Could not parse all DVL sensor settings (%s). Continuing with DVL disabled", e.what());
+    }
+
     // Drag information
-    dragCoef = vehicle_config["controller"]["SMC"]["damping"].as<std::vector<double>>();
+    dragCoef = getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "damping"});
 
     // Creating thruster forces -> body forces & torques matrix by looping through each thruster
     YAML::Node thrusters = vehicle_config["thrusters"];
-    maxThrust = simulator_config["vehicle_properties"]["thruster_max_force"].as<double>();
+    maxThrust = getYamlNodeAs<double>(simulator_config, {"vehicle_properties", name, "thruster_max_force"});
     thrusterCount = thrusters.size();
+    RCLCPP_INFO(node->get_logger(), "%d thrusters detected.", thrusterCount);
     thrusterMatrix.resize(thrusterCount, 6);
+
     // Thruster info
     int row = 0;
     for (auto thruster : thrusters)
     {
         // Get thruster position and orientation
-        std::vector<double> pose = thruster["pose"].as<std::vector<double>>();
+        std::vector<double> pose = getYamlNodeAs<std::vector<double>>(thruster, {"pose"});
         v3d thrusterPos = std2v3d(pose);
         quat thrusterDirection = rpy2quat(pose[3], pose[4], pose[5]);
+
         // Body force caused by unit thrust vector:
         v3d bodyForce = thrusterDirection * v3d(1, 0, 0);
+
         // Body torque caused by unit thrust vector (T = r x F):
         v3d bodyTorque = (thrusterPos - r_com).cross(bodyForce);
+        
         // Storing results into matrix
         thrusterMatrix.block(row, 0, 1, 3) = bodyForce.transpose();
         thrusterMatrix.block(row, 3, 1, 3) = bodyTorque.transpose();
@@ -167,12 +206,25 @@ void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_conf
     forces.Zero();
     torques.Zero();
 
+    acousticsEnabled = false;
     if (ACOUSTIC_DATA)
     {
-        // acoustics stuff
-        speedOfSound = vehicle_config["acoustics"]["speed_of_sound"].as<double>();
-        std::vector<double> fakePingerPose = simulator_config["acoustics"]["fake_pinger"]["pose"].as<std::vector<double>>();
-        fakePingerPosition = v3d(fakePingerPose[0], fakePingerPose[1], fakePingerPose[2]);
+        try
+        {
+            // acoustics stuff
+            speedOfSound = getYamlNodeAs<double>(vehicle_config, {"acoustics", "speed_of_sound"});
+            
+            std::vector<double> fakePingerPose = getYamlNodeAs<std::vector<double>>(simulator_config, {"acoustics", "fake_pinger", "pose"});
+            fakePingerPosition = v3d(fakePingerPose[0], fakePingerPose[1], fakePingerPose[2]);
+            
+            acousticsEnabled = true;
+        } catch(std::runtime_error& e)
+        {
+            RCLCPP_INFO(node->get_logger(), "Could not parse acoustics information(%s). Continuing with acoustics disabled.", e.what());
+        }
+    } else
+    {
+        RCLCPP_INFO(node->get_logger(), "Acoustics is disabled.");
     }
 }
 
@@ -425,6 +477,10 @@ double Robot::getDepthSigma()
 {
     return depth_sigma;
 }
+bool Robot::getDepthEnabled()
+{
+    return depth_enabled;
+}
 double Robot::getDepthRate()
 {
     return depth_rate;
@@ -436,6 +492,10 @@ v3d Robot::getIMUOffset()
 v3d Robot::getIMUSigma()
 {
     return v3d(imu_sigmaAccel, imu_sigmaOmega, imu_sigmaAngle);
+}
+bool Robot::getIMUEnabled()
+{
+    return imu_enabled;
 }
 double Robot::getIMURate()
 {
@@ -453,6 +513,10 @@ double Robot::getDVLSigma()
 {
     return dvl_sigma;
 }
+bool Robot::getDVLEnabled()
+{
+    return dvl_enabled;
+}
 double Robot::getDVLRate()
 {
     return dvl_rate;
@@ -464,6 +528,10 @@ quat Robot::getDVLQuat()
 int Robot::getThrusterCount()
 {
     return thrusterCount;
+}
+bool Robot::getAcousticsEnabled()
+{
+    return acousticsEnabled;
 }
 double Robot::getAcousticsPingTime()
 {

@@ -38,21 +38,9 @@ public:
     //========================//
     vXd getState();
     double getMass();
-    quat getDVLQuat();
-    quat getIMUQuat();
-    v3d getIMUSigma();
-    v3d getIMUOffset();
-    v3d getDVLOffset();
     bool mapAvailable();
-    double getDVLRate();
-    double getIMURate();
     m3d getInvInertia();
-    double getIMUDrift();
-    v3d getDepthOffset();
-    double getDVLSigma();
-    double getDepthRate();
     std::string getName();
-    double getDepthSigma();
     int getThrusterCount();
     mXd getThrusterMatrix();
     v3d getThrusterForces();
@@ -60,13 +48,36 @@ public:
     v3d getLatestAngAccel();
     v3d getBaseLinkOffset();
     v3d getThrusterTorques();
-    bool dvlTransformAvailable();
-    bool imuTransformAvailable();
-    bool acousticsTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
     geometry_msgs::msg::Transform getLCameraTransform();
+    
+    //ACOUSTICS ACCESSORS
+    bool getAcousticsEnabled();
     double getAcousticsPingTime();
+    bool acousticsTransformAvailable();
+    
+    //DEPTH ACCESSORS
+    bool getDepthEnabled();
+    double getDepthRate();
+    v3d getDepthOffset();
+    double getDepthSigma();
+    
+    //DVL ACCESSORS
+    bool getDVLEnabled();
+    double getDVLRate();
+    v3d getDVLOffset();
+    quat getDVLQuat();
+    double getDVLSigma();
+    bool dvlTransformAvailable();
 
+    //IMU ACCESSORS
+    bool getIMUEnabled();
+    double getIMURate();
+    v3d getIMUOffset();
+    quat getIMUQuat();
+    v3d getIMUSigma();
+    double getIMUDrift();
+    bool imuTransformAvailable();
 
     //========================//
     //        SETTERS         //
@@ -100,23 +111,33 @@ private:
     std::unique_ptr<tf2_ros::Buffer> tf_buffer;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener{nullptr};
 
-    int depth_rate;        // Rate in Hz that the depth sensor sends data
     v3d r_baseLink;        // Base link cordinate system relative to COM
-    int imu_rate;          // Rate in Hz that IMU sends sensor data
-    int dvl_rate;          // Rate in Hz that DVL sends sensor data
-    v3d r_depth;           // Depth sensor location relative to COM
     v3d r_cob;             // Center of bouyancy relative to COM
-    double depth_sigma;    // Depth sensor standard deviation
     v3d r_cod;             // Center of drag relative to COM
+
+    //DEPTH SENSOR
+    bool depth_enabled;
+    int depth_rate;        // Rate in Hz that the depth sensor sends data
+    v3d r_depth;           // Depth sensor location relative to COM
+    double depth_sigma;    // Depth sensor standard deviation
+    
+    //DVL SENSOR
+    bool dvl_enabled;
+    int dvl_rate;          // Rate in Hz that DVL sends sensor data
+    v3d r_dvl;             // DVL location relative to COM
+    quat q_dvl;            // Quaternion to DVL's frame
+    double dvl_sigma;      // DVL sensor standard deviation
+    
+    //IMU SENSOR
+    bool imu_enabled;
+    int imu_rate;          // Rate in Hz that IMU sends sensor data
+    v3d r_imu;             // IMU location relative to COM
+    quat q_imu;            // Quaternion to IMU's frame
     double imu_sigmaAccel; // IMU sensor standard deviation
     double imu_sigmaOmega; // IMU sensor standard deviation
     double imu_sigmaAngle; // IMU sensor standard deviation
-    double dvl_sigma;      // DVL sensor standard deviation
-    v3d r_imu;             // IMU location relative to COM
-    v3d r_dvl;             // DVL location relative to COM
-    quat q_dvl;            // Quaternion to DVL's frame
-    quat q_imu;            // Quaternion to IMU's frame
     double imu_yawDrift;   // IMU yaw drift in deg/min
+
     std::string name;      // Robot's name
 
     std::vector<thrusterForcesStamped> thrusterForceQue;
@@ -134,13 +155,45 @@ private:
     m3d invBodyInertia;           // Inverse inertia tensor in body frame
     mXd thrusterMatrix;           // 6xN matrix translating N thruster forces into body forces and torques
 
+    bool acousticsEnabled;
     float speedOfSound;           // the speed of sound in water
     v3d fakePingerPosition;       // the position of the fake pinger
 
     //========================//
     //       FUNCTIONS        //
     //========================//
-    void storeConfigData(YAML::Node vehicle_config, YAML::Node simulation_config);
+    template<typename T>
+    T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
+    {
+        if(keywords.empty())
+        {
+            throw std::runtime_error("getYamlNodeAs() requires at least one keyword.");
+        }
+
+        YAML::Node node = YAML::Clone(n);
+        
+        try
+        {
+            for(std::string s : keywords)
+            {
+                node = node[s];
+            }
+
+            return node.as<T>();
+        } catch(YAML::Exception& e)
+        {
+            std::string msg = "Failed to parse value at tag " + keywords[0];
+            for(size_t i = 1; i < keywords.size(); i++)
+            {
+                msg +=  " -> " + keywords[i];
+            }
+            
+            msg += ": " + std::string(e.what());
+            throw std::runtime_error(msg);
+        }
+    }
+
+    void storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& simulation_config);
     v3d std2v3d(std::vector<double> stdVect);
     void setForcesTorques(vXd thrusterForces);
     double getScaleFactor(const double &depth);

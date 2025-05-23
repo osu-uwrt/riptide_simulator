@@ -140,7 +140,8 @@ public:
         {
             // Report error
             if (!paramsLoaded)
-                RCLCPP_INFO(this->get_logger(), "Failed to read YAML parameter data");
+                RCLCPP_INFO(this->get_logger(), "Failed to read YAML parameter data, loaded params: %s, loaded collision: %s",
+                    (paramsLoaded ? "yes" : "no"), (collisionBoxesLoaded ? "yes" : "no"));
             else
                 RCLCPP_INFO(this->get_logger(), "Failed to read collision URDF data");
         }
@@ -625,24 +626,27 @@ private:
     // Fabricates fake depth sensor data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDepthData()
     {
-        // Get depth and add noise to data
-        double depthData = robot.getState().z();
-        if (SENSOR_NOISE_ENABLED && !this->sync_odom)
-            depthData = randomNorm(depthData, robot.getDepthSigma());
-
-        // Send message with depth sensor info
-        geometry_msgs::msg::PoseWithCovarianceStamped depthMsg;
-        depthMsg.pose.pose.position.z = depthData;
-        depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
-        depthMsg.header.stamp = this->get_clock()->now();
-        depthMsg.header.frame_id = "odom";
-        depthPub->publish(depthMsg);
+        if(robot.getDepthEnabled())
+        {
+            // Get depth and add noise to data
+            double depthData = robot.getState().z();
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
+                depthData = randomNorm(depthData, robot.getDepthSigma());
+    
+            // Send message with depth sensor info
+            geometry_msgs::msg::PoseWithCovarianceStamped depthMsg;
+            depthMsg.pose.pose.position.z = depthData;
+            depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
+            depthMsg.header.stamp = this->get_clock()->now();
+            depthMsg.header.frame_id = "odom";
+            depthPub->publish(depthMsg);
+        }
     }
 
     // Fabricates fake DVL data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDVLData()
     {
-        if (robot.dvlTransformAvailable())
+        if (robot.getDVLEnabled() && robot.dvlTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -682,7 +686,7 @@ private:
     // Fabricates fake IMU data from robot's state and publishes it to topic. Called on a timer
     void publishFakeIMUData()
     {
-        if (robot.imuTransformAvailable())
+        if (robot.getIMUEnabled() && robot.imuTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -806,6 +810,7 @@ private:
         // Only set forces if robot's enabled
         if (enabled)
             commandedThrust.thrusterForces = convert2eigen(thrusterForces.data);
+            
         robot.addToThrusterQue(commandedThrust);
     }
 
@@ -918,7 +923,7 @@ private:
             tf_broadcaster->sendTransform(robotFrame);
             tf_broadcaster->sendTransform(cameraFrameL);
 
-            // If enabled, constantly sync odomotry's position to physic's position
+            // If enabled, constantly sync odomotry's position to physics position
             if (this->sync_odom)
             {
                 // Fill messasge with robot's position
