@@ -920,11 +920,14 @@ private:
 
     void publishSolenoidStates()
     {
-        ActiveBallastIDs ids = robot.getBallastSolenoidIds();
-        ActiveBallastStates states = robot.getBallastState();
-        publishSingleSolenoidState(ids.exaustId, states.exaustState);
-        publishSingleSolenoidState(ids.pressureId, states.pressureState);
-        publishSingleSolenoidState(ids.waterId, states.waterState);
+        if(robot.getBallastEnabled())
+        {
+            ActiveBallastIDs ids = robot.getBallastSolenoidIds();
+            ActiveBallastStates states = robot.getBallastState();
+            publishSingleSolenoidState(ids.exaustId, states.exaustState);
+            publishSingleSolenoidState(ids.pressureId, states.pressureState);
+            publishSingleSolenoidState(ids.waterId, states.waterState);
+        }
     }
 
     // Function called by "/set_sim_pose" service. Updates simulator and EKF to requested position

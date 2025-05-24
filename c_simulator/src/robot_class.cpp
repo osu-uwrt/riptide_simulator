@@ -423,7 +423,6 @@ void Robot::updateActiveBallast(const ActiveBallastStates& states)
     }
 
     ballast_stamp = now;
-    RCLCPP_INFO(node->get_logger(), "ballast mass: %f", ballast_mass);
 }
 
 void Robot::setActiveBallastState(const ActiveBallastStates& states)
