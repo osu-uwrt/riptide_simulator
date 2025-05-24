@@ -27,6 +27,38 @@ struct thrusterForcesStamped
     thrusterForcesStamped(vXd thrusterForces_, double time_);
 };
 
+
+template<typename T>
+T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
+{
+    if(keywords.empty())
+    {
+        throw std::runtime_error("getYamlNodeAs() requires at least one keyword.");
+    }
+
+    YAML::Node node = YAML::Clone(n);
+    
+    try
+    {
+        for(std::string s : keywords)
+        {
+            node = node[s];
+        }
+
+        return node.as<T>();
+    } catch(YAML::Exception& e)
+    {
+        std::string msg = "Failed to parse value at tag " + keywords[0];
+        for(size_t i = 1; i < keywords.size(); i++)
+        {
+            msg +=  " -> " + keywords[i];
+        }
+        
+        msg += ": " + std::string(e.what());
+        throw std::runtime_error(msg);
+    }
+}
+
 class Robot
 {
 public:
@@ -162,36 +194,6 @@ private:
     //========================//
     //       FUNCTIONS        //
     //========================//
-    template<typename T>
-    T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
-    {
-        if(keywords.empty())
-        {
-            throw std::runtime_error("getYamlNodeAs() requires at least one keyword.");
-        }
-
-        YAML::Node node = YAML::Clone(n);
-        
-        try
-        {
-            for(std::string s : keywords)
-            {
-                node = node[s];
-            }
-
-            return node.as<T>();
-        } catch(YAML::Exception& e)
-        {
-            std::string msg = "Failed to parse value at tag " + keywords[0];
-            for(size_t i = 1; i < keywords.size(); i++)
-            {
-                msg +=  " -> " + keywords[i];
-            }
-            
-            msg += ": " + std::string(e.what());
-            throw std::runtime_error(msg);
-        }
-    }
 
     void storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& simulation_config);
     v3d std2v3d(std::vector<double> stdVect);

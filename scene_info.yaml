@@ -1,9 +1,16 @@
 robot:
-  model: 
-    file: "talos.dae"                             # needs to be in camera_faker/models folder, supports standard 3D model file formats
-    units: "meter"                                # select scale of model, type a number or choose from "meter", "centimeter", "milimeter", "feet", or "inch"
-    model_offset: [0.14, -0.03, 0.09, 0, 0, 0]    # xyz offset of the model's orgin to center in meters, rpy in degrees (useful for base_link offset)
-  collision: "talos.urdf"                         # .urdf file that needs to be in c_simulator/collision_files/robots folder, must include box(es) with <collision> tag
+  talos:
+    model: 
+      file: "talos"                                 # needs to be in riptide_meshes package.
+      units: "meter"                                # select scale of model, type a number or choose from "meter", "centimeter", "milimeter", "feet", or "inch"
+      model_offset: [0.14, -0.03, 0.09, 0, 0, 0]    # xyz offset of the model's orgin to center in meters, rpy in degrees (useful for base_link offset)
+    collision: "talos.urdf"                         # .urdf file that needs to be in c_simulator/collision_files/robots folder, must include box(es) with <collision> tag
+  liltank:
+    model: 
+      file: "liltank"                               # needs to be in riptide_meshes package.
+      units: "meter"                                # select scale of model, type a number or choose from "meter", "centimeter", "milimeter", "feet", or "inch"
+      model_offset: [0.14, -0.03, 0.09, 0, 0, 0]    # xyz offset of the model's orgin to center in meters, rpy in degrees (useful for base_link offset)
+    collision: "liltank.urdf"
 
 april_tag:
   pose:

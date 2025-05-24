@@ -84,12 +84,10 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
  */
 void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& simulator_config)
 {
-    RCLCPP_INFO(node->get_logger(), "vehicle config is scalar: %s", (vehicle_config.IsScalar() ? "yes" : "no"));
     // Getting mass information
     mass = getYamlNodeAs<double>(vehicle_config, {"mass"});
     weightVector = {0, 0, -mass * GRAVITY};
     
-    RCLCPP_INFO(node->get_logger(), "vehicle config is scalar: %s", (vehicle_config.IsScalar() ? "yes" : "no"));
     v3d r_com = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"com"}));
 
     // Getting inertia information
@@ -111,6 +109,8 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
         r_cob = v3d(feedForward[4] / bouyancyVector.norm(), - feedForward[3] / bouyancyVector.norm(), 0.005);
     } catch(std::runtime_error& e)
     {
+        double hullVolume = getYamlNodeAs<double>(vehicle_config, {"hull_volume"});
+        bouyancyVector = v3d(0, 0, 1000 * GRAVITY * hullVolume);
         r_cob = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "cob"}));
     }
 
@@ -358,6 +358,7 @@ void Robot::setForcesTorques(vXd thrusterForces)
 {
     // Caps thruster forces to their limits
     thrusterForces = thrusterForces.cwiseMin(maxThrust).cwiseMax(-maxThrust);
+
     // Converts thruster forces to body forces
     vXd forcesTorques = thrusterMatrix.transpose() * thrusterForces;
     forces = forcesTorques.segment(0, 3);
@@ -541,7 +542,7 @@ double Robot::getAcousticsPingTime()
     // get the pod locations
     string portFrame = name + "/acoustics_port_link";
     string starboardFrame = name + "/acoustics_starboard_link";
-    string worldFrame = "talos/base_inertia";
+    string worldFrame = name + "/base_inertia";
 
     bool success = false;
     geometry_msgs::msg::Vector3 portTranslation = safeTransform(worldFrame, portFrame, success).translation;

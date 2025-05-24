@@ -462,9 +462,9 @@ private:
         }
 
         // Add the robot collision boxes
-        if (sceneFile["robot"]["collision"].IsDefined())
+        if (sceneFile["robot"][robot.getName()]["collision"].IsDefined())
         {
-            std::string robotCollisionPath = collisionFolder / "robots" / sceneFile["robot"]["collision"].as<string>();
+            std::string robotCollisionPath = collisionFolder / "robots" / getYamlNodeAs<string>(sceneFile, {"robot", robot.getName(), "collision"});
             urdf::ModelInterfaceSharedPtr robotModel = urdf::parseURDFFile(robotCollisionPath);
             if (!robotModel)
             {
@@ -475,36 +475,39 @@ private:
         }
 
         // Add the objects collision boxes
-        for (auto const &entryPair : sceneFile["objects"])
+        if(sceneFile["objects"].IsDefined())
         {
-            // Get the .urdf file with some error checking
-            YAML::Node entry = entryPair.second;
-            if (!entry["collision"].IsDefined())
+            for (auto const &entryPair : sceneFile["objects"])
             {
-                RCLCPP_WARN(this->get_logger(), "Skipping entry  %s without collision info.", entryPair.first.as<string>().c_str());
-                continue;
+                // Get the .urdf file with some error checking
+                YAML::Node entry = entryPair.second;
+                if (!entry["collision"].IsDefined())
+                {
+                    RCLCPP_WARN(this->get_logger(), "Skipping entry  %s without collision info.", entryPair.first.as<string>().c_str());
+                    continue;
+                }
+                std::string objectCollisionPath = collisionFolder / "objects" / getYamlNodeAs<string>(entry, {"collision"});
+                urdf::ModelInterfaceSharedPtr objectModel = urdf::parseURDFFile(objectCollisionPath);
+                if (!objectModel)
+                {
+                    RCLCPP_ERROR(this->get_logger(), "Failed to load object model: %s, continuing...", objectCollisionPath.c_str());
+                    continue;
+                }
+                // Get position and orientation
+                v3d position(toDouble(entry["pose"]["x"]),
+                            toDouble(entry["pose"]["y"]),
+                            toDouble(entry["pose"]["z"]));
+                tf2::Quaternion tf2Quat;
+                tf2Quat.setRPY(deg2rad(toDouble(entry["pose"]["roll"])),
+                            deg2rad(toDouble(entry["pose"]["pitch"])),
+                            deg2rad(toDouble(entry["pose"]["yaw"])));
+                tf2Quat.normalize();
+                quat objQuat(tf2Quat.w(), tf2Quat.x(), tf2Quat.y(), tf2Quat.z());
+                // Add all the new boxes to the vector
+                std::vector<collisionBox> newBoxes = unpackURDF(objectModel, position, objQuat);
+                for (collisionBox newBox : newBoxes)
+                    obstacleBoxes.push_back(newBox);
             }
-            std::string objectCollisionPath = collisionFolder / "objects" / entry["collision"].as<string>();
-            urdf::ModelInterfaceSharedPtr objectModel = urdf::parseURDFFile(objectCollisionPath);
-            if (!objectModel)
-            {
-                RCLCPP_ERROR(this->get_logger(), "Failed to load object model: %s, continuing...", objectCollisionPath.c_str());
-                continue;
-            }
-            // Get position and orientation
-            v3d position(toDouble(entry["pose"]["x"]),
-                         toDouble(entry["pose"]["y"]),
-                         toDouble(entry["pose"]["z"]));
-            tf2::Quaternion tf2Quat;
-            tf2Quat.setRPY(deg2rad(toDouble(entry["pose"]["roll"])),
-                           deg2rad(toDouble(entry["pose"]["pitch"])),
-                           deg2rad(toDouble(entry["pose"]["yaw"])));
-            tf2Quat.normalize();
-            quat objQuat(tf2Quat.w(), tf2Quat.x(), tf2Quat.y(), tf2Quat.z());
-            // Add all the new boxes to the vector
-            std::vector<collisionBox> newBoxes = unpackURDF(objectModel, position, objQuat);
-            for (collisionBox newBox : newBoxes)
-                obstacleBoxes.push_back(newBox);
         }
         // Add floor to list
         collisionBox floor = collisionBox("floor", 25, 50, 1, v3d(0, 0, -2.6336));
@@ -639,7 +642,14 @@ private:
             depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
             depthMsg.header.stamp = this->get_clock()->now();
             depthMsg.header.frame_id = "odom";
-            depthPub->publish(depthMsg);
+
+            if(!hasNans(depthMsg))
+            {
+                depthPub->publish(depthMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing depth message. Skipped.");
+            }
         }
     }
 
@@ -679,7 +689,13 @@ private:
             // Send message
             dvlMsg.header.stamp = this->get_clock()->now();
             dvlMsg.header.frame_id = robot.getName() + "/dvl_link";
-            dvlPub->publish(dvlMsg);
+            if(!hasNans(dvlMsg))
+            {
+                dvlPub->publish(dvlMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing DVL message. Skipped.");
+            }
         }
     }
 
@@ -754,7 +770,14 @@ private:
             // Publish message
             imuMsg.header.stamp = this->get_clock()->now();
             imuMsg.header.frame_id = robot.getName() + "/imu_link";
-            imuPub->publish(imuMsg);
+
+            if(!hasNans(imuMsg))
+            {
+                imuPub->publish(imuMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing IMU message. Skipped.");
+            }
         }
     }
 
@@ -1003,6 +1026,85 @@ private:
     {
         return degrees * M_PI / 180;
     }
+
+    bool hasNans(const std::array<double, 9UL>& arr)
+    {
+        for(size_t i = 0; i < 9UL; i++)
+        {
+            if(isnan(arr[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasNans(const std::array<double, 36UL>& arr)
+    {
+        for(size_t i = 0; i < 36UL; i++)
+        {
+            if(isnan(arr[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasNans(const geometry_msgs::msg::Vector3& v3Msg)
+    {
+        return
+            isnan(v3Msg.x) ||
+            isnan(v3Msg.y) ||
+            isnan(v3Msg.z);
+    }
+
+    bool hasNans(const geometry_msgs::msg::Point& pMsg)
+    {
+        return
+            isnan(pMsg.x) ||
+            isnan(pMsg.y) ||
+            isnan(pMsg.z);
+    }
+
+    bool hasNans(const geometry_msgs::msg::Quaternion& quatMsg)
+    {
+        return
+            isnan(quatMsg.x) ||
+            isnan(quatMsg.y) ||
+            isnan(quatMsg.z) ||
+            isnan(quatMsg.w);
+    }
+
+    bool hasNans(const geometry_msgs::msg::PoseWithCovarianceStamped& poseMsg)
+    {
+        return
+            hasNans(poseMsg.pose.covariance) ||
+            hasNans(poseMsg.pose.pose.orientation) ||
+            hasNans(poseMsg.pose.pose.position);
+    }
+
+    bool hasNans(const sensor_msgs::msg::Imu& imuMsg)
+    {
+        return
+            hasNans(imuMsg.angular_velocity) ||
+            hasNans(imuMsg.angular_velocity_covariance) ||
+            hasNans(imuMsg.linear_acceleration) ||
+            hasNans(imuMsg.linear_acceleration_covariance) ||
+            hasNans(imuMsg.orientation) ||
+            hasNans(imuMsg.orientation_covariance);
+    }
+
+    bool hasNans(const geometry_msgs::msg::TwistWithCovarianceStamped& twistMsg)
+    {
+        return
+            hasNans(twistMsg.twist.covariance) ||
+            hasNans(twistMsg.twist.twist.angular) ||
+            hasNans(twistMsg.twist.twist.linear);
+    }
+
 
     //================================//
     //          VARIABLES             //

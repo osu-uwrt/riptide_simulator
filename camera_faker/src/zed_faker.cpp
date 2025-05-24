@@ -40,6 +40,7 @@ https://learnopengl.com/Getting-started/OpenGL
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 // OpenGL Libraries
 //-------------------------------------------------
 #define STB_IMAGE_IMPLEMENTATION
@@ -75,6 +76,10 @@ public:
     zedFakerNode() : Node("zed_faker")
     {
         robotName = this->get_namespace();
+        if(robotName[0] == '/')
+        {
+            robotName = robotName.substr(1);
+        }
 
         // Create a TF broadcaster
         tfBuffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -181,10 +186,8 @@ private:
     }
     void folderSetup()
     {
-        string modelFolder_, textureFolder_, fontFolder_, shaderFolder_;
+        string textureFolder_, fontFolder_, shaderFolder_;
         // Declare and get ROS parameters with folder locations
-        this->declare_parameter("model_folder", "");
-        this->get_parameter("model_folder", modelFolder_);
         this->declare_parameter("texture_folder", "");
         this->get_parameter("texture_folder", textureFolder_);
         this->declare_parameter("font_folder", "");
@@ -193,7 +196,6 @@ private:
         this->get_parameter("shader_folder", shaderFolder_);
 
         // Save folder locations as a file system variable
-        modelFolder = std::filesystem::path(modelFolder_);
         textureFolder = std::filesystem::path(textureFolder_);
         fontFolder = std::filesystem::path(fontFolder_);
         shaderFolder = std::filesystem::path(shaderFolder_);
@@ -220,9 +222,9 @@ private:
             objectSetup(scene["objects"]);
             robotSetup(scene["robot"]);
         }
-        catch (const std::exception &e)
+        catch (std::exception &e)
         {
-            RCLCPP_ERROR(node->get_logger(), "Failed to parse the config file: %s", e.what());
+            RCLCPP_ERROR(get_logger(), "Failed to parse the config file: %s", e.what());
         }
 
         // APRIL TAG
@@ -274,9 +276,15 @@ private:
             if (objectInfo["image"].IsDefined())
             {
                 // Unpack values from YAML into useful variables
-                string imagePath = textureFolder / "objects" / objectInfo["image"]["file"].as<string>();
-                double imgWidth = objectInfo["image"]["size"][0].as<double>();
-                double imgHeight = objectInfo["image"]["size"][1].as<double>();
+                string imagePath = textureFolder / "objects" / getYamlNodeAs<string>(objectInfo, {"image", "file"});
+                std::vector<double> imgSize = getYamlNodeAs<std::vector<double>>(objectInfo, {"image", "size"});
+                if(imgSize.size() != 2)
+                {
+                    RCLCPP_ERROR(get_logger(), "Expected image size vector length to be 2 for object %s", objectInfoPair.first.as<string>().c_str());
+                    continue;
+                }
+                double imgWidth = imgSize[0];
+                double imgHeight = imgSize[1];
                 // Use this information to create a Object to add to "list" that needs rendered
                 objects.push_back(Object(imagePath,
                                          imgWidth,
@@ -288,18 +296,35 @@ private:
             else if (objectInfo["model"].IsDefined())
             {
                 // Unpack values from YAML into useful variables
-                string modelPath = modelFolder / objectInfo["model"]["file"].as<string>();
+                std::filesystem::path modelFolder(ament_index_cpp::get_package_share_directory("riptide_meshes"));
+                string modelPath = modelFolder / "meshes" / getYamlNodeAs<string>(objectInfo, {"model", "file"}) / "model.dae";
                 double units = parseUnits(objectInfo["model"]["units"]);
                 vector<double> modelOffset(6, 0.0);
-                if (objectInfo["model_offset"].IsDefined())
-                    modelOffset = objectInfo["model_offset"].as<vector<double>>();
+                if (objectInfo["model"]["model_offset"].IsDefined())
+                    modelOffset = objectInfo["model"]["model_offset"].as<vector<double>>();
+
+                if(modelOffset.size() != 6)
+                {
+                    RCLCPP_ERROR(get_logger(), "Expected 6 numbers for offset of model %s", objectInfoPair.first.as<string>().c_str());
+                    continue;
+                }
                 vec3 offsetPos(modelOffset[0], modelOffset[1], modelOffset[2]);
                 vec3 offsetRPY(modelOffset[3], modelOffset[4], modelOffset[5]);
                 vec3 color(-1, -1, -1);
                 if (objectInfo["model"]["color"].IsDefined())
-                    color = vec3(objectInfo["model"]["color"][0].as<double>(),  // R
-                                 objectInfo["model"]["color"][1].as<double>(),  // G
-                                 objectInfo["model"]["color"][2].as<double>()); // B
+                {
+                    std::vector<double> cvec = getYamlNodeAs<std::vector<double>>(objectInfo, {"model", "color"});
+                    if(cvec.size() != 3)
+                    {
+                        RCLCPP_ERROR(get_logger(), "Expected color vector size to be 3 for object %s", objectInfoPair.first.as<string>().c_str());
+                        continue;
+                    }
+
+                    color = vec3(cvec[0],  // R
+                                 cvec[1],  // G
+                                 cvec[2]); // B
+                }
+                    
                 // Use this information to create a Model to add to "list" that needs rendered
                 models.push_back(Model(modelPath,
                                        units,
@@ -326,17 +351,30 @@ private:
     void robotSetup(YAML::Node robotInfo)
     {
         // Unpack values from YAML into useful variables
-        string modelPath = modelFolder / robotInfo["model"]["file"].as<string>();
-        double units = parseUnits(robotInfo["model"]["units"]);
-        vector<double> modelOffset = robotInfo["model"]["model_offset"].as<vector<double>>();
+        std::filesystem::path modelFolder(ament_index_cpp::get_package_share_directory("riptide_meshes"));
+        string modelPath = modelFolder / "meshes" / getYamlNodeAs<string>(robotInfo, {robotName, "model", "file"}) / "model.dae";
+        double units = parseUnits(robotInfo[robotName]["model"]["units"]);
+        vector<double> modelOffset = getYamlNodeAs<std::vector<double>>(robotInfo, {robotName, "model", "model_offset"});
         vec3 offsetPos(modelOffset[0], modelOffset[1], modelOffset[2]);
         vec3 offsetRPY(modelOffset[3], modelOffset[4], modelOffset[5]);
         // Get model color if it has one, negative values indicate it doesn't
         vec3 color(-1, -1, -1);
-        if (robotInfo["model"]["color"].IsDefined())
-            color = vec3(robotInfo["model"]["color"][0].as<double>(),  // R
-                         robotInfo["model"]["color"][1].as<double>(),  // G
-                         robotInfo["model"]["color"][2].as<double>()); // B
+        if (robotInfo[robotName]["model"]["color"].IsDefined())
+        {
+            std::vector<double> cvec = getYamlNodeAs<std::vector<double>>(robotInfo, {robotName, "model", "color"});
+            if(cvec.size() != 3)
+            {
+                RCLCPP_ERROR(get_logger(), "Expected robot color vector length to be 3.");
+                color = vec3(0, 0, 0);
+            } else
+            {
+                color = vec3(cvec[0],  // R
+                             cvec[1],  // G
+                             cvec[2]); // B
+            }
+
+        }
+
         // Use this information to create a Model robot object
         Model robot(modelPath, units, vec3(), offsetPos, vec3(), offsetRPY, color);
         modelsAndRobot = models;
@@ -474,7 +512,7 @@ private:
         {
             try
             {
-                string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
+                string targetFrame = "simulator/" + robotName + "/zed2i/left_optical";
                 geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
                     targetFrame, "world",
                     tf2::TimePointZero);
@@ -507,7 +545,7 @@ private:
         try
         {
             // Get camera TF frame
-            string targetFrame = "simulator" + robotName + "/zed2i/left_optical";
+            string targetFrame = "simulator/" + robotName + "/zed2i/left_optical";
             geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
                 "world", targetFrame,
                 tf2::TimePointZero);
@@ -536,7 +574,7 @@ private:
         try
         {
             // Get camera TF frame
-            string targetFrame = "simulator" + robotName + "/base_link";
+            string targetFrame = "simulator/" + robotName + "/base_link";
             geometry_msgs::msg::TransformStamped t = tfBuffer->lookupTransform(
                 "world", targetFrame,
                 tf2::TimePointZero);
@@ -644,7 +682,7 @@ private:
         // Message set up
         sensor_msgs::msg::PointCloud2 cloud;
         cloud.header.stamp = this->get_clock()->now();
-        cloud.header.frame_id = "simulator" + robotName + "/zed2i/left_optical";
+        cloud.header.frame_id = "simulator/" + robotName + "/zed2i/left_optical";
         cloud.width = IMG_WIDTH;
         cloud.height = IMG_HEIGHT;
         cloud.is_dense = false;
@@ -799,6 +837,37 @@ private:
         return glfwGetKey(window, GLFW_KEY_XX) == GLFW_PRESS;
     }
 
+    template<typename T>
+    T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
+    {
+        if(keywords.empty())
+        {
+            throw std::runtime_error("getYamlNodeAs() requires at least one keyword.");
+        }
+
+        YAML::Node node = YAML::Clone(n);
+        
+        try
+        {
+            for(std::string s : keywords)
+            {
+                node = node[s];
+            }
+
+            return node.as<T>();
+        } catch(YAML::Exception& e)
+        {
+            std::string msg = "Failed to parse value at tag " + keywords[0];
+            for(size_t i = 1; i < keywords.size(); i++)
+            {
+                msg +=  " -> " + keywords[i];
+            }
+            
+            msg += ": " + std::string(e.what());
+            throw std::runtime_error(msg);
+        }
+    }
+
     // Safely convert a YAML parameter to a double ex. toDouble(robotInfo["pose"]["x"])
     double toDouble(YAML::Node node)
     {
@@ -852,6 +921,7 @@ private:
     //===============================//
     //          VARIABLES            //
     //===============================//
+
     bool f3Screen = false;
     float lastFrame = 0.0;
     double deltaTime = 0.0;
@@ -885,7 +955,6 @@ private:
     SkyboxShader skyboxShader;
     ObjectShader objectShader;
     std::filesystem::path fontFolder;
-    std::filesystem::path modelFolder;
     std::filesystem::path shaderFolder;
     std::filesystem::path textureFolder;
     rclcpp::TimerBase::SharedPtr imgPubTimer;
