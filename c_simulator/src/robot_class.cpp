@@ -1,5 +1,7 @@
 #include "c_simulator/RobotClass.h"
 
+using namespace std::chrono_literals;
+
 //================================//
 //     OBJECT INITIALIZATION      //
 //================================//
@@ -44,6 +46,8 @@ bool Robot::loadParams(rclcpp::Node::SharedPtr node)
     this->node = node;
     tf_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
     tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
+
+    ballast_stamp = node->get_clock()->now();
 
     // Retrieve the path to the YAML config file from the parameters
     string vehicle_config_file, simulator_config_file;
@@ -110,7 +114,7 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     } catch(std::runtime_error& e)
     {
         double hullVolume = getYamlNodeAs<double>(vehicle_config, {"hull_volume"});
-        bouyancyVector = v3d(0, 0, 1000 * GRAVITY * hullVolume);
+        bouyancyVector = v3d(0, 0, WATER_DENSITY * GRAVITY * hullVolume);
         r_cob = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "cob"}));
     }
 
@@ -119,6 +123,27 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
 
     //  Getting base link position relative to center of mass
     r_baseLink = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"base_link"}));
+
+    // Getting active ballast information (if available)
+    ballast_enabled = false;
+    try
+    {
+        ballast_solenoids.exaustId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "exaust_solenoid"});
+        ballast_solenoids.pressureId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "pressure_solenoid"});
+        ballast_solenoids.waterId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "water_solenoid"});
+        
+        double ballast_volume = getYamlNodeAs<double>(vehicle_config, {"active_ballast", "volume"});
+        ballast_max_mass = WATER_DENSITY * ballast_volume;
+        ballast_in_flow_rate = getYamlNodeAs<double>(vehicle_config, {"active_ballast", "in_flow_rate"});
+        ballast_out_flow_rate = getYamlNodeAs<double>(vehicle_config, {"active_ballast", "out_flow_rate"});
+
+        //all settings parsed correctly, enable active ballast
+        ballast_enabled = true;
+    } catch(std::runtime_error& e)
+    {
+        RCLCPP_INFO(node->get_logger(), "Could not parse all active ballast settings (%s). Continuing with active ballast disabled", e.what());
+    }
+
 
     // Getting IMU information
     imu_enabled = false;
@@ -340,7 +365,7 @@ void Robot::setAccel(const vXd &stateDot)
 
     // a = F/m
     // Includes gravity acceleration for IMU, robot doesn't actually experience it
-    linAccel = stateDot.segment(7, 3) / mass + v3d(0, 0, GRAVITY);
+    linAccel = stateDot.segment(7, 3) / getTotalMass() + v3d(0, 0, GRAVITY);
     // alpha = I^-1 * T
     quat q(state[3], state[4], state[5], state[6]);
     m3d invWorldInertia = q * invBodyInertia * q.conjugate();
@@ -351,6 +376,59 @@ void Robot::setAccel(const vXd &stateDot)
 void Robot::addToThrusterQue(thrusterForcesStamped commandedThrust)
 {
     thrusterForceQue.push_back(commandedThrust);
+}
+
+// Updates the active ballast, adding or removing mass if necessary
+void Robot::updateActiveBallast(const ActiveBallastStates& states)
+{
+    if(!ballast_enabled)
+    {
+        return;
+    }
+
+    rclcpp::Time now = node->get_clock()->now();
+    rclcpp::Duration elapsed = now - ballast_stamp;
+    if(elapsed > 500ms)
+    {
+        RCLCPP_WARN_SKIPFIRST_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "Skipping ballast update because the last update happened over a second ago.");
+        return;
+    }
+
+    // assume that the state changed on the last timestep
+    // two actionable cases:
+    // - exaust and water are open (sink)
+    // - pressure and water are open (float)
+    // all other cases do nothing
+    
+    double deltaMass = 0;
+    if(states.exaustState && states.waterState)
+    {
+        // intaking, increase mass
+        deltaMass = WATER_DENSITY * ballast_in_flow_rate * elapsed.seconds();
+    } else if(states.pressureState && states.waterState)
+    {
+        // expelling, decrease mass
+        deltaMass = -1 * WATER_DENSITY * ballast_out_flow_rate * elapsed.seconds();
+    }
+
+    ballast_mass += deltaMass;
+    if(ballast_mass < 0)
+    {
+        ballast_mass = 0;
+    }
+
+    if(ballast_mass > ballast_max_mass)
+    {
+        ballast_mass = ballast_max_mass;
+    }
+
+    ballast_stamp = now;
+    RCLCPP_INFO(node->get_logger(), "ballast mass: %f", ballast_mass);
+}
+
+void Robot::setActiveBallastState(const ActiveBallastStates& states)
+{
+    ballast_states = states;
 }
 
 // Converts thruster forces into robot body forces and torques stored in class
@@ -430,6 +508,22 @@ double Robot::getMass()
 {
     return mass;
 }
+bool Robot::getBallastEnabled()
+{
+    return ballast_enabled;
+}
+double Robot::getBallastMass()
+{
+    return (ballast_enabled ? ballast_mass : 0);
+}
+ActiveBallastStates Robot::getBallastState()
+{
+    return ballast_states;
+}
+double Robot::getTotalMass()
+{
+    return mass + getBallastMass();
+}
 vXd Robot::getState()
 {
     return state;
@@ -468,7 +562,7 @@ string Robot::getName()
 }
 v3d Robot::getNetBouyantForce(const double &depth)
 {
-    return weightVector + getScaleFactor(depth) * bouyancyVector;
+    return v3d(0, 0, -1 * getTotalMass() * GRAVITY) + getScaleFactor(depth) * bouyancyVector;
 }
 v3d Robot::getDepthOffset()
 {
@@ -529,6 +623,10 @@ quat Robot::getDVLQuat()
 int Robot::getThrusterCount()
 {
     return thrusterCount;
+}
+ActiveBallastIDs Robot::getBallastSolenoidIds()
+{
+    return ballast_solenoids;
 }
 bool Robot::getAcousticsEnabled()
 {

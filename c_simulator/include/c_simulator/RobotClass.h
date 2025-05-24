@@ -28,6 +28,24 @@ struct thrusterForcesStamped
 };
 
 
+struct ActiveBallastStates
+{
+    bool 
+        exaustState,
+        pressureState,
+        waterState;
+};
+
+
+struct ActiveBallastIDs
+{
+    int
+        exaustId,
+        pressureId,
+        waterId;
+};
+
+
 template<typename T>
 T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
 {
@@ -70,6 +88,10 @@ public:
     //========================//
     vXd getState();
     double getMass();
+    bool getBallastEnabled();
+    double getBallastMass();
+    ActiveBallastStates getBallastState();
+    double getTotalMass();
     bool mapAvailable();
     m3d getInvInertia();
     std::string getName();
@@ -82,19 +104,22 @@ public:
     v3d getThrusterTorques();
     v3d getNetBouyantForce(const double &depth);
     geometry_msgs::msg::Transform getLCameraTransform();
+
+    // ACTIVE BALLAST ACCESSORS
+    ActiveBallastIDs getBallastSolenoidIds();
     
-    //ACOUSTICS ACCESSORS
+    // ACOUSTICS ACCESSORS
     bool getAcousticsEnabled();
     double getAcousticsPingTime();
     bool acousticsTransformAvailable();
     
-    //DEPTH ACCESSORS
+    // DEPTH ACCESSORS
     bool getDepthEnabled();
     double getDepthRate();
     v3d getDepthOffset();
     double getDepthSigma();
     
-    //DVL ACCESSORS
+    // DVL ACCESSORS
     bool getDVLEnabled();
     double getDVLRate();
     v3d getDVLOffset();
@@ -102,7 +127,7 @@ public:
     double getDVLSigma();
     bool dvlTransformAvailable();
 
-    //IMU ACCESSORS
+    // IMU ACCESSORS
     bool getIMUEnabled();
     double getIMURate();
     v3d getIMUOffset();
@@ -118,6 +143,8 @@ public:
     void setAccel(const vXd &stateDot);
     bool loadParams(rclcpp::Node::SharedPtr node);
     void addToThrusterQue(thrusterForcesStamped commandedThrust);
+    void updateActiveBallast(const ActiveBallastStates& states);
+    void setActiveBallastState(const ActiveBallastStates& states);
 
     //========================//
     //        MATHERS         //
@@ -127,9 +154,10 @@ public:
     v3d calcDragTorques(const v3d &linVel, const v3d &angVel, const double &depth);
 
 private:
-    //========================//
-    //       VARIABLES        //
-    //========================//
+//========================//
+//       VARIABLES        //
+//========================//
+    std::string name;      // Robot's name
 
     geometry_msgs::msg::Transform lCameraTransform;
     bool hasLCameraTransform;
@@ -170,10 +198,19 @@ private:
     double imu_sigmaAngle; // IMU sensor standard deviation
     double imu_yawDrift;   // IMU yaw drift in deg/min
 
-    std::string name;      // Robot's name
+    // active ballast info
+    bool ballast_enabled;
+    double ballast_mass;                // Added mass, for cases like active ballasts, kg. From 0 to ballastMaxMass
+    double ballast_max_mass;            // Maximum mass increase from active ballast, computed from volume. stored here (instead of volume) for efficiency. kg
+    double ballast_in_flow_rate;        // Volume of water (m^3) entering ballast per second while intaking water
+    double ballast_out_flow_rate;       // Volume of water (m^3) exiting ballast per second while expelling water
+    ActiveBallastIDs ballast_solenoids; // FW ids of solenoids
+    ActiveBallastStates ballast_states;
+    rclcpp::Time ballast_stamp;         // The last time the active ballast mass was updated
 
     std::vector<thrusterForcesStamped> thrusterForceQue;
     double mass;        // Robot mass, kg
+
     v3d forces;         // Thruster body forces
     v3d torques;        // Thruster body torques
     v3d weightVector;   // [0,0,-m*g] in world frame

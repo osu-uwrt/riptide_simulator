@@ -90,12 +90,21 @@ public:
         acousticsPub = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("acoustics/delta_t", 10);
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
+        solenoid1Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid1", 10);
+        solenoid2Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid2", 10);
+        solenoid3Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid3", 10);
+
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
+        solenoid1Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid1", 10, std::bind(&PhysicsSimNode::solenoid1Callback, this, _1));
+        solenoid2Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid2", 10, std::bind(&PhysicsSimNode::solenoid2Callback, this, _1));
+        solenoid3Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid3", 10, std::bind(&PhysicsSimNode::solenoid3Callback, this, _1));
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
+        ballastUpdateTimer = this->create_wall_timer(100ms, std::bind(&PhysicsSimNode::updateActiveBallast, this));
+        solenoidPubTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::publishSolenoidStates, this));
         thrusterTelemetryTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
         paramRefreshTimer = this->create_wall_timer(5.0s, std::bind(&PhysicsSimNode::refreshSimulationParameters, this));
 
@@ -230,7 +239,7 @@ private:
         // angular velocity = inverse inertia tensor * angular momentum
         v3d angularVel = invWorldInertia * state.segment(10, 3);
         // linear velocity = linear momentum/mass
-        v3d linearVel = state.segment(7, 3) / robot.getMass();
+        v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
         double depth = state[2];
 
         // Linear velocities
@@ -304,7 +313,7 @@ private:
         quat q = state2quat(state);
         m3d invWorldInertia = q * robot.getInvInertia() * q.conjugate();
         v3d angularVel = invWorldInertia * state.segment(10, 3);
-        v3d linearVel = state.segment(7, 3) / robot.getMass();
+        v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
 
         // Loop through all combination of boxes
         for (collisionBox &robotBox : robotBoxes)
@@ -327,7 +336,7 @@ private:
                     v3d r_a = collision.collisionPoint - state.segment(0, 3);
                     double v_rel = (linearVel + angularVel.cross(r_a)).dot(collision.unitDirection);
                     double impulse = -(1.0 + COEF_OF_RESTITUTION) * v_rel /
-                                     (1.0 / robot.getMass() + (invWorldInertia * (r_a.cross(collision.unitDirection))).cross(r_a).dot(collision.unitDirection));
+                                     (1.0 / robot.getTotalMass() + (invWorldInertia * (r_a.cross(collision.unitDirection))).cross(r_a).dot(collision.unitDirection));
                     // Seperate the objects
                     state.segment(0, 3) = collision.unitDirection * collision.depth + state.segment(0, 3);
                     // Update momentums
@@ -666,7 +675,7 @@ private:
             // angular velocity = inverse inertia tensor * angular momentum
             v3d angularVel = invWorldInertia * state.segment(10, 3);
             // linear velocity = linear momentum/mass
-            v3d linearVel = state.segment(7, 3) / robot.getMass();
+            v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
 
             // V_dvl = V_robot + w x r
             v3d dvlData = linearVel + angularVel.cross(q * robot.getDVLOffset());
@@ -852,6 +861,70 @@ private:
                 robot.addToThrusterQue(thrusterForcesStamped(vXd::Zero(robot.getThrusterCount()),
                                                              this->get_clock()->now().seconds()));
         }
+    }
+
+    void updateActiveBallast()
+    {
+        robot.updateActiveBallast(robot.getBallastState());
+    }
+
+    void storeSolenoidValue(int solenoidId, bool value)
+    {
+        ActiveBallastIDs ids = robot.getBallastSolenoidIds();
+        ActiveBallastStates states = robot.getBallastState();
+        if(solenoidId == ids.exaustId)
+        {
+            states.exaustState = value;
+        } else if(solenoidId == ids.pressureId)
+        {
+            states.pressureState = value;
+        } else if(solenoidId == ids.waterId)
+        {
+            states.waterState = value;
+        } else
+        {
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Solenoid ID %d is not valid (must be 1-3)", solenoidId);
+        }
+
+        robot.setActiveBallastState(states);
+    }
+
+    void solenoid1Callback(const std_msgs::msg::Bool& msg)
+    {
+        storeSolenoidValue(1, msg.data);
+    }
+
+    void solenoid2Callback(const std_msgs::msg::Bool& msg)
+    {
+        storeSolenoidValue(2, msg.data);
+    }
+    
+    void solenoid3Callback(const std_msgs::msg::Bool& msg)
+    {
+        storeSolenoidValue(3, msg.data);
+    }
+
+    void publishSingleSolenoidState(unsigned int solenoidId, bool value)
+    {
+        std_msgs::msg::Bool msg;
+        msg.data = value;
+        std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> v = {solenoid1Pub, solenoid2Pub, solenoid3Pub};
+        if(solenoidId > v.size())
+        {
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Solenoid ID %d is not valid (must be 1-3)", solenoidId);
+            return;
+        }
+
+        v[solenoidId - 1]->publish(msg);
+    }
+
+    void publishSolenoidStates()
+    {
+        ActiveBallastIDs ids = robot.getBallastSolenoidIds();
+        ActiveBallastStates states = robot.getBallastState();
+        publishSingleSolenoidState(ids.exaustId, states.exaustState);
+        publishSingleSolenoidState(ids.pressureId, states.pressureState);
+        publishSingleSolenoidState(ids.waterId, states.waterState);
     }
 
     // Function called by "/set_sim_pose" service. Updates simulator and EKF to requested position
@@ -1113,30 +1186,46 @@ private:
     Robot robot;
     bool enabled;
     bool sync_odom;
-    rclcpp::Time startTime;
+    
+    std::vector<collisionBox> obstacleBoxes;
     std::vector<collisionBox> robotBoxes;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
+
+    rclcpp::Time startTime;
+    
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
     rclcpp::TimerBase::SharedPtr acousticsTimer;
-    std::vector<collisionBox> obstacleBoxes;
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
+    rclcpp::TimerBase::SharedPtr ballastUpdateTimer;
+    rclcpp::TimerBase::SharedPtr solenoidPubTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
     rclcpp::TimerBase::SharedPtr paramRefreshTimer;
+     
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
-    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
-    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
-    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
-    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisionBoxPub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr acousticsPub;
-    rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr
+        solenoid1Pub,
+        solenoid2Pub,
+        solenoid3Pub;
+
+    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
+    rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
+        solenoid1Sub,
+        solenoid2Sub,
+        solenoid3Sub;
+    
+    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
+    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
 };
 
 //=========================//
