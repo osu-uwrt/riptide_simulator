@@ -90,15 +90,15 @@ public:
         acousticsPub = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("acoustics/delta_t", 10);
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
-        solenoid1Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid1", 10);
-        solenoid2Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid2", 10);
-        solenoid3Pub = this->create_publisher<std_msgs::msg::Bool>("power_board/state/solenoid3", 10);
+        exaustSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/exaust", 10);
+        pressureSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/pressure", 10);
+        waterSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/water", 10);
 
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
-        solenoid1Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid1", 10, std::bind(&PhysicsSimNode::solenoid1Callback, this, _1));
-        solenoid2Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid2", 10, std::bind(&PhysicsSimNode::solenoid2Callback, this, _1));
-        solenoid3Sub = this->create_subscription<std_msgs::msg::Bool>("power_board/command/solenoid3", 10, std::bind(&PhysicsSimNode::solenoid3Callback, this, _1));
+        exaustSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/exaust", 10, std::bind(&PhysicsSimNode::exaustSubCb, this, _1));
+        pressureSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/pressure", 10, std::bind(&PhysicsSimNode::pressureSubCb, this, _1));
+        waterSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/water", 10, std::bind(&PhysicsSimNode::waterSubCb, this, _1));
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
@@ -868,65 +868,39 @@ private:
         robot.updateActiveBallast(robot.getBallastState());
     }
 
-    void storeSolenoidValue(int solenoidId, bool value)
+    void exaustSubCb(const std_msgs::msg::Bool& msg)
     {
-        ActiveBallastIDs ids = robot.getBallastSolenoidIds();
-        ActiveBallastStates states = robot.getBallastState();
-        if(solenoidId == ids.exaustId)
-        {
-            states.exaustState = value;
-        } else if(solenoidId == ids.pressureId)
-        {
-            states.pressureState = value;
-        } else if(solenoidId == ids.waterId)
-        {
-            states.waterState = value;
-        } else
-        {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Solenoid ID %d is not valid (must be 1-3)", solenoidId);
-        }
-
-        robot.setActiveBallastState(states);
+        ActiveBallastStates state = robot.getBallastState();
+        state.exaustState = msg.data;
+        robot.setActiveBallastState(state);
     }
 
-    void solenoid1Callback(const std_msgs::msg::Bool& msg)
+    void pressureSubCb(const std_msgs::msg::Bool& msg)
     {
-        storeSolenoidValue(1, msg.data);
-    }
-
-    void solenoid2Callback(const std_msgs::msg::Bool& msg)
-    {
-        storeSolenoidValue(2, msg.data);
+        ActiveBallastStates state = robot.getBallastState();
+        state.pressureState = msg.data;
+        robot.setActiveBallastState(state);
     }
     
-    void solenoid3Callback(const std_msgs::msg::Bool& msg)
+    void waterSubCb(const std_msgs::msg::Bool& msg)
     {
-        storeSolenoidValue(3, msg.data);
-    }
-
-    void publishSingleSolenoidState(unsigned int solenoidId, bool value)
-    {
-        std_msgs::msg::Bool msg;
-        msg.data = value;
-        std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> v = {solenoid1Pub, solenoid2Pub, solenoid3Pub};
-        if(solenoidId > v.size())
-        {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Solenoid ID %d is not valid (must be 1-3)", solenoidId);
-            return;
-        }
-
-        v[solenoidId - 1]->publish(msg);
+        ActiveBallastStates state = robot.getBallastState();
+        state.waterState = msg.data;
+        robot.setActiveBallastState(state);
     }
 
     void publishSolenoidStates()
     {
         if(robot.getBallastEnabled())
         {
-            ActiveBallastIDs ids = robot.getBallastSolenoidIds();
             ActiveBallastStates states = robot.getBallastState();
-            publishSingleSolenoidState(ids.exaustId, states.exaustState);
-            publishSingleSolenoidState(ids.pressureId, states.pressureState);
-            publishSingleSolenoidState(ids.waterId, states.waterState);
+            std_msgs::msg::Bool msg;
+            msg.data = states.exaustState;
+            exaustSolenoidPub->publish(msg);
+            msg.data = states.pressureState;
+            pressureSolenoidPub->publish(msg);
+            msg.data = states.waterState;
+            waterSolenoidPub->publish(msg);
         }
     }
 
@@ -1216,16 +1190,16 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr acousticsPub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr
-        solenoid1Pub,
-        solenoid2Pub,
-        solenoid3Pub;
+        exaustSolenoidPub,
+        pressureSolenoidPub,
+        waterSolenoidPub;
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
-        solenoid1Sub,
-        solenoid2Sub,
-        solenoid3Sub;
+        exaustSolenoidSub,
+        pressureSolenoidSub,
+        waterSolenoidSub;
     
     rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
     rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;

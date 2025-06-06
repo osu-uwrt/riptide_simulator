@@ -127,11 +127,7 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     // Getting active ballast information (if available)
     ballast_enabled = false;
     try
-    {
-        ballast_solenoids.exaustId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "exaust_solenoid"});
-        ballast_solenoids.pressureId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "pressure_solenoid"});
-        ballast_solenoids.waterId = getYamlNodeAs<int>(vehicle_config, {"active_ballast", "water_solenoid"});
-        
+    {   
         double ballast_volume = getYamlNodeAs<double>(vehicle_config, {"active_ballast", "volume"});
         ballast_max_mass = WATER_DENSITY * ballast_volume;
         ballast_in_flow_rate = getYamlNodeAs<double>(vehicle_config, {"active_ballast", "in_flow_rate"});
@@ -622,10 +618,6 @@ quat Robot::getDVLQuat()
 int Robot::getThrusterCount()
 {
     return thrusterCount;
-}
-ActiveBallastIDs Robot::getBallastSolenoidIds()
-{
-    return ballast_solenoids;
 }
 bool Robot::getAcousticsEnabled()
 {

@@ -37,15 +37,6 @@ struct ActiveBallastStates
 };
 
 
-struct ActiveBallastIDs
-{
-    int
-        exaustId,
-        pressureId,
-        waterId;
-};
-
-
 template<typename T>
 T getYamlNodeAs(const YAML::Node& n, const std::vector<std::string>& keywords)
 {
@@ -104,9 +95,6 @@ public:
     v3d getThrusterTorques();
     v3d getNetBouyantForce(const double &depth);
     geometry_msgs::msg::Transform getLCameraTransform();
-
-    // ACTIVE BALLAST ACCESSORS
-    ActiveBallastIDs getBallastSolenoidIds();
     
     // ACOUSTICS ACCESSORS
     bool getAcousticsEnabled();
@@ -204,7 +192,6 @@ private:
     double ballast_max_mass;            // Maximum mass increase from active ballast, computed from volume. stored here (instead of volume) for efficiency. kg
     double ballast_in_flow_rate;        // Volume of water (m^3) entering ballast per second while intaking water
     double ballast_out_flow_rate;       // Volume of water (m^3) exiting ballast per second while expelling water
-    ActiveBallastIDs ballast_solenoids; // FW ids of solenoids
     ActiveBallastStates ballast_states;
     rclcpp::Time ballast_stamp;         // The last time the active ballast mass was updated
 
