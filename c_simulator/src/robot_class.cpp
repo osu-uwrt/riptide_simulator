@@ -397,7 +397,7 @@ void Robot::updateActiveBallast(const ActiveBallastStates& states)
     // all other cases do nothing
     
     double deltaMass = 0;
-    if(states.exaustState && states.waterState)
+    if(states.exhaustState && states.waterState)
     {
         // intaking, increase mass
         deltaMass = WATER_DENSITY * ballast_in_flow_rate * elapsed.seconds();

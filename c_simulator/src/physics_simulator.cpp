@@ -90,13 +90,13 @@ public:
         acousticsPub = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("acoustics/delta_t", 10);
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
-        exaustSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/exaust", 10);
+        exhaustSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/exhaust", 10);
         pressureSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/pressure", 10);
         waterSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/water", 10);
 
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
-        exaustSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/exaust", 10, std::bind(&PhysicsSimNode::exaustSubCb, this, _1));
+        exhaustSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/exhaust", 10, std::bind(&PhysicsSimNode::exhaustSubCb, this, _1));
         pressureSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/pressure", 10, std::bind(&PhysicsSimNode::pressureSubCb, this, _1));
         waterSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/water", 10, std::bind(&PhysicsSimNode::waterSubCb, this, _1));
 
@@ -868,10 +868,10 @@ private:
         robot.updateActiveBallast(robot.getBallastState());
     }
 
-    void exaustSubCb(const std_msgs::msg::Bool& msg)
+    void exhaustSubCb(const std_msgs::msg::Bool& msg)
     {
         ActiveBallastStates state = robot.getBallastState();
-        state.exaustState = msg.data;
+        state.exhaustState = msg.data;
         robot.setActiveBallastState(state);
     }
 
@@ -895,8 +895,8 @@ private:
         {
             ActiveBallastStates states = robot.getBallastState();
             std_msgs::msg::Bool msg;
-            msg.data = states.exaustState;
-            exaustSolenoidPub->publish(msg);
+            msg.data = states.exhaustState;
+            exhaustSolenoidPub->publish(msg);
             msg.data = states.pressureState;
             pressureSolenoidPub->publish(msg);
             msg.data = states.waterState;
@@ -1190,14 +1190,14 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr acousticsPub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr
-        exaustSolenoidPub,
+        exhaustSolenoidPub,
         pressureSolenoidPub,
         waterSolenoidPub;
 
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
-        exaustSolenoidSub,
+        exhaustSolenoidSub,
         pressureSolenoidSub,
         waterSolenoidSub;
     

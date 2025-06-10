@@ -31,7 +31,7 @@ struct thrusterForcesStamped
 struct ActiveBallastStates
 {
     bool 
-        exaustState,
+        exhaustState,
         pressureState,
         waterState;
 };
