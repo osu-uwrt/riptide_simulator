@@ -90,12 +90,21 @@ public:
         acousticsPub = this->create_publisher<geometry_msgs::msg::Vector3Stamped>("acoustics/delta_t", 10);
         collisionBoxPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("simulator/collisionMarkers", 10);
         thrusterTelemetryPub = this->create_publisher<riptide_msgs2::msg::DshotPartialTelemetry>("state/thrusters/telemetry", 10);
+        exhaustSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/exhaust", 10);
+        pressureSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/pressure", 10);
+        waterSolenoidPub = this->create_publisher<std_msgs::msg::Bool>("state/solenoid/water", 10);
+
         thrusterSub = this->create_subscription<std_msgs::msg::Float32MultiArray>("thruster_forces", 10, std::bind(&PhysicsSimNode::forceCallback, this, _1));
         softwareKillSub = this->create_subscription<riptide_msgs2::msg::KillSwitchReport>("command/software_kill", 10, std::bind(&PhysicsSimNode::killSwitchCallback, this, _1));
+        exhaustSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/exhaust", 10, std::bind(&PhysicsSimNode::exhaustSubCb, this, _1));
+        pressureSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/pressure", 10, std::bind(&PhysicsSimNode::pressureSubCb, this, _1));
+        waterSolenoidSub = this->create_subscription<std_msgs::msg::Bool>("command/solenoid/water", 10, std::bind(&PhysicsSimNode::waterSubCb, this, _1));
 
         // Create timers
         auto statePubTime = std::chrono::duration<double>((double)STATE_PUB_TIME);
         statePubTimer = this->create_wall_timer(statePubTime, std::bind(&PhysicsSimNode::publishState, this));
+        ballastUpdateTimer = this->create_wall_timer(100ms, std::bind(&PhysicsSimNode::updateActiveBallast, this));
+        solenoidPubTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::publishSolenoidStates, this));
         thrusterTelemetryTimer = this->create_wall_timer(0.5s, std::bind(&PhysicsSimNode::pubThrusterTelemetry, this));
         paramRefreshTimer = this->create_wall_timer(5.0s, std::bind(&PhysicsSimNode::refreshSimulationParameters, this));
 
@@ -140,7 +149,8 @@ public:
         {
             // Report error
             if (!paramsLoaded)
-                RCLCPP_INFO(this->get_logger(), "Failed to read YAML parameter data");
+                RCLCPP_INFO(this->get_logger(), "Failed to read YAML parameter data, loaded params: %s, loaded collision: %s",
+                    (paramsLoaded ? "yes" : "no"), (collisionBoxesLoaded ? "yes" : "no"));
             else
                 RCLCPP_INFO(this->get_logger(), "Failed to read collision URDF data");
         }
@@ -229,7 +239,7 @@ private:
         // angular velocity = inverse inertia tensor * angular momentum
         v3d angularVel = invWorldInertia * state.segment(10, 3);
         // linear velocity = linear momentum/mass
-        v3d linearVel = state.segment(7, 3) / robot.getMass();
+        v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
         double depth = state[2];
 
         // Linear velocities
@@ -303,7 +313,7 @@ private:
         quat q = state2quat(state);
         m3d invWorldInertia = q * robot.getInvInertia() * q.conjugate();
         v3d angularVel = invWorldInertia * state.segment(10, 3);
-        v3d linearVel = state.segment(7, 3) / robot.getMass();
+        v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
 
         // Loop through all combination of boxes
         for (collisionBox &robotBox : robotBoxes)
@@ -326,7 +336,7 @@ private:
                     v3d r_a = collision.collisionPoint - state.segment(0, 3);
                     double v_rel = (linearVel + angularVel.cross(r_a)).dot(collision.unitDirection);
                     double impulse = -(1.0 + COEF_OF_RESTITUTION) * v_rel /
-                                     (1.0 / robot.getMass() + (invWorldInertia * (r_a.cross(collision.unitDirection))).cross(r_a).dot(collision.unitDirection));
+                                     (1.0 / robot.getTotalMass() + (invWorldInertia * (r_a.cross(collision.unitDirection))).cross(r_a).dot(collision.unitDirection));
                     // Seperate the objects
                     state.segment(0, 3) = collision.unitDirection * collision.depth + state.segment(0, 3);
                     // Update momentums
@@ -461,9 +471,9 @@ private:
         }
 
         // Add the robot collision boxes
-        if (sceneFile["robot"]["collision"].IsDefined())
+        if (sceneFile["robot"][robot.getName()]["collision"].IsDefined())
         {
-            std::string robotCollisionPath = collisionFolder / "robots" / sceneFile["robot"]["collision"].as<string>();
+            std::string robotCollisionPath = collisionFolder / "robots" / getYamlNodeAs<string>(sceneFile, {"robot", robot.getName(), "collision"});
             urdf::ModelInterfaceSharedPtr robotModel = urdf::parseURDFFile(robotCollisionPath);
             if (!robotModel)
             {
@@ -474,36 +484,39 @@ private:
         }
 
         // Add the objects collision boxes
-        for (auto const &entryPair : sceneFile["objects"])
+        if(sceneFile["objects"].IsDefined())
         {
-            // Get the .urdf file with some error checking
-            YAML::Node entry = entryPair.second;
-            if (!entry["collision"].IsDefined())
+            for (auto const &entryPair : sceneFile["objects"])
             {
-                RCLCPP_WARN(this->get_logger(), "Skipping entry  %s without collision info.", entryPair.first.as<string>().c_str());
-                continue;
+                // Get the .urdf file with some error checking
+                YAML::Node entry = entryPair.second;
+                if (!entry["collision"].IsDefined())
+                {
+                    RCLCPP_WARN(this->get_logger(), "Skipping entry  %s without collision info.", entryPair.first.as<string>().c_str());
+                    continue;
+                }
+                std::string objectCollisionPath = collisionFolder / "objects" / getYamlNodeAs<string>(entry, {"collision"});
+                urdf::ModelInterfaceSharedPtr objectModel = urdf::parseURDFFile(objectCollisionPath);
+                if (!objectModel)
+                {
+                    RCLCPP_ERROR(this->get_logger(), "Failed to load object model: %s, continuing...", objectCollisionPath.c_str());
+                    continue;
+                }
+                // Get position and orientation
+                v3d position(toDouble(entry["pose"]["x"]),
+                            toDouble(entry["pose"]["y"]),
+                            toDouble(entry["pose"]["z"]));
+                tf2::Quaternion tf2Quat;
+                tf2Quat.setRPY(deg2rad(toDouble(entry["pose"]["roll"])),
+                            deg2rad(toDouble(entry["pose"]["pitch"])),
+                            deg2rad(toDouble(entry["pose"]["yaw"])));
+                tf2Quat.normalize();
+                quat objQuat(tf2Quat.w(), tf2Quat.x(), tf2Quat.y(), tf2Quat.z());
+                // Add all the new boxes to the vector
+                std::vector<collisionBox> newBoxes = unpackURDF(objectModel, position, objQuat);
+                for (collisionBox newBox : newBoxes)
+                    obstacleBoxes.push_back(newBox);
             }
-            std::string objectCollisionPath = collisionFolder / "objects" / entry["collision"].as<string>();
-            urdf::ModelInterfaceSharedPtr objectModel = urdf::parseURDFFile(objectCollisionPath);
-            if (!objectModel)
-            {
-                RCLCPP_ERROR(this->get_logger(), "Failed to load object model: %s, continuing...", objectCollisionPath.c_str());
-                continue;
-            }
-            // Get position and orientation
-            v3d position(toDouble(entry["pose"]["x"]),
-                         toDouble(entry["pose"]["y"]),
-                         toDouble(entry["pose"]["z"]));
-            tf2::Quaternion tf2Quat;
-            tf2Quat.setRPY(deg2rad(toDouble(entry["pose"]["roll"])),
-                           deg2rad(toDouble(entry["pose"]["pitch"])),
-                           deg2rad(toDouble(entry["pose"]["yaw"])));
-            tf2Quat.normalize();
-            quat objQuat(tf2Quat.w(), tf2Quat.x(), tf2Quat.y(), tf2Quat.z());
-            // Add all the new boxes to the vector
-            std::vector<collisionBox> newBoxes = unpackURDF(objectModel, position, objQuat);
-            for (collisionBox newBox : newBoxes)
-                obstacleBoxes.push_back(newBox);
         }
         // Add floor to list
         collisionBox floor = collisionBox("floor", 25, 50, 1, v3d(0, 0, -2.6336));
@@ -625,24 +638,34 @@ private:
     // Fabricates fake depth sensor data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDepthData()
     {
-        // Get depth and add noise to data
-        double depthData = robot.getState().z();
-        if (SENSOR_NOISE_ENABLED && !this->sync_odom)
-            depthData = randomNorm(depthData, robot.getDepthSigma());
+        if(robot.getDepthEnabled())
+        {
+            // Get depth and add noise to data
+            double depthData = robot.getState().z();
+            if (SENSOR_NOISE_ENABLED && !this->sync_odom)
+                depthData = randomNorm(depthData, robot.getDepthSigma());
+    
+            // Send message with depth sensor info
+            geometry_msgs::msg::PoseWithCovarianceStamped depthMsg;
+            depthMsg.pose.pose.position.z = depthData;
+            depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
+            depthMsg.header.stamp = this->get_clock()->now();
+            depthMsg.header.frame_id = "odom";
 
-        // Send message with depth sensor info
-        geometry_msgs::msg::PoseWithCovarianceStamped depthMsg;
-        depthMsg.pose.pose.position.z = depthData;
-        depthMsg.pose.covariance[14] = robot.getDepthSigma() * robot.getDepthSigma();
-        depthMsg.header.stamp = this->get_clock()->now();
-        depthMsg.header.frame_id = "odom";
-        depthPub->publish(depthMsg);
+            if(!hasNans(depthMsg))
+            {
+                depthPub->publish(depthMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing depth message. Skipped.");
+            }
+        }
     }
 
     // Fabricates fake DVL data from robot's state and publishes it to topic. Called on a timer
     void publishFakeDVLData()
     {
-        if (robot.dvlTransformAvailable())
+        if (robot.getDVLEnabled() && robot.dvlTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -652,7 +675,7 @@ private:
             // angular velocity = inverse inertia tensor * angular momentum
             v3d angularVel = invWorldInertia * state.segment(10, 3);
             // linear velocity = linear momentum/mass
-            v3d linearVel = state.segment(7, 3) / robot.getMass();
+            v3d linearVel = state.segment(7, 3) / robot.getTotalMass();
 
             // V_dvl = V_robot + w x r
             v3d dvlData = linearVel + angularVel.cross(q * robot.getDVLOffset());
@@ -675,14 +698,20 @@ private:
             // Send message
             dvlMsg.header.stamp = this->get_clock()->now();
             dvlMsg.header.frame_id = robot.getName() + "/dvl_link";
-            dvlPub->publish(dvlMsg);
+            if(!hasNans(dvlMsg))
+            {
+                dvlPub->publish(dvlMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing DVL message. Skipped.");
+            }
         }
     }
 
     // Fabricates fake IMU data from robot's state and publishes it to topic. Called on a timer
     void publishFakeIMUData()
     {
-        if (robot.imuTransformAvailable())
+        if (robot.getIMUEnabled() && robot.imuTransformAvailable())
         {
             vXd state = robot.getState();
             // Get quaternion from state
@@ -750,7 +779,14 @@ private:
             // Publish message
             imuMsg.header.stamp = this->get_clock()->now();
             imuMsg.header.frame_id = robot.getName() + "/imu_link";
-            imuPub->publish(imuMsg);
+
+            if(!hasNans(imuMsg))
+            {
+                imuPub->publish(imuMsg);
+            } else
+            {
+                RCLCPP_WARN_SKIPFIRST_THROTTLE(get_logger(), *get_clock(), 1000, "NaNs present in outgoing IMU message. Skipped.");
+            }
         }
     }
 
@@ -806,6 +842,7 @@ private:
         // Only set forces if robot's enabled
         if (enabled)
             commandedThrust.thrusterForces = convert2eigen(thrusterForces.data);
+            
         robot.addToThrusterQue(commandedThrust);
     }
 
@@ -823,6 +860,47 @@ private:
             if (!enabled)
                 robot.addToThrusterQue(thrusterForcesStamped(vXd::Zero(robot.getThrusterCount()),
                                                              this->get_clock()->now().seconds()));
+        }
+    }
+
+    void updateActiveBallast()
+    {
+        robot.updateActiveBallast(robot.getBallastState());
+    }
+
+    void exhaustSubCb(const std_msgs::msg::Bool& msg)
+    {
+        ActiveBallastStates state = robot.getBallastState();
+        state.exhaustState = msg.data;
+        robot.setActiveBallastState(state);
+    }
+
+    void pressureSubCb(const std_msgs::msg::Bool& msg)
+    {
+        ActiveBallastStates state = robot.getBallastState();
+        state.pressureState = msg.data;
+        robot.setActiveBallastState(state);
+    }
+    
+    void waterSubCb(const std_msgs::msg::Bool& msg)
+    {
+        ActiveBallastStates state = robot.getBallastState();
+        state.waterState = msg.data;
+        robot.setActiveBallastState(state);
+    }
+
+    void publishSolenoidStates()
+    {
+        if(robot.getBallastEnabled())
+        {
+            ActiveBallastStates states = robot.getBallastState();
+            std_msgs::msg::Bool msg;
+            msg.data = states.exhaustState;
+            exhaustSolenoidPub->publish(msg);
+            msg.data = states.pressureState;
+            pressureSolenoidPub->publish(msg);
+            msg.data = states.waterState;
+            waterSolenoidPub->publish(msg);
         }
     }
 
@@ -918,7 +996,7 @@ private:
             tf_broadcaster->sendTransform(robotFrame);
             tf_broadcaster->sendTransform(cameraFrameL);
 
-            // If enabled, constantly sync odomotry's position to physic's position
+            // If enabled, constantly sync odomotry's position to physics position
             if (this->sync_odom)
             {
                 // Fill messasge with robot's position
@@ -999,6 +1077,85 @@ private:
         return degrees * M_PI / 180;
     }
 
+    bool hasNans(const std::array<double, 9UL>& arr)
+    {
+        for(size_t i = 0; i < 9UL; i++)
+        {
+            if(isnan(arr[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasNans(const std::array<double, 36UL>& arr)
+    {
+        for(size_t i = 0; i < 36UL; i++)
+        {
+            if(isnan(arr[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool hasNans(const geometry_msgs::msg::Vector3& v3Msg)
+    {
+        return
+            isnan(v3Msg.x) ||
+            isnan(v3Msg.y) ||
+            isnan(v3Msg.z);
+    }
+
+    bool hasNans(const geometry_msgs::msg::Point& pMsg)
+    {
+        return
+            isnan(pMsg.x) ||
+            isnan(pMsg.y) ||
+            isnan(pMsg.z);
+    }
+
+    bool hasNans(const geometry_msgs::msg::Quaternion& quatMsg)
+    {
+        return
+            isnan(quatMsg.x) ||
+            isnan(quatMsg.y) ||
+            isnan(quatMsg.z) ||
+            isnan(quatMsg.w);
+    }
+
+    bool hasNans(const geometry_msgs::msg::PoseWithCovarianceStamped& poseMsg)
+    {
+        return
+            hasNans(poseMsg.pose.covariance) ||
+            hasNans(poseMsg.pose.pose.orientation) ||
+            hasNans(poseMsg.pose.pose.position);
+    }
+
+    bool hasNans(const sensor_msgs::msg::Imu& imuMsg)
+    {
+        return
+            hasNans(imuMsg.angular_velocity) ||
+            hasNans(imuMsg.angular_velocity_covariance) ||
+            hasNans(imuMsg.linear_acceleration) ||
+            hasNans(imuMsg.linear_acceleration_covariance) ||
+            hasNans(imuMsg.orientation) ||
+            hasNans(imuMsg.orientation_covariance);
+    }
+
+    bool hasNans(const geometry_msgs::msg::TwistWithCovarianceStamped& twistMsg)
+    {
+        return
+            hasNans(twistMsg.twist.covariance) ||
+            hasNans(twistMsg.twist.twist.angular) ||
+            hasNans(twistMsg.twist.twist.linear);
+    }
+
+
     //================================//
     //          VARIABLES             //
     //================================//
@@ -1006,30 +1163,46 @@ private:
     Robot robot;
     bool enabled;
     bool sync_odom;
-    rclcpp::Time startTime;
+    
+    std::vector<collisionBox> obstacleBoxes;
     std::vector<collisionBox> robotBoxes;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
+
+    rclcpp::Time startTime;
+    
     rclcpp::TimerBase::SharedPtr dvlTimer;
     rclcpp::TimerBase::SharedPtr imuTimer;
     rclcpp::TimerBase::SharedPtr depthTimer;
     rclcpp::TimerBase::SharedPtr acousticsTimer;
-    std::vector<collisionBox> obstacleBoxes;
     rclcpp::TimerBase::SharedPtr statePubTimer;
     rclcpp::TimerBase::SharedPtr killSwitchTimer;
+    rclcpp::TimerBase::SharedPtr ballastUpdateTimer;
+    rclcpp::TimerBase::SharedPtr solenoidPubTimer;
     rclcpp::TimerBase::SharedPtr thrusterTelemetryTimer;
     rclcpp::TimerBase::SharedPtr paramRefreshTimer;
+     
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imuPub;
-    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr statePub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr firmwareKillPub;
-    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
-    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
-    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisionBoxPub;
     rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr dvlPub;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr depthPub;
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr acousticsPub;
-    rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Publisher<riptide_msgs2::msg::DshotPartialTelemetry>::SharedPtr thrusterTelemetryPub;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr
+        exhaustSolenoidPub,
+        pressureSolenoidPub,
+        waterSolenoidPub;
+
+    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
+    rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
+        exhaustSolenoidSub,
+        pressureSolenoidSub,
+        waterSolenoidSub;
+    
+    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
+    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
 };
 
 //=========================//
