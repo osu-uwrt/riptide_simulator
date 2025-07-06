@@ -98,7 +98,14 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     // Getting mass information
     mass = getYamlNodeAs<double>(vehicle_config, {"mass"});
     weightVector = {0, 0, -mass * GRAVITY};
-    v3d d_com = std2v3d(simulator_config["vehicle_properties"]["dcom"].as<std::vector<double>>());
+
+    v3d d_com = v3d(0,0,0);
+    try{
+        d_com = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "dcom"}));
+    }catch(std::runtime_error& e){
+        RCLCPP_INFO(node->get_logger(), "Failed to load dcom. Center of mas discrepancy is disabled!");
+    }
+    
     v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>()) + d_com;
 
     // Getting inertia information
@@ -703,7 +710,7 @@ v3d Robot::getClawObjectForces(){
 }
 v3d Robot::getClawObjectTorques(){
     return claw_object_torques;
-
+}
 bool Robot::getAcousticsEnabled()
 {
     return acousticsEnabled;

@@ -1208,15 +1208,12 @@ private:
         pressureSolenoidPub,
         waterSolenoidPub;
 
-    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterSub;
     rclcpp::Subscription<riptide_msgs2::msg::KillSwitchReport>::SharedPtr softwareKillSub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
         exhaustSolenoidSub,
         pressureSolenoidSub,
         waterSolenoidSub;
-    
-    rclcpp::Client<robot_localization::srv::SetPose>::SharedPtr poseClient;
-    rclcpp::Service<robot_localization::srv::SetPose>::SharedPtr poseService;
+
 };
 
 //=========================//

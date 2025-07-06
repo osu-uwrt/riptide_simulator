@@ -99,8 +99,6 @@ public:
     v3d getThrusterTorques();
     v3d getClawObjectForces();
     v3d getClawObjectTorques();
-    bool dvlTransformAvailable();
-    bool imuTransformAvailable();
     bool acousticsTransformAvailable();
     bool clawTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
@@ -109,7 +107,6 @@ public:
     // ACOUSTICS ACCESSORS
     bool getAcousticsEnabled();
     double getAcousticsPingTime();
-    bool acousticsTransformAvailable();
     
     // DEPTH ACCESSORS
     bool getDepthEnabled();
