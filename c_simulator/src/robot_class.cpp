@@ -100,10 +100,13 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     weightVector = {0, 0, -mass * GRAVITY};
 
     v3d d_com = v3d(0,0,0);
+    environment_force = v3d(0,0,0);
     try{
         d_com = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "dcom"}));
+        environment_force = std2v3d(getYamlNodeAs<std::vector<double>>(simulator_config, {"vehicle_properties", name, "env_force"}));
+        RCLCPP_INFO(node->get_logger(), "ENV force: %f", environment_force[1]);
     }catch(std::runtime_error& e){
-        RCLCPP_INFO(node->get_logger(), "Failed to load dcom. Center of mas discrepancy is disabled!");
+        RCLCPP_INFO(node->get_logger(), "Failed to load dcom/env force. Center of mass discrepancy is disabled!");
     }
     
     v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>()) + d_com;
@@ -715,6 +718,10 @@ bool Robot::getAcousticsEnabled()
 {
     return acousticsEnabled;
 }
+v3d Robot::getEnvironmentForces(){
+    return environment_force;
+}
+
 double Robot::getAcousticsPingTime()
 {
     // calculate the time between the port and starboard acoustics pods recieving pulses

@@ -99,6 +99,7 @@ public:
     v3d getThrusterTorques();
     v3d getClawObjectForces();
     v3d getClawObjectTorques();
+    v3d getEnvironmentForces();
     bool acousticsTransformAvailable();
     bool clawTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
@@ -174,6 +175,7 @@ private:
     v3d r_baseLink;        // Base link cordinate system relative to COM
     v3d r_cob;             // Center of bouyancy relative to COM
     v3d r_cod;             // Center of drag relative to COM
+    v3d environment_force; // Force from the environment
 
     //DEPTH SENSOR
     bool depth_enabled;

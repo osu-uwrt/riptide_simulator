@@ -267,7 +267,8 @@ private:
 
         v3d body_forces = robot.getThrusterForces() + robot.calcDragForces(q.conjugate() * linVel, depth);
         v3d world_forces = q * body_forces + robot.getNetBouyantForce(depth)+ robot.getClawObjectForces();
-        
+        world_forces = world_forces + robot.getEnvironmentForces();
+
         return world_forces;
     }
 
