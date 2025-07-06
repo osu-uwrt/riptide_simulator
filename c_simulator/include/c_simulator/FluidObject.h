@@ -3,10 +3,6 @@
 #include <cmath>
 #include <eigen3/Eigen/Dense>
 
-
-
-
-
 typedef Eigen::Vector3d v3d;
 
 

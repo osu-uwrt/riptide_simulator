@@ -15,6 +15,8 @@ thrusterForcesStamped::thrusterForcesStamped(vXd thrusterForces_, double time_)
 Robot::Robot()
 {
     Robot("talos");
+    claw_object_forces = v3d(0.0, 0.0, 0.0);
+
 }
 
 Robot::Robot(string name_)
@@ -33,6 +35,9 @@ Robot::Robot(string name_)
     hasIMUTransform = false;
     hasAcousticsTransform = false;
     hasMapFrame = false;
+
+    claw_object_forces = v3d(0.0, 0.0, 0.0);
+    claw_object_torques = v3d(0.0, 0.0, 0.0);
 }
 
 /**
@@ -40,11 +45,13 @@ Robot::Robot(string name_)
  * @param node ROS2 physics simulator node
  * @return whether the results were loaded successfully
  */
-bool Robot::loadParams(rclcpp::Node::SharedPtr node)
+bool Robot::loadParams(rclcpp::Node::SharedPtr Node)
 {
+
+    this->hasClawTransform = false;
     // Creating tf2 buffer and listener
-    this->node = node;
-    tf_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
+    this->node = Node;
+    tf_buffer = std::make_unique<tf2_ros::Buffer>(Node->get_clock());
     tf_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer);
 
     ballast_stamp = node->get_clock()->now();
@@ -91,8 +98,8 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     // Getting mass information
     mass = getYamlNodeAs<double>(vehicle_config, {"mass"});
     weightVector = {0, 0, -mass * GRAVITY};
-    
-    v3d r_com = std2v3d(getYamlNodeAs<std::vector<double>>(vehicle_config, {"com"}));
+    v3d d_com = std2v3d(simulator_config["vehicle_properties"]["dcom"].as<std::vector<double>>());
+    v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>()) + d_com;
 
     // Getting inertia information
 
@@ -247,6 +254,18 @@ void Robot::storeConfigData(const YAML::Node& vehicle_config, const YAML::Node& 
     {
         RCLCPP_INFO(node->get_logger(), "Acoustics is disabled.");
     }
+
+    //loop through the claw objects and add them to the dictionary
+    for (YAML::const_iterator ti = simulator_config["claw"]["fake_objects"].begin(); ti != simulator_config["claw"]["fake_objects"].end(); ++ti){
+        const YAML::Node& claw_object_name = ti->first;
+        const YAML::Node& claw_object = ti->second;
+        
+        Claw_Object object;
+        object.net_buoyancy = claw_object["net_buoyancy"].as<double>();
+        std::vector<double> object_com = claw_object["com"].as<std::vector<double>>();
+        object.com = v3d(object_com[0], object_com[1], object_com[2]);
+        claw_objects[claw_object_name.as<string>()] = object;
+    }
 }
 
 //================================//
@@ -367,6 +386,50 @@ void Robot::setAccel(const vXd &stateDot)
     m3d invWorldInertia = q * invBodyInertia * q.conjugate();
     angAccel = invWorldInertia * (v3d)stateDot.segment(10, 3);
 }
+
+//set object loaded in robots claw
+void Robot::setLoadedClawObject(std_msgs::msg::String object_name_msg){
+    //if object name is not a expected one -> set empty & scream
+    //set to none to bypass screamer
+
+    if(!strcmp(object_name_msg.data.c_str(), "none")){
+        this->claw_object_forces = v3d(0.0, 0.0, 0.0);
+        this->claw_object_torques = v3d(0.0, 0.0, 0.0);
+
+        RCLCPP_INFO(node->get_logger(), "Clearing Claw!");
+
+        return;
+    }
+
+    //need this transform to add an object
+    if(!clawTransformAvailable()){
+        //return;
+    }
+
+
+    for(auto ti = claw_objects.begin(); ti != claw_objects.end(); ti++){
+        if(!strcmp(object_name_msg.data.c_str(), ti->first.c_str())){
+            this->claw_object_forces[2] = ti->second.net_buoyancy;
+
+            //from com to claw
+            //TODO: replace with claw when added to yaml
+            bool success = false;
+            geometry_msgs::msg::Vector3 claw_translation_vector = safeTransform("/base_inertia", "/poker_frame", success).translation;
+            v3d claw_translation = v3d(claw_translation_vector.x, claw_translation_vector.y, claw_translation_vector.z);
+            this->claw_object_torques = v3d(0.0, 0.0, ti->second.net_buoyancy).cross(claw_translation + ti->second.com);
+
+            RCLCPP_INFO(node->get_logger(), "Adding %s to claw!", object_name_msg.data.c_str());
+
+            return;
+        }
+    }
+
+    this->claw_object_forces = v3d(0.0, 0.0, 0.0);
+    this->claw_object_torques = v3d(0.0, 0.0, 0.0);
+
+    RCLCPP_WARN(node->get_logger(), "Cannot find object name: %s. Setting to none.", object_name_msg.data.c_str());
+}
+
 
 // Converts thruster forces into robot body forces and torques stored in class
 void Robot::addToThrusterQue(thrusterForcesStamped commandedThrust)
@@ -499,6 +562,21 @@ bool Robot::acousticsTransformAvailable()
 
     return hasAcousticsTransform;
 }
+bool Robot::clawTransformAvailable()
+{
+    //if the vehicle to claw transform available -> if not check
+
+    if (!hasClawTransform)
+    {
+        //TODO Change to claw link when added to urdf
+        string toFrameRel = name + "/poker_link";
+        string fromFrameRel = name + "/base_inertia";
+
+        safeTransform(toFrameRel, fromFrameRel, hasClawTransform);
+    }
+
+    return hasClawTransform;
+}
 double Robot::getMass()
 {
     return mass;
@@ -619,6 +697,13 @@ int Robot::getThrusterCount()
 {
     return thrusterCount;
 }
+
+v3d Robot::getClawObjectForces(){
+    return claw_object_forces;
+}
+v3d Robot::getClawObjectTorques(){
+    return claw_object_torques;
+
 bool Robot::getAcousticsEnabled()
 {
     return acousticsEnabled;

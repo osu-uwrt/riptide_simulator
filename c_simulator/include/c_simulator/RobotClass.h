@@ -4,12 +4,16 @@
 
 #pragma once
 #include <cmath>
+#include <string>
+#include <bits/stdc++.h>
 #include <yaml-cpp/yaml.h>
 #include <tf2_ros/buffer.h>
 #include <rclcpp/rclcpp.hpp>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Geometry>
 #include "c_simulator/settings.h"
+#include <std_msgs/msg/string.hpp>
+#include "c_simulator/Claw_Object.h"
 #include <tf2_ros/transform_listener.h>
 
 using std::string, std::cout, std::endl;
@@ -93,6 +97,12 @@ public:
     v3d getLatestAngAccel();
     v3d getBaseLinkOffset();
     v3d getThrusterTorques();
+    v3d getClawObjectForces();
+    v3d getClawObjectTorques();
+    bool dvlTransformAvailable();
+    bool imuTransformAvailable();
+    bool acousticsTransformAvailable();
+    bool clawTransformAvailable();
     v3d getNetBouyantForce(const double &depth);
     geometry_msgs::msg::Transform getLCameraTransform();
     
@@ -131,6 +141,7 @@ public:
     void setAccel(const vXd &stateDot);
     bool loadParams(rclcpp::Node::SharedPtr node);
     void addToThrusterQue(thrusterForcesStamped commandedThrust);
+    void setLoadedClawObject(std_msgs::msg::String object_name_msg);
     void updateActiveBallast(const ActiveBallastStates& states);
     void setActiveBallastState(const ActiveBallastStates& states);
 
@@ -140,6 +151,9 @@ public:
     v3d calcBouyantTorque(const quat &q, const double &depth);
     v3d calcDragForces(const v3d &linVel, const double &depth);
     v3d calcDragTorques(const v3d &linVel, const v3d &angVel, const double &depth);
+
+    v3d claw_object_forces;                             // the forces resulting from the claw object
+
 
 private:
 //========================//
@@ -152,6 +166,7 @@ private:
     bool hasIMUTransform;
     bool hasDVLTransform;
     bool hasAcousticsTransform;
+    bool hasClawTransform;
     bool hasMapFrame;
 
     vXd state;
@@ -214,6 +229,11 @@ private:
     bool acousticsEnabled;
     float speedOfSound;           // the speed of sound in water
     v3d fakePingerPosition;       // the position of the fake pinger
+
+    std::string loaded_object;                            // the object currently loaded into the claw, none = none
+    std::map<std::string, Claw_Object> claw_objects; // the possible objects to put in the claw
+    v3d origin_to_claw_translation;                     // the translation between from the origin to the claw
+    v3d claw_object_torques;                             // the torque resulting from the claw object
 
     //========================//
     //       FUNCTIONS        //
