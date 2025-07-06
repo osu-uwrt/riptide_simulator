@@ -93,7 +93,8 @@ void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_conf
     // Getting mass information
     mass = vehicle_config["mass"].as<double>();
     weightVector = {0, 0, -mass * GRAVITY};
-    v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>());
+    v3d d_com = std2v3d(simulator_config["vehicle_properties"]["dcom"].as<std::vector<double>>());
+    v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>()) + d_com;
     // Getting inertia information
 
     std::vector<double> bodyInertiaArray = simulator_config["vehicle_properties"]["inertia3x3"].as<std::vector<double>>();
