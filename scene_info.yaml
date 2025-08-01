@@ -116,3 +116,13 @@ objects:
       file: "buoy.dae"
       units: "ft"
       model_offset: [0,0,0,0,0,0]
+  table:
+    pose:
+      x: 0
+      y: 0
+      z: -2.0
+      model:
+        file: "table.dae"
+        units: "meter"
+        model_offset: [0,0,0,0,0,0] 
+    collision: "table.urdf"

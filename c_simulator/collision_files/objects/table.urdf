@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+
+<robot name="table">
+  <link name="table_link">
+    <!-- Table box 1 -->
+    <visual>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 0.3048 -0.05" rpy="0 0 0" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 0.3048 -0.05" rpy="0 0 0" />
+    </collision>
+
+    <!-- Table box 2 -->
+    <visual>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 0.3048 -0.05" rpy="0 0 0" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 -0.3048 -0.05" rpy="0 0 0" />
+    </collision>
+
+    <!-- Table box 3 -->
+    <visual>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 -0.3048 -0.05" rpy="0 0 1.5707" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 -0.3048 -0.05" rpy="0 0 1.5707" />
+    </collision>
+
+    <!-- Table box 4 -->
+    <visual>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 0.3048 -0.05" rpy="0 0 1.5707" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.6096 0.05 0.1016"/>
+      </geometry>
+      <origin xyz="0 0.3048 -0.05" rpy="0 0 1.5707" />
+    </collision>
+
+    <!-- Table floor -->
+    <visual>
+      <geometry>
+        <box size="0.6096 0.6096 0.05"/>
+      </geometry>
+      <origin xyz="0 0 -0.13" rpy="0 0 0" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.6096 0.6096 0.05"/>
+      </geometry>
+      <origin xyz="0 0 -0.13" rpy="0 0 0" />
+    </collision>
+  </link>
+</robot>

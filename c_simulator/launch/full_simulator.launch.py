@@ -34,13 +34,13 @@ def generate_launch_description():
         ),
         
         #ivc faker
-        IncludeLaunchDescription(
-            AnyLaunchDescriptionSource(fake_ivc_launch),
-            launch_arguments=[
-                ('robot', LC('robot')),
-                ('client_robot', LC('client_robot'))
-            ]
-        ),
+        # IncludeLaunchDescription(
+        #     AnyLaunchDescriptionSource(fake_ivc_launch),
+        #     launch_arguments=[
+        #         ('robot', LC('robot')),
+        #         ('client_robot', LC('client_robot'))
+        #     ]
+        # ),
         
         #camera faker
         IncludeLaunchDescription(
