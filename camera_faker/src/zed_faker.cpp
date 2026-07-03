@@ -68,8 +68,8 @@ using namespace std::chrono_literals;
 using glm::vec3;
 
 // This initialization is needed for callback functions
-class zedFakerNode;
-std::shared_ptr<zedFakerNode> node;
+// class zedFakerNode;
+// std::shared_ptr<zedFakerNode> node;
 class zedFakerNode : public rclcpp::Node
 {
 public:
@@ -88,10 +88,10 @@ public:
 
         // Create camera info and image publishers
         pointCloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("simulator/point_cloud", 10);
-        imagePub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/left/image_rect_color", 10);
-        depthPub = this->create_publisher<sensor_msgs::msg::Image>("zed/zed_node/depth/depth_registered", 10);
-        depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/depth/camera_info", 10);
-        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("zed/zed_node/left/camera_info", 10);
+        imagePub = this->create_publisher<sensor_msgs::msg::Image>("ffc/zed_node/left/image_rect_color", 10);
+        depthPub = this->create_publisher<sensor_msgs::msg::Image>("ffc/zed_node/depth/depth_registered", 10);
+        depthInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("ffc/zed_node/depth/camera_info", 10);
+        cameraInfoPub = this->create_publisher<sensor_msgs::msg::CameraInfo>("ffc/zed_node/left/camera_info", 10);
 
         // Create timers
         std::chrono::duration<double> imgPubTime(1.0 / FRAME_RATE);
@@ -405,7 +405,14 @@ private:
 
         // Setup window and callback functions
         glfwMakeContextCurrent(window);
-        glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetWindowUserPointer(window, this);
+
+        glfwSetCursorPosCallback(window, [](GLFWwindow* w, double xpos, double ypos) {
+            auto* self = static_cast<zedFakerNode*>(glfwGetWindowUserPointer(w));
+            if (self) self->moveCamera(xpos, ypos);
+        });
+
+        // glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetFramebufferSizeCallback(window, resizeWindow);
 
         // VSync on (only swaps pixels onto screen every monitor refresh, not faster)
@@ -821,13 +828,13 @@ private:
         // Update where the camera is looking
         flyAroundCamera.ProcessMouseMovement(xoffset, yoffset);
     }
-    // Handles mouse movement
-    static void mouseCallback(GLFWwindow *window, double xpos, double ypos)
-    {
-        (void)window; // Goodbye compiler warnings
-        // Need to do this goofy thing because callback function can't be an object specific function
-        node->moveCamera(xpos, ypos);
-    }
+    // // Handles mouse movement
+    // static void mouseCallback(GLFWwindow *window, double xpos, double ypos)
+    // {
+    //     (void)window; // Goodbye compiler warnings
+    //     // Need to do this goofy thing because callback function can't be an object specific function
+    //     node->moveCamera(xpos, ypos);
+    // }
     //===============================//
     //      UTILITY FUNCTIONS        //
     //===============================//
@@ -976,8 +983,8 @@ private:
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
-    node = std::make_shared<zedFakerNode>();
+    auto node = std::make_shared<zedFakerNode>();
     node->fakeImages();
     rclcpp::shutdown();
-    return 1;
+    return 0;
 }

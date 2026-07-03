@@ -87,32 +87,32 @@ objects:
       file: "torpedoes.png"
       size: [1.2,1.2]
     collision: "torpedo.urdf"
-  path:
-    pose:
-      x: 2
-      y: -2
-      z: -2.1
-      yaw: 0
-    model:
-      file: "path.fbx"
-      model_offset: [0,0,0,0,0,0]
-      units: "meter"
-  path:
-    pose:
-      x: 3
-      y: -1
-      z: -2.1
-      yaw: 45
-    model:
-      file: "path.fbx"
-      model_offset: [0,0,0,0,0,0]
-      units: "meter"
-  buoy:
-    pose: 
-      x: 5
-      y: -1
-      z: -0.3
-    model:
-      file: "buoy.dae"
-      units: "ft"
-      model_offset: [0,0,0,0,0,0]
+  # path:
+  #   pose:
+  #     x: 2
+  #     y: -2
+  #     z: -2.1
+  #     yaw: 0
+  #   model:
+  #     file: "path.fbx"
+  #     model_offset: [0,0,0,0,0,0]
+  #     units: "meter"
+  # path:
+  #   pose:
+  #     x: 3
+  #     y: -1
+  #     z: -2.1
+  #     yaw: 45
+  #   model:
+  #     file: "path.fbx"
+  #     model_offset: [0,0,0,0,0,0]
+  #     units: "meter"
+  # buoy:
+  #   pose: 
+  #     x: 5
+  #     y: -1
+  #     z: -0.3
+  #   model:
+  #     file: "buoy.dae"
+  #     units: "ft"
+  #     model_offset: [0,0,0,0,0,0]
