@@ -30,6 +30,7 @@ find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 add_executable(zed_faker include/external/glad/glad.c src/zed_faker.cpp)
 
@@ -61,7 +62,8 @@ ament_target_dependencies(zed_faker
   tf2_geometry_msgs
   robot_localization
   cv_bridge
-  OpenCV)
+  OpenCV
+  ament_index_cpp)
 
 target_link_libraries(zed_faker 
   ${YAML_CPP_LIBRARIES}

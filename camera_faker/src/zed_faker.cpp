@@ -25,7 +25,7 @@ https://learnopengl.com/Getting-started/OpenGL
 #include <filesystem>
 #include <yaml-cpp/yaml.h>
 #include <opencv2/opencv.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 // ROS Libraries
 //---------------------------------------------
 #include <tf2/exceptions.h>
