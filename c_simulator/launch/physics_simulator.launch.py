@@ -20,7 +20,7 @@ def generate_launch_description():
     sceneConfig = PathJoinSubstitution([
         package_src_dir,
         'src',
-        "riptide_simulator",
+        "c_simulator",
         "scene_info.yaml"
     ])
 
