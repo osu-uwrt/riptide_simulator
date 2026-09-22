@@ -4,6 +4,8 @@ The simulator runs underwater robot physics, simulated cameras, task interaction
 and competition scoring. Robot profiles describe the hardware; year packs describe
 the tasks and rules. Talos and the 2026 course are the defaults.
 
+![Talos in the sim](docs/SIM.png)
+
 ## Run it
 
 From the workspace root, with ROS and the workspace dependencies available:
