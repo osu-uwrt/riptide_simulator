@@ -825,6 +825,7 @@ class PoolViewer : public rclcpp::Node {
     std::string focusName = "Vehicle", scoreTitle = "Run score";
     bool scoringEnabled = true;
     pool::Frame overview;
+    pool::View viewportView;
     pool::Look look;
     using PayloadSlot = std::pair<std::string, int>;
     std::map<PayloadSlot, glm::mat4> payloadMounts;
@@ -846,7 +847,7 @@ class PoolViewer : public rclcpp::Node {
     std::map<std::string, std::pair<glm::mat4, bool>> taskObjects;
     glm::mat4 body{1}, modelOffset{1};
     glm::vec3 target{10, 4, -.8f}, freeEye{-2, -5, 2};
-    float yaw = -2.45f, pitch = .57f, distance = 19, freeYaw = .5f, freePitch = -.2f;
+    float yaw = -2.45f, pitch = .57f, distance = 19, freeYaw = .5f, freePitch = -.2f, freeRoll = 0;
     bool mouseCaptured = false;
     double lastMouseX = 0, lastMouseY = 0;
     bool demo = false, hidden = false, cloudEnabled = true, capture = false, labels = true, follow = false;
@@ -1256,7 +1257,8 @@ class PoolViewer : public rclcpp::Node {
             double x, y;
             glfwGetCursorPos(window, &x, &y);
             freeYaw -= float(x - lastMouseX) * .003f;
-            freePitch = glm::clamp(freePitch - float(y - lastMouseY) * .003f, -1.55f, 1.55f);
+            if (y != lastMouseY)
+                freePitch = glm::clamp(freePitch - float(y - lastMouseY) * .003f, -1.55f, 1.55f);
             lastMouseX = x;
             lastMouseY = y;
             glm::vec3 forward(cos(freeYaw), sin(freeYaw), 0), left(-forward.y, forward.x, 0), motion(0);
@@ -1294,17 +1296,19 @@ class PoolViewer : public rclcpp::Node {
             const auto &c = cameras[mode - 2];
             return c.depthPreview && c.depthTexture ? c.depthView : c.imageView;
         }
-        glm::vec3 eye, at;
+        glm::vec3 eye, at, up(0, 0, 1);
         if (mode == 1) {
             eye = freeEye;
             at = eye + glm::vec3(std::cos(freeYaw) * std::cos(freePitch), std::sin(freeYaw) * std::cos(freePitch),
                                  std::sin(freePitch));
+            const glm::vec3 right(std::sin(freeYaw), -std::cos(freeYaw), 0);
+            up = std::cos(freeRoll) * glm::cross(right, at - eye) + std::sin(freeRoll) * right;
         } else {
             eye = target + distance * glm::vec3(std::cos(yaw) * std::cos(pitch), std::sin(yaw) * std::cos(pitch),
                                                 std::sin(pitch));
             at = target;
         }
-        return {eye, glm::lookAt(eye, at, glm::vec3(0, 0, 1)),
+        return {eye, glm::lookAt(eye, at, up),
                 glm::perspective(glm::radians(53.f), aspect, .05f, 100.f)};
     }
     void pill(const std::string &text, ImVec4 tint) {
@@ -2110,9 +2114,15 @@ class PoolViewer : public rclcpp::Node {
         views += '\0';
         ImGui::Combo("##view", &mode, views.c_str());
         if (mode == 1 && oldMode != 1) {
-            freeEye = target + glm::vec3(-3, -3, 1);
-            freeYaw = .78f;
-            freePitch = -.2f;
+            // Continue from the last displayed view, including sensor-camera roll.
+            const glm::mat4 cameraPose = glm::inverse(viewportView.view);
+            const glm::vec3 forward = -glm::normalize(glm::vec3(cameraPose[2]));
+            freeEye = viewportView.eye;
+            freeYaw = std::atan2(forward.y, forward.x);
+            freePitch = std::atan2(forward.z, glm::length(glm::vec2(forward)));
+            const glm::vec3 right(std::sin(freeYaw), -std::cos(freeYaw), 0);
+            const glm::vec3 up(cameraPose[1]);
+            freeRoll = std::atan2(glm::dot(up, right), glm::dot(up, glm::cross(right, forward)));
         }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(132);
@@ -2186,6 +2196,7 @@ class PoolViewer : public rclcpp::Node {
         hovered = hovered && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && mode == oldMode &&
                   !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
         auto view = overviewView(left / viewHeight, dt, hovered);
+        viewportView = view;
         // Keep sensor aspect ratios when their view is promoted to the large
         // viewport.
         float iw = left, ih = viewHeight;

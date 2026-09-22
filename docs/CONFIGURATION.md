@@ -30,6 +30,13 @@ award. Heading/role coin-flip defaults live in the 2026 manifest's `ui.run_optio
 The old aggregate configs in `config/` and the repository root remain regression
 fixtures/legacy inputs; normal launches use the profile folders above.
 
+Simulation bringup loads the mapping node's initial estimates from
+`riptide_mapping2/config/config.yaml`, separately from the simulator's true course
+poses in `tasks/2026/config/mapping.yaml`. Use `mapping_config_yaml:=/path/to/file.yaml`
+to override the mapping node's config; `mapping_config:=/path/to/file.yaml` overrides
+the simulator course layout. Both `simulation.launch.py` and
+`simulation_no_autonomy.launch.py` keep these inputs separate.
+
 Restart after editing YAML. With a symlink install, existing files usually need
 no rebuild; adding files requires rebuilding the packages. Use the
 [build and test commands](DEVELOPMENT.md#checking-a-change) after a change.

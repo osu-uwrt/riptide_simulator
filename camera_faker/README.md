@@ -182,7 +182,8 @@ ROS_DOMAIN_ID=176 python3 src/riptide_simulator/camera_faker/test/ros_camera_dem
 ## Viewer
 
 - Orbit: left-drag to rotate, scroll to zoom, right-drag to pan.
-- Free camera: left-click the viewport to capture the mouse, then move the mouse
+- Free camera starts at the current viewport's position and orientation. Left-click
+  the viewport to capture the mouse, then move the mouse
   to look. WASD moves horizontally, Space rises, Shift descends, and Ctrl moves
   faster. Escape releases the mouse; switching windows also releases it.
 - Focus selector: course, vehicle, gate, torpedo, bins, table, or payload launcher.

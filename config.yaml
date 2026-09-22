@@ -292,7 +292,7 @@
         pose:
           x: 0.76512
           y: 0.37018
-          z: 0.15975
+          z: 0.52975
           yaw: 0.0
       magnet_target2:
         #NO TOUCH
@@ -305,7 +305,7 @@
         pose:
           x: -0.70442
           y: -0.37018
-          z: 0.466
+          z: 0.566
           yaw: 180.0
       magnet1:
         #NO TOUCH
@@ -319,7 +319,7 @@
         pose:
           x: 0.76512
           y: 0.37018
-          z: 0.15975
+          z: 0.52975
           yaw: 0.0
       magnet2:
         #NO TOUCH
@@ -333,7 +333,7 @@
         pose:
           x: -0.70442
           y: -0.37018
-          z: 0.466
+          z: 0.566
           yaw: 180.0
       bin_vinyl1:
         #NO TOUCH POSE ONLY CLASS

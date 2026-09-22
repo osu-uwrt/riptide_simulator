@@ -283,7 +283,7 @@
         pose:
           x: 0.76512
           y: 0.37018
-          z: 0.15975
+          z: 0.25975
           yaw: 0.0
       magnet_target2:
         parent: bin_cad_geometry_frame
@@ -295,7 +295,7 @@
         pose:
           x: -0.70442
           y: -0.37018
-          z: 0.466
+          z: 0.650
           yaw: 180.0
       magnet1:
         parent: bin_cad_geometry_frame
@@ -308,7 +308,7 @@
         pose:
           x: 0.76512
           y: 0.37018
-          z: 0.15975
+          z: 0.25975
           yaw: 0.0
       magnet2:
         parent: bin_cad_geometry_frame
@@ -321,7 +321,7 @@
         pose:
           x: -0.70442
           y: -0.37018
-          z: 0.466
+          z: 0.650
           yaw: 180.0
       bin_vinyl1:
         parent: bin_cad_geometry_frame
