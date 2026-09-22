@@ -1,0 +1,121 @@
+# Payload mounts follow vehicle_config, the same source as robot TF.
+# Shared finned exterior: Talos3 Sinky Torpedo Model, 83 x 26 x 26 mm.
+# TF frames are aiming references. Seating offsets locate projectile centers
+# inside the extracted CAD mechanism; nose is local +X.
+# Spring energy, PLA density, added mass and drag remain adjustable priors.
+torpedo:
+  # Relative to torpedo_0_link and torpedo_1_link, respectively.
+  slot_offsets:
+    - [0.01594921, -0.00735017, -0.02185550, 0, 0, 0]
+    - [0.01594921, -0.00885940, -0.02185550, 0, 0, 0]
+  count: 2
+  length: 0.08299993
+  radius: 0.013
+  neutral_buoyancy: false
+  mass: 0.01222 # ~2% heavier than displaced freshwater; slightly negatively buoyant
+  displaced_volume: 0.000012 # watertight CAD volume (including its exterior mounting bore)
+  added_mass: 0.003
+  drag_axial: 0.015
+  drag_lateral: 0.35
+  # Axial offsets from the mesh center, metres; +X is the nose. Balance and
+  # damping are tuning priors for ~0.6 m of mostly straight travel, then a dive.
+  center_of_mass: 0.020
+  center_of_buoyancy: -0.020
+  center_of_drag: -0.025 # rear fins stabilize the nose into the relative flow
+  angular_damping: 0.010 # N m s/rad, effective submerged pitch/yaw damping
+  spring_energy: 0.047 # effective delivered J; both mechanisms have the same CAD springs
+  cooldown: 0.5
+  target_class: fire
+  panel_half_size: 0.3048
+  # Inner edges of the four printed rings in Task4_ver1_Fixed.png, normalized
+  # texture coordinates (u right, v up). Shared by physics and shader cutouts.
+  holes:
+    - {name: fire_large, class: fire, uv: [0.16142625, 0.58890478], radius_uv: 0.10469}
+    - {name: fire_small, class: fire, uv: [0.51378955, 0.81221886], radius_uv: 0.08365}
+    - {name: blood_large, class: blood, uv: [0.85499477, 0.14589262], radius_uv: 0.10469}
+    - {name: blood_small, class: blood, uv: [0.50045453, 0.18734768], radius_uv: 0.08365}
+dropper:
+  # Centers in droppers_link, xyz metres / rpy radians. +X nose points down.
+  slot_offsets:
+    - [-0.04337956, -0.01560642, -0.12296563, 0, 1.5707963267948966, 0]
+    - [-0.04337956, 0.01939685, -0.12296563, 0, 1.5707963267948966, 0]
+  count: 2
+  length: 0.08299993
+  radius: 0.013
+  neutral_buoyancy: false
+  mass: 0.01488 # solid-print prior: 1240 kg/m^3 * CAD volume; weigh a real marker to refine
+  displaced_volume: 0.000012
+  added_mass: 0.003
+  drag_axial: 0.015
+  drag_lateral: 0.35
+  spring_energy: 0.047
+  cooldown: 0.5
+  target_class: fire
+crate:
+  # CleverMade 25 L / 6.6 gal: 13.12 x 13.12 x 11 in exterior;
+  # 12 x 12 x 10.68 in interior. Vinyl top is the interior floor (local z=0).
+  outer_width: 0.333248
+  inner_width: 0.3048
+  outer_height: 0.2794
+  base_thickness: 0.008128
+  liner_thickness: 0.004
+  liner_height_fraction: 0.5
+magnet_lights:
+  # Competition behavior: calibrated six-inch proximity, 0.5 s dwell, latched
+  # green until course reset. The linked bench firmware's flashing is omitted.
+  trigger_distance: 0.1524
+  activation_time: 0.5
+  led_radiance: 200.0 # HDR radiance prior for full-brightness WS2812 lenses
+  # Local +X points out of the clear lid; the competition face tilts UP 45 deg.
+  # Mapping/CAD target frames stay unchanged. Origin is the outer lid center.
+  face_pose: [0, 0, 0, 0, -0.7853981633974483, 0]
+  sensor_offset: [-0.008, 0, 0] # sensor is 8 mm behind the lid (guide: 5–13 mm)
+  robot_tip_offset: [0, 0, 0.05] # magnet is 5 cm above vehicle_config magnet.pose
+  targets:
+    magnet_target1: red
+    magnet_target2: red
+claw:
+  # Saved Talos.SLDASM assembly placement, in the same CAD frame as payloads.
+  # Bottom-center pinch reference; native pad geometry is unchanged.
+  pose: [0.1845620038521386, 0.034362, -0.4164364383477267, 0, 0, 0]
+  min_gap: 0.0012
+  max_gap: 0.140
+  jaw_speed: 0.033 # m/s per jaw; about two seconds for full travel
+  hold_force: 12.0 # finite grasp constraint; breaks if blocked/slipping
+  friction: 1.2 # adjustable prior for silicone-coated perforated contact faces
+  contact_margin: 0.001
+  grasp_dwell: 0.04
+  slip_distance: 0.025
+  props:
+    pill: {mesh: table_pill, mass: 0.12, volume: 0.00009, basket: helmet}
+    bandage: {mesh: table_bandage, mass: 0.10, volume: 0.00007, basket: helmet}
+    nut_and_bolt: {mesh: table_nut_and_bolt, mass: 0.12, volume: 0.00009, basket: warning}
+    plug: {mesh: table_plug, mass: 0.10, volume: 0.00007, basket: warning}
+
+# Solid tabletop backing shared by vehicle and prop contact worlds. The top
+# matches the CAD table frame; triangle geometry still supplies legs and rims.
+octagon:
+  # 9 ft across opposite sides, matching existing signs at +/-1.38 m.
+  # Half-inch nominal PVC uses a 0.84-inch outside diameter.
+  apothem: 1.3716
+  pipe_radius: 0.010668
+  surface_z: 0.0
+
+scoring:
+  # Deterministic simulator tolerances, not additional handbook rules.
+  attempt_radius: 3.0
+  max_pose_step: 2.0 # ignore swept crossings/rotations across a teleport
+  gate_half_width: 1.5
+  gate_top: 0.75 # relative to gate frame; floor is world z=-2.1336
+  slalom_half_width: 1.55
+  slalom_bottom: -0.81 # relative to row frame, matches the current CAD mesh
+  slalom_top: 0.474
+  breach_margin: 0.02
+  surface_dwell: 0.5
+  facing_tolerance_deg: 15.0
+  facing_dwell: 0.5
+  turn_tolerance_deg: 15.0
+
+table_collision:
+  slab_size: [0.635, 0.635, 0.01905]
+  slab_center: [0.0, 0.0, -0.009525]

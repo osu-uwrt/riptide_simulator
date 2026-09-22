@@ -1,90 +1,68 @@
+"""Launch the pool viewer and AprilTag detector for the full simulator."""
+import os
 import launch
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import AnyLaunchDescriptionSource
 import launch_ros.actions
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
-from launch.substitutions import LaunchConfiguration as LC
-from launch.substitutions import PathJoinSubstitution, TextSubstitution
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration as LC, TextSubstitution
 
-import os
 
 def generate_launch_description():
-
-    # Read in the vehicle's namespace through the command line or use the default value one is not provided
-    robot = LaunchConfiguration("robot")
-    package_src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(get_package_share_directory("camera_faker")))))
-    
-    # declare the path to the scene info yaml
-    sceneConfig = PathJoinSubstitution([
-        package_src_dir,
-        'src',
-        "riptide_simulator",
-        "scene_info.yaml"
-    ])
-
-    # declare the path to shader data folder
-    shaderFolder = PathJoinSubstitution([
-        package_src_dir,
-        'src',
-        "riptide_simulator",
-        'camera_faker',
-        'shaders'
-    ])
-
-    # declare the path to texture data folder
-    textureFolder = PathJoinSubstitution([
-        package_src_dir,
-        'src',
-        "riptide_simulator",
-        'camera_faker',
-        'textures'
-    ])
-
-    # declare the path to model data folder
-    modelFolder = PathJoinSubstitution([
-        package_src_dir,
-        'src',
-        "riptide_simulator",
-        'camera_faker',
-        'models'
-    ])
-
-    # declare the path to font data folder
-    fontFolder = PathJoinSubstitution([
-        package_src_dir,
-        'src',
-        "riptide_simulator",
-        'camera_faker',
-        'fonts'
-    ])
-
+    robot = LC("robot")
     return launch.LaunchDescription([
         DeclareLaunchArgument(
             "robot",
             default_value="talos",
             description="Name of the vehicle",
         ),
+        DeclareLaunchArgument(
+            "with_apriltag", default_value="true",
+            description="Run the AprilTag detector (keeps the forward camera subscribed)",
+        ),
 
         launch.actions.GroupAction([
             launch_ros.actions.PushRosNamespace(
                 LC("robot")
             ),
-            # Launch simulator
+            # The viewer reads vehicle and camera poses from the simulation TF tree.
+            IncludeLaunchDescription(
+                AnyLaunchDescriptionSource(os.path.join(
+                    get_package_share_directory("camera_faker"),
+                    "launch", "pool_viewer.launch.py")),
+                launch_arguments={"robot": robot}.items(),
+            ),
+            # Run the same detector configuration used on the real calibration
+            # board, against the image and CameraInfo produced above.
             launch_ros.actions.Node(
-                package="camera_faker",
-                executable="zed_faker",
-                name="zed_faker",
+                package="apriltag_ros",
+                executable="apriltag_node",
+                name="apriltag_36h11",
+                condition=IfCondition(LC("with_apriltag")),
+                namespace="apriltag",
                 output="screen",
-                parameters=[
-                    {"shader_folder": shaderFolder},
-                    {"texture_folder": textureFolder},
-                    {"model_folder": modelFolder},
-                    {"font_folder": fontFolder},
-                    {"robot": robot},
-                    {"scene_config": sceneConfig}
-                ]
+                remappings=[
+                    ("image_rect", [TextSubstitution(text="/"), LC("robot"),
+                                    TextSubstitution(text="/ffc/zed_node/left/image_rect_color")]),
+                    ("camera_info", [TextSubstitution(text="/"), LC("robot"),
+                                     TextSubstitution(text="/ffc/zed_node/left/camera_info")]),
+                ],
+                parameters=[{
+                    "image_transport": "raw",
+                    "family": "36h11",
+                    "size": 0.508,
+                    "max_hamming": 0,
+                    "z_up": True,
+                }],
+            ),
+            launch_ros.actions.Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="surface_frame_node",
+                condition=IfCondition(LC("with_apriltag")),
+                arguments=["0", "0.4572", "0", "0", "-1.5707", "-1.5707",
+                           "tag36h11:0", "estimated_origin_frame"],
             ),
         ], scoped=True)
     ])

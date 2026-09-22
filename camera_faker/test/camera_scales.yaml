@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    ffc.resolution_scale: 1.0
+    dfc.resolution_scale: 0.5

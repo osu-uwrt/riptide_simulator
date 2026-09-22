@@ -3,7 +3,7 @@
 <package format="3">
   <name>camera_faker</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>OpenGL RoboSub visualization with simulated ZED X Mini forward and downward cameras.</description>
   <maintainer email="beckernm@gmail.com">uwrt</maintainer>
   <license>TODO: License declaration</license>
 
@@ -13,16 +13,20 @@
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>visualization_msgs</depend>
-  <depend>nav_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>riptide_msgs2</depend>
+  <exec_depend>riptide_meshes</exec_depend>
+  <exec_depend>riptide_descriptions2</exec_depend>
+  <exec_depend>apriltag_ros</exec_depend>
+  <exec_depend>riptide_hardware2</exec_depend>
+  <exec_depend>riptide_rviz</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <depend>libassimp-dev</depend>
   <depend>yaml-cpp</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
-  <depend>tf2_geometry_msgs</depend>
-  <depend>robot_localization</depend>
-  <depend>urdf</depend>
   <depend>glfw</depend>
-  <depend>cv_bridge</depend>
   <depend>OpenCV</depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

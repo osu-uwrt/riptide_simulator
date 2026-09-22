@@ -1,0 +1,19 @@
+# Simulator sensor output only; does not override any EKF parameters.
+/**/physics_simulator:
+  ros__parameters:
+    # Match Talos's existing calibrated gravitational_acceleration. Otherwise
+    # gravity removal leaves a 0.051195 m/s^2 acceleration residual even with
+    # noise disabled. The hydrodynamic plant still uses physical gravity.
+    imu_gravity: 9.755455
+
+    # No imposed heading ramp in the normal FOG-equipped simulation [deg/min].
+    # Override this to exercise degraded heading instead of inheriting the
+    # shared vehicle file's legacy 1.5 deg/min drift. Sample noise stays enabled.
+    imu_yaw_drift: 0.0
+
+    # Low-noise bottom-lock prior [m/s], replacing the legacy Gazebo 0.005.
+    # This is configurable, not a measured hardware specification. Both noise
+    # and reported uncertainty describe the same sensor model; no bias or
+    # random-walk term is added. Fit these from stationary DVL logs as available.
+    dvl_noise_stddev: 0.001
+    dvl_variance: 0.000001

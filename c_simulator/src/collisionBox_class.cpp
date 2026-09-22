@@ -1,4 +1,5 @@
 #include "c_simulator/collisionBox.h"
+#include <cmath>
 
 collisionBox::collisionBox(std::string name_,
                            double length_,
@@ -10,14 +11,14 @@ collisionBox::collisionBox(std::string name_,
                            quat baseOrientationOffset_)
 {
     name = name_;
-    length = abs(length_);
-    width = abs(width_);
-    height = abs(height_);
+    length = std::abs(length_);
+    width = std::abs(width_);
+    height = std::abs(height_);
     baseOffset = baseOffset_;
     baseOrientationOffset = baseOrientationOffset_.normalized();
     orientation = (baseOrientation.normalized() * baseOrientationOffset).normalized();
     rotM = orientation.toRotationMatrix();
-    center = baseCenter + orientation * baseOffset;
+    center = baseCenter + baseOrientation.normalized() * baseOffset;
     setVertices();
 }
 
@@ -81,9 +82,9 @@ bool collisionBox::isInBox(const v3d &point)
     // Transform from world cordinates to box cordinates
     v3d point_body = orientation.conjugate() * (point - center);
     // Return if it is inside or not
-    return abs(point_body[0]) <= length / 2 &&
-           abs(point_body[1]) <= width / 2 &&
-           abs(point_body[2]) <= height / 2;
+    return std::abs(point_body[0]) <= length / 2 &&
+           std::abs(point_body[1]) <= width / 2 &&
+           std::abs(point_body[2]) <= height / 2;
 }
 
 v3d collisionBox::moveInBox(const v3d &point)

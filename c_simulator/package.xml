@@ -3,7 +3,7 @@
 <package format="3">
   <name>c_simulator</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Fossen six-DOF AUV plant, deterministic actuator model, and ROS simulation interfaces.</description>
   <maintainer email="beckernm@gmail.com">uwrt</maintainer>
   <license>TODO: License declaration</license>
 
@@ -18,15 +18,31 @@
   <depend>riptide_descriptions2</depend>
   <depend>riptide_mapping2</depend>
   <depend>robot_localization</depend>
+  <depend>rosgraph_msgs</depend>
   <depend>yaml-cpp</depend>
   <depend>tf2_ros</depend>
   <depend>urdf</depend>
   
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
-  <build_depend>eigen</build_depend>
+  <depend>eigen</depend>
+  <depend>bullet</depend>
+  <depend>tf2</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-pybullet-pip</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <depend>std_srvs</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>python3-numpy</test_depend>
+  <test_depend>python3-yaml</test_depend>
+  <test_depend>joint_state_publisher</test_depend>
+  <test_depend>robot_state_publisher</test_depend>
+  <test_depend>xacro</test_depend>
+  <test_depend>rclpy</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

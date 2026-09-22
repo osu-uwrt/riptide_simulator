@@ -1,111 +1,474 @@
-# Camera Faker
+# Riptide RoboSub viewer
 
-## Overview
-The `camera_faker` package is part of `riptide_simulator` and contains a node to output realistic underwater color and depth camera data to allow for full system integration testing in simulation. The package uses OpenGL to render the competition pool environment and task objects in real time. The node interfaces with the physics engine to update the robot's cameras position, which views the scene.
+A new OpenGL 3.3 renderer and operator window, with forward and downward ZED X
+Mini camera simulation. `c_simulator` provides the Fossen vehicle plant, collisions, simulated sensors,
+and actuator response; your existing ROS nodes provide control and autonomy. The viewer
+reads its TF tree and simulated projectile markers; optional task controls send the existing actuator commands. No CUDA, ZED SDK, browser, or network service is required.
 
-## Common Configuration
-The common configuration for this package is specified in `include/settings.h` and includes parameters used by the node and graphics settings.
+![RoboSub pool viewer](docs/pool-preview.jpg)
 
-### Configuration Parameters
-| Parameter Name    | Type                | Description                                             |
-| ----------------- | ------------------- | ------------------------------------------------------- |
-| `yolo_model_path` | `string`            | Path to the YOLO model file.                            |
-| `class_id_map`    | `dict<int, string>` | Mapping of class IDs to their respective names.         |
-| `threshold`       | `float`             | Confidence threshold for object detection.              |
-| `iou`             | `float`             | Intersection over Union threshold for object detection. |
+[Bin task and downward-camera preview](docs/bins-preview.jpg),
+[depth controls](docs/depth-preview.jpg), [expanded map](docs/course-map.jpg),
+[four loaded payloads](docs/payloads-preview.jpg), and [water appearance](docs/water-preview.jpg).
 
-## Usage
-#### Launching
-The node in this package is launched individually using
+## Build and run
+
+From the release workspace, with its ROS dependencies installed:
+
 ```bash
-ros2 launch camera_faker zedfaker.launch.py
-```
-*Note: The physics engine must be running before it can start.*
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+colcon build --packages-select camera_faker --allow-overriding camera_faker
+source install/setup.bash
 
-There are several other launch options that can do the entire robot bring up with the physics engine in one command. Idk what they are though :P
-#### Modifying Object's Position, Size, or Image
-Go in the `objectSetup()` within `zed_faker.cpp` and edit the inputs to the `Object` constructor parameters or create an additional `Object` and push it to the back of the `objects` vector to include it. Remember to save and build to see changes.
+# Explore the scene immediately; no physics/robot bringup needed.
+ros2 launch camera_faker pool_viewer.launch.py demo:=true
+```
+
+The preview has gate, torpedo, bin, and table positions. These move only the
+preview vehicle and never publish sensor messages, commands, or vehicle TF.
+To open directly at a task:
+
 ```bash
-colcon build --packages-select camera_faker
+ros2 launch camera_faker pool_viewer.launch.py \
+  demo:=true demo_task:=torpedo initial_focus:=torpedo
 ```
-#### April Tag
-To toggle a display for the April Tag, press `T` in the OpenGL window.
 
-## Diagnostics and Monitoring
+Your existing `c_simulator/full_simulator.launch.py` and
+`riptide_bringup2/simulation.launch.py` now open this viewer through the existing
+`camera_faker/zedfaker.launch.py` entry point. Continue using your normal robot
+bringup to provide the map/odom transforms and physical camera mounts. For
+example, the workspace's complete simulation entry point is:
 
-- **View Published Output**: Monitor and visualize the fake camera output using the ROS tool  `rqt`. To run the program, enter the command
-	```bash
-	rqt
-	```
-	To view the messages, go to Plugins ➡ Visualization ➡ Image View. With the `camera_faker` running, refresh the topics and click the drop down to select `/talos/zed/zed_node/depth/depth_registered` to view the depth images or `/talos/zed/zed_node/left/image_rect_color` to view the color images. `rqt` can also be used to see the vision detections on top of the fake images.
-- **View Scene and Robot**: Within the OpenGL window, press `Tab` or `F5` to switch to a user controlled fly around observation camera. The robot's perspective will continue to be published regardless of what mode is being display in the OpenGL window. To control the camera, look by moving the mouse in the window,  and use `WASD` and `Shift/Space` for movement. 
-- **View Debug Info**: While in  the fly around camera mode, press `F3`to see a debug screen contain frame rate, camera positions, and ROS time.
+```bash
+ros2 launch riptide_bringup2 simulation.launch.py robot:=talos
+```
 
-## Troubleshooting
-### Problem: Stuck on UWRT Splash Screen
-- **Solution**: Ensure the physics engine is running, it is likely waiting from TF frames. Otherwise, check the terminal output to see if there was any shader errors or any issues opening assets.
+To attach just the viewer to already-running simulation:
 
-### Problem: Poor Frame Rate
-- **Solution**: Ensure it is being run on a Native Linux install and not a Virtual Machine or WSL. Additionally, avoid sending the published raw image data across devices on the ROS network, that eats up bandwidth. 
+```bash
+ros2 launch camera_faker pool_viewer.launch.py robot:=talos
+```
 
-### Problem: Black OpenGL Window
-- **Solution**: Something was modified in the code that made OpenGL crash. Go back to a previous working revision and add back pieces one at a time to find the culprit. OpenGL is notoriously bad at being unforgiving for debugging issues. One reason this could happen is calling OpenGL functions from a constructor before OpenGL was initialized.
+Do not run two camera publishers for the same robot. `pool_viewer` is the only
+renderer; `zedfaker.launch.py` also starts the AprilTag detector.
 
-### Problem: Vision Detection Giving Incorrect Positions
-- **Solution**: Check to make sure the camera's intrinsic parameters are correct in the settings. These parameters are used by the in `riptide_perception` to calculate the position from the image. The parameters would need to be changed if the `IMG_WIDTH` or `IMG_HEIGHT` settings are modified.
+Side camera previews default to 480 pixels wide (480×300 at HD1200). A camera
+uses its configured sensor resolution when selected as the main view, captured
+to a screenshot, or subscribed to for RGB, compressed RGB, depth, or point clouds.
+Each camera switches independently and returns to preview resolution when its
+last image/cloud subscriber disconnects. `CameraInfo` alone does not require a
+full render; its dimensions and calibration always describe the sensor output.
+Set `camera_preview_width:=640` to increase preview detail. `camera_scale` still
+controls the resolution of actual sensor messages.
 
-## Node
+Set independent startup scales in [`config/cameras.yaml`](config/cameras.yaml).
+For example, keep the forward camera full size and render the downward camera
+at half width and height:
 
-### Zed Faker Node
+```yaml
+/**:
+  ros__parameters:
+    ffc:
+      resolution_scale: 1.0
+    dfc:
+      resolution_scale: 0.5
+```
 
-#### Overview
-The `zed_faker` node utilizes an OpenGL graphics system to render real-time depth and color camera data. 
+At HD1200, `1.0` produces 1920×1200, `0.5` produces 960×600, and `0.25`
+produces 480×300. Values must be in `(0, 1]`, with at least 16 pixels on each
+axis. A separate file can be supplied with `camera_settings:=/path/to/cameras.yaml`.
+The existing common `camera_scale` launch argument multiplies both per-camera
+scales; leave it at `1.0` when setting sizes independently.
 
-#### ROS2 Interfaces
+These settings apply only at startup. Restart the simulator after changing the
+YAML. Camera scale parameters are read-only while running; there are no live
+scale controls. RGB, depth, CameraInfo intrinsics, and organized clouds all use
+the configured startup resolution.
+The small side-preview limit continues to apply when a camera has no image/cloud
+subscribers and is not the primary view.
 
-**Parameters**
-| Parameter Name   | Type     | Default | Description                                             |
-| ---------------- | -------- | ------- | ------------------------------------------------------- |
-| `robot`          | `string` | `talos` | Name of the AUV being simulated.                        |
-| `shader_folder`  | `string` | N/A     | Directory containing all vertex and fragment shaders.   |
-| `texture_folder` | `string` | N/A     | Directory containing all texture assets.                |
-| `model_folder`   | `string` | N/A     | Directory containing all 3D models.                     |
-| `font_folder`    | `string` | N/A     | Directory containing all font files for text rendering. |
+The normal `zedfaker.launch.py` entry point also starts an AprilTag detector,
+which subscribes to the forward camera even when perception selects the downward
+camera. Pass `with_apriltag:=false` through your simulation launch if tag detection
+and tag-based navigation are not needed. The default remains `true`.
 
-**Subscriptions**
-None.
+Depth noise, JPEG encoding, and ROS image/cloud publication run in one background
+job per camera. RGB, depth, CameraInfo, and cloud outputs share an acquisition
+timestamp, and depth previews/clouds use the same depth realization. If processing
+is slower than the configured camera rate, acquisitions are skipped while that
+camera is busy; there is no growing output queue. This keeps the viewer responsive
+but does not guarantee the configured sensor rate under load. Full-resolution
+depth processing and perception still need CPU time.
 
-**Publishers**
-| Publisher Topic                              | Message Type             | Description                            |
-| -------------------------------------------- | ------------------------ | -------------------------------------- |
-| `/talos/zed/zed_node/depth/depth_registered` | `sensor_msgs/Image`      | Publishes raw depth image.             |
-| `/talos/zed/zed_node/left/image_rect_color`  | `sensor_msgs/Image`      | Publishes raw color images.            |
-| `/talos/zed/zed_node/left/camera_info`       | `sensor_msgs/CameraInfo` | Publishes intrinsic camera parameters. |
-| `/talos/zed/zed_node/depth/camera_info`      | `sensor_msgs/CameraInfo` | Publishes depth camera info.           |
+Use `profile:=true` to log render dimensions and timings every three seconds.
+Timings separate ROS callbacks, rendering submission, GPU readback, and the latest
+background output job. Rendering submission is CPU time, not GPU execution time.
+The camera, depth, and cloud publishers only produce output for subscribers;
+headless cameras with only CameraInfo subscribers do not render images.
 
-#### Functional Description
+The viewer skips meshes whose bounding boxes lie entirely outside each view
+before submitting them to OpenGL (frustum culling). This applies independently
+to the observer, both robot cameras, water reflections, and the shadow map;
+off-screen objects can still cast visible shadows or appear in reflections.
+Water and its reflection pass are skipped when the water surface is out of view.
+Objects hidden behind other objects are still submitted; depth testing handles
+their pixels.
 
-  1. **Frame Buffer Object (FBO)**:
-	   - A buffer that can hold images which can be rendered to
-	   - The default FBO displays to images tp the screen
-3. **Vertex Shaders**:
-   - Contains information belonging to a vertex (like position, color, texture coordinates)
-   - Sends information to `Fragment Shaders`.
-3. **Fragment Shaders**:
-   - Interpolates vertex data
-   - For each pixel, the GPU computes in parallel what the color of each pixel should be based on vertex data and other variables called `uniforms`
-   
-  
-  
+The isolated ROS regression exercises subscription changes, native image sizes,
+and RGB/depth/CameraInfo/cloud registration:
 
-#### Key Functions and Classes
-| Function/Class                                                      | Description                                                  |
-| ------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `initialize_yolo(yolo_model_path)`                                  | Initializes the YOLO model.                                  |
-| `camera_info_callback(msg: CameraInfo)`                             | Processes camera info messages.                              |
-| `depth_info_callback(msg: CameraInfo)`                              | Processes depth camera info messages.                        |
-| `depth_callback(msg: Image)`                                        | Processes depth images.                                      |
-| `image_callback(msg: Image)`                                        | Processes RGB images, runs detection, and publishes results. |
-| `create_detection3d_message(header, box, cv_image, conf)`           | Creates detection messages.                                  |
-| `publish_marker(quat, centroid, class_id, bbox_width, bbox_height)` | Publishes visualization markers.                             |
-| `publish_accumulated_point_cloud()`                                 | Publishes accumulated point clouds.                          |
+```bash
+ROS_DOMAIN_ID=176 python3 src/riptide_simulator/camera_faker/test/ros_camera_demand_smoke.py
+```
+
+## Viewer
+
+- Orbit: left-drag to rotate, scroll to zoom, right-drag to pan.
+- Free camera: left-click the viewport to capture the mouse, then move the mouse
+  to look. WASD moves horizontally, Space rises, Shift descends, and Ctrl moves
+  faster. Escape releases the mouse; switching windows also releases it.
+- Focus selector: course, vehicle, gate, torpedo, bins, table, or payload launcher.
+- Follow tracks the vehicle without changing physics. The main viewport can
+  also display either actual rendered camera feed.
+- Each camera card toggles between RGB and metric depth. Invalid depth is dark.
+- Choose Indoor or Outdoor lighting. Adjust brightness and ambient fill; Outdoor
+  adds sun azimuth/elevation and glare controls, including water highlights and
+  bloom. Start in outdoor mode with `lighting:=outdoor`.
+- Adjust water tint, distance-dependent haze and RGB absorption in **Water appearance**.
+  Lighting controls retain animated caustics, exposure, surface rendering,
+  shadows, and calibration-board visibility. These settings also affect sensor
+  RGB, so vision can be tested across different appearances.
+- The course map has a larger inset and an **Expand** button. In the expanded
+  window, scroll to zoom, drag to pan, click a task to focus the pool view, or
+  choose **Fit pool**.
+- The **Depth sensor** tab adjusts noise and range live. **Show both depth maps**
+  switches both camera cards; promoting a camera also shows its selected depth/RGB view.
+- The **Tasks & claw** tab shows ammunition, task events and scores, with
+  arm/fire/drop/reload controls when the task simulator is connected.
+  **Reset all tasks** removes released torpedoes/markers, resets lights, table
+  props and scores, and reloads/disarms the actuators without moving the robot.
+- **Run score** starts/stops an individual-run timer and a RoboSub 2026 point
+  ledger. The gate selects the scored role; **Detailed scorecard** shows awards
+  and manual referee adjustments. **Focus → Octagon** inspects the new floating
+  PVC ring and its signs. See [scoring rules and controls](../c_simulator/docs/SCORING.md).
+- Capture writes the window and separate FFC/DFC RGB images to `/tmp`; the exact
+  path is printed in the ROS log. `screenshot_path` overrides it.
+
+The scene uses the existing 50 × 22.86 × 2.1336 m pool dimensions, lane geometry,
+RoboSub meshes, original vinyl textures, and shared marker offsets. Task poses
+come from the simulator mapping configuration, including its child frames and
+blood/fire class assignments. Above-ground building walls, windows, and roof geometry have been removed; the
+pool and its coping remain. Tile grout is filtered at a distance to reduce
+flicker. Shadows use a 4096 × 4096 depth-only map, depth bias, and a weighted
+filter of bilinear depth comparisons to smooth pixelated edges in the observer
+view and both robot cameras.
+The pool deck begins outside the wall thickness, removing the overlapping faces
+that caused wall/deck flicker.
+
+The default robot is the original lightweight Talos model. Its launcher and
+four separate red payloads come from the Talos3 CAD: **two forward torpedoes and
+two downward markers**, all using the same 83 × 26 × 26 mm finned exterior. The
+launcher asset excludes its originally loaded round, so ammunition is never
+baked into that mesh. Each loaded slot disappears when fired, and the same shape
+moves from that exact position into flight. Reload/reset restores the loaded
+rounds. **Focus → Payloads** or **Inspect launcher** in the task tab gives a close
+view of all four slots. Demo mode shows a full load; live mode follows task state.
+See [payload asset provenance](models/payloads/README.md). The full Talos3 mesh is
+no longer loaded by default, and the original CAD file is unchanged.
+
+Each bin vinyl now sits in a navy lattice crate, with white corrugated-plastic
+liners covering the lower half of its walls. Geometry uses the CleverMade 25 L
+crate's [published dimensions](https://www.clevermade.com/products/clevercrate-milk-crate):
+13.12 × 13.12 × 11 inches outside and 12 × 12 × 10.68 inches inside. Vinyl positions
+are preserved and treated as the interior floor. Liner thickness is an assumed
+4 mm; height fraction and crate dimensions are configurable. These are procedural
+approximations of the product, not a manufacturer CAD model.
+
+Torpedo vinyl openings now cut through RGB, depth and shadow rendering. Their
+centers and radii follow the inner edges of the four printed rings. The same
+geometry drives passage scoring. Torpedoes and dropped markers are visible in
+both cameras and the observer view. See [task setup and limitations](../c_simulator/docs/TASKS.md);
+the claw supports rigid grasp/carry/release and basket delivery (see TASKS.md).
+
+## Bin sensor lights
+
+The bin's old square placeholders are clear-cover Polycase ML-22F approximations
+with 16 bright LED lenses, visible electronics, screws and cable glands. Both
+sensor faces tilt up 45 degrees. **Tasks & claw → Inspect lights**, or **Focus →
+Light 1 / Light 2**, gives a close view. A printed stick and magnet follow the
+robot's configured magnet frame.
+
+A red light turns green after the magnet tip remains within six inches of its
+sensor for 0.5 simulated seconds, then stays green until reset. Each light is
+independent. The lenses emit HDR light with camera bloom under indoor and outdoor
+lighting; actual red/green pixels appear in both robot cameras. Adjust
+`magnet_lights.led_radiance` in `talos_tasks.yaml` for brightness (default 60).
+
+[Red camera sample](docs/magnet-lights/red.png) ·
+[Green camera sample](docs/magnet-lights/green.png) ·
+[Behavior and reset service](../c_simulator/docs/TASKS.md#magnetically-activated-bin-lights) ·
+[Geometry sources and measured detector limits](models/magnet_lights/README.md)
+
+## Water appearance
+
+**Water appearance** provides a color picker, clear-blue/pool/green-water presets,
+and separate controls for scattering, distance strength, distance exponent, clear
+distance, and red/green/blue absorption. More red absorption removes red sooner,
+making distant objects appear bluer; the tint is the light scattered toward the
+camera. Haze increases that tint and reduces scene contrast with distance. These
+settings affect both ROS RGB feeds and the observer. Geometry depth is unchanged.
+
+| Live parameter | Default | Meaning |
+| --- | --- | --- |
+| `water.tint` | `[0.025, 0.22, 0.29]` | RGB scattered-light color, each component 0–1 |
+| `water.absorption` | `[0.095, 0.035, 0.025]` | RGB absorption coefficients, per metre |
+| `water.scattering` | `0.10` | Haze coefficient, per metre |
+| `water.distance_scale` | `1.0` | Multiplier for underwater viewing distance |
+| `water.distance_power` | `1.0` | Exponent controlling how quickly the effect grows |
+| `water.clear_distance` | `0.0` | Metres before attenuation/haze starts |
+
+For underwater path length `d`, the adjusted path is
+`D = (max(d-clear_distance, 0) * distance_scale)^distance_power`.
+The surface contribution is multiplied by `exp(-(absorption + scattering)*D)`;
+scattered water color grows as `1-exp(-scattering*D)`. Only the submerged segment
+of a sightline contributes. Exponent 1 and clear distance 0 give exponential
+attenuation; other values are appearance controls, not measured water optics.
+
+Incoming surface lighting also loses color with depth below the water surface:
+ambient, direct, and caustic lighting are multiplied by
+`exp(-absorption * max(-z, 0))`, using depth in metres. This approximates a
+vertical light path, so deeper objects become darker and lose red sooner even
+at the same camera distance. The viewing-distance controls above apply only to
+the object-to-camera path. Emissive materials, including LEDs, skip the incoming
+light attenuation but still undergo the existing viewing-path attenuation.
+
+```bash
+ros2 param set /talos/pool_viewer water.tint '[0.015, 0.16, 0.24]'
+ros2 param set /talos/pool_viewer water.scattering 0.045
+ros2 param set /talos/pool_viewer water.distance_scale 1.5
+```
+
+## ZED X Mini camera outputs
+
+Each prefix `/talos/ffc/zed_node` and `/talos/dfc/zed_node` provides:
+
+| Suffix | Output |
+| --- | --- |
+| `left/image_rect_color`, `rgb/image_rect_color` | Rectified `rgb8` images |
+| `left/image_rect_color/compressed`, `rgb/image_rect_color/compressed` | JPEG |
+| `left/camera_info`, `rgb/camera_info`, `depth/camera_info` | Matching rectified intrinsics |
+| `depth/depth_registered` | Registered `32FC1`, optical-axis depth in metres |
+| `point_cloud/cloud_registered` | Organized, colored XYZ point cloud |
+
+All messages from a camera observation share a timestamp and its
+`talos/{ffc,dfc}_left_camera_optical_frame`. Images are rendered from the camera
+mount at its physical simulated pose, never the observer viewpoint. The message
+frames belong to the estimated robot's TF tree, including RGB, depth, camera info
+and point clouds. Thus perception projects observations using its estimated pose
+and can observe localization error; ground-truth camera TF is kept separately
+under `simulator/talos/...`. Invalid/out-of-range depth is NaN. Default
+point clouds sample every eighth pixel at up to 5 Hz and are generated only when
+subscribed. Default camera output matches the configured HD1200 cameras:
+1920 × 1200 at up to 15 Hz. An explicit `camera_scale:=0.5` selects 960 × 600
+for reduced rendering cost. RGB, depth, JPEG and CameraInfo use the same resolution;
+CameraInfo intrinsics scale with the image.
+
+Each camera reads its own `riptide_hardware2/cfg/{ffc,dfc}_config.yaml`. Existing
+`optional_opencv_calibration_file` paths are used when readable. Explicit
+calibration overrides are supported:
+
+```bash
+ros2 launch camera_faker pool_viewer.launch.py \
+  ffc_calibration:=/path/to/verified_ffc.yaml \
+  dfc_calibration:=/path/to/verified_dfc.yaml camera_scale:=1.0
+```
+
+Accepted formats are an OpenCV stereo calibration (`K_LEFT`, `D_LEFT`,
+`K_RIGHT`, `D_RIGHT`, `R`, `T`, `Size`) or ROS camera calibration with
+`image_width`, `image_height`, and `projection_matrix.data`. Stereo calibration
+is rectified with OpenCV, zero disparity, alpha=0. **Without a readable
+calibration, the viewer warns and uses approximate 2.2 mm ZED X Mini intrinsics**
+(105° horizontal / 78° vertical). Supply verified underwater calibration for
+projection-sensitive autonomy tests; do not assume a saved calibration belongs
+to this camera or lens.
+
+This is a rectified pinhole RGB/geometry-depth simulator. It does not reproduce
+the ZED neural stereo estimator, refractive camera housing or rolling exposure.
+Water lighting/refraction is a raster approximation, not optical ground truth.
+No right-eye image or disparity stream is claimed.
+
+### Adjustable depth noise
+
+All depth model controls have startup values in
+[`config/cameras.yaml`](config/cameras.yaml), shared by both cameras. Edit
+`depth_noise` (the UI's **Range coefficient**) and the `depth_model` section,
+then restart the simulator to apply them. UI edits do not write back to this
+file; **Reset noise** restores the built-in defaults, not the YAML values.
+
+The **Depth sensor** tab changes ROS parameters live, without restarting. For
+optical-axis depth `z` in metres, Gaussian standard deviation is
+`base_sigma + depth_noise * z^range_exponent`. Defaults give 3.5 mm at 1 m,
+15.5 mm at 3 m and 56 mm at 6 m, before outliers. Neighboring pixels can share
+noise patches. Additional invalid pixels increase with range and at depth edges;
+rare outliers model larger reconstruction errors. Samples outside the selected
+range become NaN. RGB remains unchanged. Preview, ROS depth and cloud use the
+same noisy observation, including invalid pixels.
+
+| Live node parameter | Default | Meaning |
+| --- | --- | --- |
+| `depth_model.enabled` | true | Enable perturbations; range clipping remains active when false |
+| `depth_model.base_sigma` | 0.002 | Constant standard deviation in metres |
+| `depth_noise` | 0.0015 | Range-dependent sigma coefficient |
+| `depth_model.range_exponent` | 2 | Power of depth in sigma |
+| `depth_model.min_range`, `depth_model.max_range` | 0.15, 8.0 | Valid metric range |
+| `depth_model.bias` | 0 | Constant metric offset |
+| `depth_model.dropout` | 0.005 | Base invalid-pixel probability |
+| `depth_model.range_dropout` | 0.10 | Additional probability × `(z/max_range)^2` |
+| `depth_model.edge_dropout` | 0.20 | Additional probability at depth discontinuities |
+| `depth_model.outliers` | 0.002 | Probability of an additional error up to ±25% of depth |
+| `depth_model.correlation` | 0.5 | Fraction of noise variance shared spatially |
+| `depth_model.patch_size` | 8 | Approximate correlation scale in pixels |
+
+For ideal geometry depth within the selected range:
+
+```bash
+ros2 param set /talos/pool_viewer depth_model.enabled false
+```
+
+Setting only `depth_noise` to zero disables the range-dependent Gaussian term;
+other effects remain. Start with both depth previews using `depth_preview:=true`.
+These are **empirical test settings, not measured ZED X Mini underwater errors**.
+Actual ZED depth depends on scene texture, stereo matching and confidence filtering
+([Stereolabs documentation](https://www.stereolabs.com/docs/depth-sensing/confidence-filtering)).
+This model approximates range/edge failures without running stereo inference.
+
+The physics node owns the ground-truth FFC transforms; the viewer supplies the
+ground-truth DFC mount and optical transform. All of these use the `simulator/`
+prefix. Robot optical frames are supplied by the normal ZED description, or by
+the viewer's fixed camera-link-to-optical joints when `zed_wrapper` is absent.
+`publish_camera_optical_tf` controls that fallback; disable it if another node
+already owns those joints. These robot frames always descend from the estimated
+robot camera links, never the simulator base link. Sensor output waits for valid physics TF
+and stops after one second without a new pose timestamp. Rendering continues so
+the stale state is visible. The launch defaults `use_sim_time` to `true` so image
+stamps share the physics simulator's `/clock` with its TF (vision markers are placed
+at their header stamp, so mismatched clocks put them at the wrong vehicle pose);
+it also suppresses repeated observations while ROS time is paused. Pass
+`use_sim_time:=false` when running the viewer against a wall-clock simulator.
+
+## Configuration and portability
+
+The launch accepts `mapping_config`, `scene_config`, `robot`, `camera_scale`,
+`ffc_calibration`, `dfc_calibration`, `demo`, `demo_task`, `initial_focus`, `publish_camera_optical_tf`,
+`headless`, `lighting`, `use_sim_time`, `exit_after_frames`, `screenshot_path`,
+`point_cloud_overlay`, `detections`, `robot_model`, `payload_model`, `launcher_model`,
+`task_config`, and `depth_preview`. `detections:=true` (or the Detections checkbox)
+draws `yolo_orientation` camera markers at the exact simulator camera pose used
+to render their stamped image. When that acquisition is no longer cached, the
+viewer uses timestamped `simulator/` camera TF; it waits if that transform is
+missing rather than using the robot's estimated pose. Other marker frames use
+their own timestamped TF. Each observation is placed once
+and stays fixed in the world, including markers with `frame_locked` set. A zero
+stamp uses the latest transform only at initial placement. The detector's
+lifetime, replacement and deletion messages still control how long it remains.
+Missing transforms are retried without substituting a newer pose.
+Camera-view overlays use the pose and projection of the displayed
+RGB or depth image, even while the vehicle moves between camera acquisitions.
+`demo_task` uses `gate`, `torpedo`, `bin`, or `table`; `initial_focus` additionally
+accepts `Course`, `Vehicle`, and `Payloads`. The default mapping is `../config.yaml` when
+using a symlink install, otherwise the installed copy. Select the same mapping
+file used by your mapping node. The current course and camera defaults are for
+Talos; another robot needs its own mapping entry, mesh, and both camera mounts.
+
+Node-only parameters include `render_rate` (30 Hz), `fixed_frame` (`map`),
+`depth_noise`, `depth_model.*`, `point_cloud.enabled/rate/stride`, and startup lighting parameters
+`lighting.brightness/ambient/sun_azimuth/sun_elevation/glare`. Runtime lighting
+adjustment uses the viewer controls. `water.*` and `depth_model.*` also support
+live ROS parameter updates; settings start from their configured defaults on restart. Asset/configuration paths
+are also node parameters. Launch files resolve package shares; no absolute
+workspace path is compiled into the renderer.
+
+Ubuntu requires a working OpenGL 3.3 desktop driver. Mesa and integrated GPUs
+are supported; software rendering can work at reduced resolution/rate.
+`headless:=true` hides the window and avoids rendering the observer view, but
+still needs an X/Wayland display providing OpenGL. It is not an EGL offscreen
+backend. Lower `camera_scale` if needed. Native-resolution dual cameras can cost
+substantially more than the default.
+
+The renderer uses GLFW, OpenGL, Assimp, OpenCV, yaml-cpp, GLM, and vendored Dear
+ImGui 1.91.9b (MIT license in `vendor/imgui`). It builds without fetching packages
+from the network. Keeping rendering in its own ROS node avoids introducing a
+second physics engine or simulation clock. The GL loader and GLM are vendored
+under `include/external`; scene import, lighting, water, camera publishing, and UI
+live under `src/pool_viewer`, `include/pool_viewer`, and
+`shaders/pool`.
+
+## Verification
+
+```bash
+ctest --test-dir build/camera_faker -R 'pool_camera_geometry|pool_depth_noise' --output-on-failure
+# Requires a desktop display. Use an isolated ROS domain for the synthetic TF fixture.
+ROS_DOMAIN_ID=126 python3 src/riptide_simulator/camera_faker/test/ros_camera_smoke.py
+# Capture a deterministic viewpoint (water animation advances with wall time).
+ros2 launch camera_faker pool_viewer.launch.py demo:=true headless:=true \
+  demo_task:=bin initial_focus:=bin exit_after_frames:=30 \
+  screenshot_path:=/tmp/riptide-bins.png
+```
+
+The geometry test checks off-centre projection, metric depth inversion, downward
+orientation, calibration scaling, and invalid calibration handling. The ROS
+smoke test checks all nine topics per camera, timestamps, encodings, dimensions,
+JPEG colors, cloud/depth registration, DFC floor depth, and missing/stale TF
+recovery, live depth parameter changes, rejection of invalid ranges, and depth
+through all four torpedo openings (including the CAD backing sheet). It also
+checks live water-color changes in RGB, unchanged metric depth and invalid optical
+parameter rejection. The noise
+test checks range-dependent variance, correlated noise, clipping and dropouts.
+It publishes fixture TF only within its selected domain and shuts down
+its viewer when finished.
+
+### Claw interaction
+
+The **Tasks & claw** tab adds Open/Close/Stop claw alongside torpedoes and markers.
+Use Stop to set a narrower approach gap near the table corner posts.
+Enable the vehicle in RViz and arm actuators first. **Inspect claw** shows the
+ribbed CAD pads and moving racks. All four table props move in the viewer and
+both cameras as they are grasped, carried and released. Physics settings, ROS
+commands and approximation limits are in [TASKS.md](../c_simulator/docs/TASKS.md#claw-and-table-objects).
+
+### TF frames and payload alignment
+
+Open **TF** in the pool-view toolbar and enable **Show TF frames**. Axes use
+RViz colors (X red, Y green, Z blue) with optional frame names and adjustable
+length. The checkbox tree follows actual TF parent relationships and includes
+all frames by default, including `map`, course landmarks, and robot frames.
+Expand a branch using its arrow. **Only this** toggles that frame independently
+of its children. **With children** toggles the frame and all its descendants,
+including collapsed branches. A filled square means only part of the branch is
+visible; clicking it shows the whole branch. **Show all / Hide all** controls the
+entire tree. Right-click menus also offer **Show branch / Hide branch**.
+Selection survives closing the popup or toggling the overlay; new frames
+follow the most recent Show all / Hide all choice. Axes show through geometry and appear only
+in the viewer overlay, never in published camera images or depth data.
+
+Live mode reads the TF buffer in the fixed frame (`map` by default), as RViz does.
+The overlay also reports the ROS-estimate/simulator base-link separation in
+centimetres and degrees, including the forward component, at a common timestamp. Frames disconnected from it are counted as unavailable. Localization drift can
+therefore separate estimated robot TF from the simulated ground-truth vehicle.
+Disconnected frames remain in the tree with an **unavailable** label.
+Preview mode instead labels the fixed, configured base and payload frames as a preview.
+Start with axes enabled using `show_tf:=true` on `pool_viewer.launch.py`.
+
+Loaded payloads and release physics compose the robot actuator frames with the
+CAD seating offsets in `talos_tasks.yaml`. TF aiming origins are separate from
+the physical projectile centers. The four rounds remain inside the CAD launcher
+and release continuously from their seats. Restart after configuration changes.
+
+TF axes are captured once before rendering each viewer frame, and the base-link
+error readout compares matching timestamps. The viewer uses the existing robot TF
+rates and does not change the EKF. The CAD mesh offset comes from the vehicle
+`base_link` configuration.
+The viewer publishes `simulator/<robot>/origin` at this CAD origin. Select it and
+`<robot>/origin` in the TF tree to compare them; the ROS-estimated and
+simulated world poses remain visible independently.

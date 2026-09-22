@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    general:
+      camera_model: zedxm
+      grab_resolution: HD1200
+      grab_frame_rate: 15
+      pub_resolution: NATIVE
+    depth:
+      max_depth: 4.0

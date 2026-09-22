@@ -1,0 +1,34 @@
+# Startup camera resolution, depth model, and water appearance.
+# 1.0 = full size, 0.5 = half width AND height, 0.25 = quarter width AND height.
+# At HD1200: 1.0 -> 1920x1200, 0.5 -> 960x600, 0.25 -> 480x300.
+# Restart the simulator after editing; scales cannot be changed at runtime.
+# The optional common camera_scale launch argument multiplies both scales.
+/**:
+  ros__parameters:
+    ffc:
+      resolution_scale: 1.0
+    dfc:
+      resolution_scale: 1.0
+    # Depth controls shared by both cameras. UI edits are runtime-only;
+    # edit these startup values to keep settings across simulator restarts.
+    # Sigma(z) = base_sigma + depth_noise * z^range_exponent (z in metres).
+    depth_noise: 0.0015 # Range coefficient in the UI.
+    depth_model:
+      enabled: true # Noise enabled; range clipping still applies when false.
+      base_sigma: 0.002 # Base sigma, metres.
+      range_exponent: 2.0
+      bias: 0.0 # Constant depth offset, metres.
+      min_range: 0.15 # Minimum range, metres; closer pixels become NaN.
+      max_range: 4.0 # Maximum range, metres; farther pixels become NaN.
+      dropout: 0.005 # Missing pixels: base invalid-pixel probability.
+      range_dropout: 0.10 # Additional probability times (z / max_range)^2.
+      edge_dropout: 0.20 # Additional probability at depth discontinuities.
+      outliers: 0.002 # Probability of an additional error up to +/-25% of depth.
+      correlation: 0.5 # Spatial correlation: shared fraction of noise variance.
+      patch_size: 8 # Correlation patch size, pixels.
+    water:
+      distance_scale: 1.88
+      distance_power: 0.40
+      clear_distance: 0.0
+      scattering: 0.458
+      absorption: [0.648, 0.145, 0.025] # Red, green, blue absorption per metre.
