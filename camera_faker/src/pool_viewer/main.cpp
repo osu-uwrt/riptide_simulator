@@ -546,7 +546,9 @@ class PoolViewer : public rclcpp::Node {
         runSubscription = create_subscription<std_msgs::msg::String>(
             "simulator/run_score", 10, [this](const std_msgs::msg::String &msg) {
                 try {
-                    runScore = YAML::Load(msg.data);
+                    // Node assignment merges YAML memory pools, retaining every
+                    // previous snapshot. Rebind so the old tree can be freed.
+                    runScore.reset(YAML::Load(msg.data));
                     lastRunScore = Clock::now();
                 } catch (const YAML::Exception &e) {
                     RCLCPP_WARN(get_logger(), "Invalid run score: %s", e.what());
@@ -727,9 +729,10 @@ class PoolViewer : public rclcpp::Node {
                 nextProfile = t + 3.;
                 for (const auto &c : cameras)
                     RCLCPP_INFO(get_logger(),
-                                "Viewer %.1f fps; callbacks %.1f ms; %s submit/readback/worker %.1f/%.1f/%.1f ms",
+                                "Viewer %.1f fps; callbacks %.1f ms; %s submit/readback/worker %.1f/%.1f/%.1f ms; "
+                                "detection markers %zu",
                                 1000. / std::max(frameMs, 1.), callbackMs, c.name.c_str(), c.renderMs, c.outputMs,
-                                c.processingMs);
+                                c.processingMs, detectionMarkers.size());
             }
             if (hidden && screenshot.empty() && exitFrames == 0) {
                 std::this_thread::sleep_until(frameStart + std::chrono::duration_cast<Clock::duration>(
@@ -1651,8 +1654,8 @@ class PoolViewer : public rclcpp::Node {
     void captureDetections() {
         placedDetections.clear();
         detectionStatus.clear();
-        if (demo || !detections)
-            return;
+        // Subscription callbacks run even when the overlay is hidden. Expire
+        // their markers independently of drawing so unique IDs cannot pile up.
         const auto now = Clock::now();
         for (auto it = detectionMarkers.begin(); it != detectionMarkers.end();) {
             const double life = it->second.marker.lifetime.sec + it->second.marker.lifetime.nanosec * 1e-9;
@@ -1661,6 +1664,8 @@ class PoolViewer : public rclcpp::Node {
             else
                 ++it;
         }
+        if (demo || !detections)
+            return;
         int boxes = 0, unresolved = 0;
         for (auto &[key, entry] : detectionMarkers) {
             const auto &m = entry.marker;

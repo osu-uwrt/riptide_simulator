@@ -546,6 +546,12 @@ ROS_DOMAIN_ID=126 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
 ctest --test-dir build/camera_faker -R 'pool_camera_geometry|pool_depth_noise' --output-on-failure
 # Requires a desktop display. Use an isolated ROS domain for the synthetic TF fixture.
 ROS_DOMAIN_ID=126 python3 src/riptide_simulator/camera_faker/test/ros_camera_smoke.py
+# Finite-lifetime markers must expire even with the detection overlay disabled.
+ROS_DOMAIN_ID=183 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  python3 src/riptide_simulator/camera_faker/test/ros_detection_lifetime_smoke.py
+# Repeated score snapshots must not retain previous YAML trees (Linux RSS check).
+ROS_DOMAIN_ID=184 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  python3 src/riptide_simulator/camera_faker/test/ros_score_memory_smoke.py
 # Capture a deterministic viewpoint (water animation advances with wall time).
 ros2 launch camera_faker pool_viewer.launch.py demo:=true headless:=true \
   demo_task:=bin initial_focus:=bin exit_after_frames:=30 \
