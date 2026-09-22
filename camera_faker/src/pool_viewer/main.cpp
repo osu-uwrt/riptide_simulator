@@ -27,6 +27,7 @@
 #include <random>
 #include <rclcpp/rclcpp.hpp>
 #include <riptide_msgs2/msg/actuator_status.hpp>
+#include <riptide_msgs2/msg/led_command.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -35,6 +36,7 @@
 #include <set>
 #include <sstream>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/color_rgba.hpp>
 #include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/float32.hpp>
@@ -394,6 +396,7 @@ class PoolViewer : public rclcpp::Node {
             look.sunElevation > 90)
             throw std::runtime_error("Invalid lighting intensity or sun elevation");
         initializeWindow();
+        statusLights = pool::StatusLights(declare_parameter<std::string>("status_lights_config", ""));
         renderer = std::make_unique<pool::Renderer>(
             declare_parameter<std::string>("shader_folder", ""),
             declare_parameter<std::string>("riptide_mesh_folder", ""),
@@ -401,7 +404,36 @@ class PoolViewer : public rclcpp::Node {
             declare_parameter<std::string>("marker_config", ""), declare_parameter<std::string>("scene_config", ""),
             robot, declare_parameter<std::string>("robot_model", ""), declare_parameter<std::string>("task_config", ""),
             declare_parameter<std::string>("payload_model", ""), declare_parameter<std::string>("launcher_model", ""),
-            declare_parameter<std::string>("claw_model", ""));
+            declare_parameter<std::string>("claw_model", ""), statusLights.lights);
+        // Opt-in transport adapters: no subscriptions or Talos-specific geometry
+        // are created for robot profiles without a status light configuration.
+        if (statusLights.input == "riptide_msgs2/msg/LedCommand") {
+            ledSubscription = create_subscription<riptide_msgs2::msg::LedCommand>(
+                statusLights.topic, 10, [this](const riptide_msgs2::msg::LedCommand &msg) {
+                    using Command = riptide_msgs2::msg::LedCommand;
+                    pool::LightMode mode;
+                    switch (msg.mode) {
+                    case Command::MODE_SOLID: mode = pool::LightMode::Solid; break;
+                    case Command::MODE_SLOW_FLASH: mode = pool::LightMode::SlowFlash; break;
+                    case Command::MODE_FAST_FLASH: mode = pool::LightMode::FastFlash; break;
+                    case Command::MODE_BREATH: mode = pool::LightMode::Breath; break;
+                    case Command::SINGLETON_FLASH: mode = pool::LightMode::Flash; break;
+                    default: return;
+                    }
+                    if (msg.target > Command::TARGET_ALL)
+                        return;
+                    statusLights.command(glm::vec3(msg.red, msg.green, msg.blue) / 255.f,
+                                         mode, msg.target, now().seconds());
+                });
+        } else if (statusLights.input == "std_msgs/msg/ColorRGBA") {
+            colorSubscription = create_subscription<std_msgs::msg::ColorRGBA>(
+                statusLights.topic, 10, [this](const std_msgs::msg::ColorRGBA &msg) {
+                    if (!std::isfinite(msg.a))
+                        return;
+                    statusLights.command(glm::vec3(msg.r, msg.g, msg.b) * std::clamp(msg.a, 0.f, 1.f),
+                                         pool::LightMode::Solid, UINT32_MAX, now().seconds());
+                });
+        }
         if (!get_parameter("task_config").as_string().empty()) {
             const auto task = YAML::LoadFile(get_parameter("task_config").as_string());
             ui = task["ui"] ? YAML::Clone(task["ui"]) : YAML::Node(YAML::NodeType::Map);
@@ -574,17 +606,13 @@ class PoolViewer : public rclcpp::Node {
         for (auto &c : cameras) {
             if (c.pending.valid())
                 c.pending.wait();
-            c.image.opaque.release();
-            c.image.composite.release();
-            c.image.final.release();
+            c.image.release();
             if (c.depthTexture) {
                 glDeleteTextures(1, &c.depthTexture);
                 c.depthTexture = 0;
             }
         }
-        overview.opaque.release();
-        overview.composite.release();
-        overview.final.release();
+        overview.release();
         renderer.reset();
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -611,6 +639,8 @@ class PoolViewer : public rclcpp::Node {
             captureTf();
             captureDetections();
             renderer->robotPose(body * modelOffset);
+            for (const auto &light : statusLights.lights)
+                renderer->statusLight(light.id, light.state.color(now().seconds()));
             renderer->magnetPose(body * magnetMount);
             renderer->clawPose(body * clawMount, clawJoints[0], clawJoints[1]);
             for (const auto &entry : taskObjects)
@@ -766,6 +796,9 @@ class PoolViewer : public rclcpp::Node {
     std::string detectionStatus;
     std::string syncStatus;
     std::unique_ptr<pool::Renderer> renderer;
+    pool::StatusLights statusLights;
+    rclcpp::Subscription<riptide_msgs2::msg::LedCommand>::SharedPtr ledSubscription;
+    rclcpp::Subscription<std_msgs::msg::ColorRGBA>::SharedPtr colorSubscription;
     std::unique_ptr<tf2_ros::Buffer> buffer;
     std::unique_ptr<tf2_ros::TransformListener> listener;
     std::unique_ptr<tf2_ros::StaticTransformBroadcaster> broadcaster;

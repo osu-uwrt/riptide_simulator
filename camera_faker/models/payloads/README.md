@@ -1,8 +1,8 @@
 # Talos launcher and shared projectile
 
 These assets are extracted from the workspace's original `Talos3.dae`; that file
-is unchanged. The simulator uses the lightweight Talos chassis with this separate
-launcher and four separately rendered payloads.
+is unchanged. The simulator uses the Talos3 body with its baked-in torpedo/marker
+assembly removed, plus this separate launcher and four separately rendered payloads.
 
 - `launcher.glb`: CAD-frame launcher assembly, with the original loaded round
   excluded; 82,669 triangles, about 2.3 MB. Covers, springs and supports remain.

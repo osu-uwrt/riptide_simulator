@@ -1,7 +1,7 @@
 #version 330 core
 in vec2 uv;
 out vec4 frag;
-uniform sampler2D sceneColor,sceneDepth;
+uniform sampler2D sceneColor,sceneDepth,bloomColor;
 uniform mat4 inverseViewProjection;
 uniform vec3 eye,sunDirection;
 uniform float glare;
@@ -25,16 +25,7 @@ void main(){
   }
   // Camera bloom applies to full-brightness LEDs indoors too. HDR emission
   // spreads beyond each package without changing geometry, projection or depth.
-  vec3 bloom=vec3(0);
-  for(int i=0;i<12;++i){float a=float(i)*.523599;
-    for(int ring=0;ring<4;++ring){
-      float radius=ring==0?2.:(ring==1?5.:(ring==2?10.:18.));
-      float weight=ring==0?1.:(ring==1?.65:(ring==2?.25:.08));
-      vec3 sampleColor=texture(sceneColor,uv+vec2(cos(a),sin(a))*texel*radius).rgb;
-      bloom+=max(sampleColor-vec3(1.2),vec3(0))*weight;
-    }
-  }
-  c+=bloom*(.025+.02*glare);
+  c+=texture(bloomColor,uv).rgb*(.60+.48*glare);
   c*=exposure;
   c=clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);
   frag=vec4(pow(c,vec3(1./2.2)),1);

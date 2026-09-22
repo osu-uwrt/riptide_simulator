@@ -37,6 +37,7 @@ class Profiles(unittest.TestCase):
             self.assertEqual(meta['world'],read(path/'scene.yaml')['world'])
             self.assertEqual(meta['world']['water_level'],read(path/'hydrodynamics.yaml')['water_level'])
             if robot=='example_auv':
+                self.assertNotIn('status_lights_config',meta['viewer'])
                 self.assertEqual(len(vehicle['thrusters']),4)
                 self.assertEqual([c['name'] for c in vehicle['sim_cameras']],['survey'])
                 self.assertEqual(vehicle['sim_enabled_sensors'],[])
@@ -89,6 +90,9 @@ class Profiles(unittest.TestCase):
         path=self.resolve()
         task=read(path/'task.yaml')
         self.assertTrue(Path(task['robot_collision']).is_file())
+        lights=read(read(path/'selection.yaml')['viewer']['status_lights_config'])
+        self.assertEqual(lights['input']['topic'],'command/led')
+        self.assertEqual(len(lights['lights']),3)
         self.assertTrue(Path(task['behavior'].rsplit(':',1)[0]).is_relative_to(self.root))
         defaults={o['key']:o['default'] for o in task['ui']['run_options']}
         self.assertTrue(defaults['heading_coin']);self.assertTrue(defaults['role_coin'])

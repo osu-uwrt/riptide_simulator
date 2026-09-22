@@ -12,7 +12,7 @@ capabilities:
   gripper: claw
   magnet: magnet_lights
 collision: package://c_simulator/collision_files/robots/talos.urdf
-model: package://riptide_meshes/meshes/talos/model.dae
+model: package://camera_faker/models/talos3/Talos3_body.glb
 adapter: uwrt
 cameras:
 - name: ffc
@@ -24,6 +24,7 @@ cameras:
   topic_root: dfc/zed_node
   truth_tf_owner: viewer
 viewer:
+  status_lights_config: config/status_lights.yaml
   payload_model: package://camera_faker/models/payloads/projectile.glb
   launcher_model: package://camera_faker/models/payloads/launcher.glb
   claw_model: package://camera_faker/models/claw/gripper.glb

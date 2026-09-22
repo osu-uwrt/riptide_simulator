@@ -1,0 +1,37 @@
+[
+  {
+    "geometry": "T200.*-solid(?:1|3|4|5|6) - Part",
+    "source_material": "^(?:color[-_]|white-pw-mt11050)",
+    "material": "black_low_gloss_plastic-material"
+  },
+  {
+    "geometry": "T200.*-solid2 - Part",
+    "source_material": "^(?:color[-_]|white-pw-mt11050)",
+    "material": "red_low_gloss_plastic_007-material"
+  },
+  {
+    "geometry": "Inner.?T200.*-solid7 - Part|(?<!Inner )(?<!Inner_)T200 Thruster(?:_Taco)?-[0-9]+-solid9 - Part",
+    "source_material": "^(?:color[-_]|white-pw-mt11050)",
+    "material": "black_low_gloss_plastic-material"
+  },
+  {
+    "geometry": "Thruster Protector",
+    "source_material": "^(?:color[-_]|white-pw-mt11050)",
+    "material": "glossy_rubber_002-material"
+  },
+  {
+    "geometry": "(?:mcbh|mcil|mcdc|dbh[0-9]|dil[0-9]|BatterySubcons)",
+    "source_material": "^(?:color[-_]|white-pw-mt11050)",
+    "material": "black_low_gloss_plastic-material"
+  },
+  {
+    "geometry": "PolycarbonateChannels",
+    "source_material": "^color[-_]",
+    "material": "Clear_004-material"
+  },
+  {
+    "geometry": "Drawer Rail|Drawer Slide",
+    "source_material": "^color[-_]",
+    "material": "satin_finish_aluminum-material"
+  }
+]

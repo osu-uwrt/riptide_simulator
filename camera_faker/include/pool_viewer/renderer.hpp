@@ -1,6 +1,7 @@
 #pragma once
 #include "pool_viewer/camera.hpp"
 #include "pool_viewer/frustum.hpp"
+#include "pool_viewer/status_lights.hpp"
 #include <glad/glad.h>
 #include <array>
 #include <map>
@@ -32,6 +33,8 @@ struct Object {
     int material = 0; // 0 asset, 1 tiles, 2 deck, 3 lamp, 4 liner, 5 clear cover, 6 LED
     bool robot = false, tag = false, castsShadow = true;
     glm::vec4 tint{1};
+    glm::mat4 robotMount{1};
+    float radiance = -1; // Negative uses the existing task LED radiance.
 };
 struct Target {
     GLuint fbo = 0, color = 0, depth = 0;
@@ -45,10 +48,20 @@ struct Target {
 };
 struct Frame {
     Target opaque, composite, final;
+    std::array<Target, 2> bloom;
     void resize(int w, int h) {
         opaque.resize(w, h);
         composite.resize(w, h);
         final.resize(w, h, false);
+        for (auto &target : bloom)
+            target.resize(std::max(1, w / 4), std::max(1, h / 4));
+    }
+    void release() {
+        opaque.release();
+        composite.release();
+        final.release();
+        for (auto &target : bloom)
+            target.release();
     }
 };
 struct WaterOptics {
@@ -89,7 +102,7 @@ class Renderer {
              const std::string &mapping, const std::string &markers, const std::string &scene, const std::string &robot,
              const std::string &robotAsset = "", const std::string &taskConfig = "",
              const std::string &payloadAsset = "", const std::string &launcherAsset = "",
-             const std::string &clawAsset = "");
+             const std::string &clawAsset = "", const std::vector<StatusLight> &statusLights = {});
     ~Renderer();
     void robotPose(const glm::mat4 &p);
     void payloadPoses(const std::vector<glm::mat4> &poses);
@@ -97,6 +110,7 @@ class Renderer {
     void clawPose(const glm::mat4 &mount, float left, float right);
     void magnetPose(const glm::mat4 &mount);
     void magnetLight(const std::string &name, bool green);
+    void statusLight(const std::string &id, const glm::vec3 &color);
     void shadows(const Look &look);
     // Overlays are drawn only when asked, so sensor renders never contain them.
     void render(Frame &frame, const View &camera, const Look &look, float time, bool showRobot = true,
@@ -115,6 +129,7 @@ class Renderer {
     std::map<std::string, std::vector<std::shared_ptr<Mesh>>> cache;
     std::map<std::string, GLuint> textures;
     GLuint sceneProgram = 0, waterProgram = 0, postProgram = 0, shadowProgram = 0, pointProgram = 0, quad = 0;
+    GLuint bloomProgram = 0;
     std::vector<PointCloud> pointClouds;
     YAML::Node world;
     Target shadow, reflection;

@@ -276,6 +276,9 @@ std::vector<std::shared_ptr<Mesh>> Renderer::load(const std::string &name, const
             aiColor4D color(1, 1, 1, 1);
             auto *material = scene->mMaterials[input->mMaterialIndex];
             aiGetMaterialColor(material, AI_MATKEY_COLOR_DIFFUSE, &color);
+            float opacity = 1.f;
+            material->Get(AI_MATKEY_OPACITY, opacity);
+            color.a = std::min(color.a, opacity);
             mesh->color = {color.r, color.g, color.b, color.a};
             if (!backingIndices.empty()) {
                 auto backing = std::make_shared<Mesh>(backingVertices, backingIndices);
@@ -343,12 +346,14 @@ void Renderer::buildPool() {
 Renderer::Renderer(const std::string &shaders, const std::string &meshes, const std::string &textureFolder,
                    const std::string &mapping, const std::string &markers, const std::string &sceneFile,
                    const std::string &robot, const std::string &robotAsset, const std::string &taskConfig,
-                   const std::string &payloadAsset, const std::string &launcherAsset, const std::string &clawAsset)
+                   const std::string &payloadAsset, const std::string &launcherAsset, const std::string &clawAsset,
+                   const std::vector<StatusLight> &statusLights)
     : meshRoot(meshes), textureRoot(textureFolder) {
     sceneProgram = program(shaders, "scene");
     waterProgram = program(shaders, "water");
     shadowProgram = program(shaders, "shadow");
     postProgram = program(shaders, "post");
+    bloomProgram = program(shaders, "bloom");
     pointProgram = program(shaders, "points");
     YAML::Node task;
     if (!taskConfig.empty()) {
@@ -474,6 +479,14 @@ Renderer::Renderer(const std::string &shaders, const std::string &meshes, const 
     auto robotInfo = scene["robot"]["model"];
     std::string robotMesh = robotInfo["riptide_mesh"].as<std::string>(robot);
     objects.push_back({"Vehicle", load(robotAsset.empty() ? robotMesh : robotAsset), glm::mat4(1), 0, true});
+    for (const auto &light : statusLights) {
+        box("Status light/" + light.id, light.mount, light.size, glm::vec3(1), 6, false);
+        auto &emitter = objects.back();
+        emitter.robot = true;
+        emitter.robotMount = emitter.transform;
+        emitter.radiance = light.radiance;
+        emitter.tint = glm::vec4(0, 0, 0, 1);
+    }
     if (task["magnet_lights"]) {
         const auto file = std::filesystem::path(textureRoot).parent_path() / "models/magnet_lights/robot_magnet.glb";
         objects.push_back({"Robot magnet", load(file.string()), glm::mat4(1), 0, true});
@@ -636,7 +649,7 @@ Renderer::~Renderer() {
     water.meshes.clear();
     for (auto &t : textures)
         glDeleteTextures(1, &t.second);
-    for (GLuint p : {sceneProgram, waterProgram, shadowProgram, postProgram, pointProgram})
+    for (GLuint p : {sceneProgram, waterProgram, shadowProgram, postProgram, pointProgram, bloomProgram})
         glDeleteProgram(p);
     for (auto &pc : pointClouds) {
         if (pc.vbo)
@@ -649,7 +662,12 @@ Renderer::~Renderer() {
 void Renderer::robotPose(const glm::mat4 &p) {
     for (auto &o : objects)
         if (o.robot)
-            o.transform = p;
+            o.transform = p * o.robotMount;
+}
+void Renderer::statusLight(const std::string &id, const glm::vec3 &color) {
+    for (auto &o : objects)
+        if (o.name == "Status light/" + id)
+            o.tint = glm::vec4(color, 1);
 }
 void Renderer::magnetPose(const glm::mat4 &mount) {
     for (auto &o : objects)
@@ -688,6 +706,9 @@ void Renderer::shadows(const Look &look) {
         // light's volume, independently of every viewer/sensor camera.
         const Frustum frustum(lightMatrix * o.transform);
         for (const auto &m : o.meshes) {
+            // Clear CAD panels must not cast opaque shadows onto internal LEDs.
+            if (m->color.a < .999f)
+                continue;
             if (!frustum.intersects(m->bounds))
                 continue;
             bindTexture(m->texture, 0);
@@ -740,8 +761,6 @@ void Renderer::drawScene(const View &camera, const Look &look, float time, bool 
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
         for (const auto &o : objects) {
-            if ((o.material == 5) != bool(transparent))
-                continue;
             if ((o.robot && !showRobot) || (o.tag && !look.tag))
                 continue;
             // Keep overhead spectator views clear; the ceiling remains in sensor
@@ -751,13 +770,17 @@ void Renderer::drawScene(const View &camera, const Look &look, float time, bool 
             const Frustum frustum(viewProjection * o.transform);
             bool modelBound = false;
             for (const auto &m : o.meshes) {
+                const int material = o.material == 0 && m->color.a < .999f ? 5 : o.material;
+                if ((material == 5) != bool(transparent))
+                    continue;
                 if (!frustum.intersects(m->bounds))
                     continue;
                 if (!modelBound) {
                     uniform(sceneProgram, "model", o.transform);
-                    integer(sceneProgram, "material", o.material);
+                    uniform(sceneProgram, "ledRadiance", o.radiance < 0 ? ledRadiance : o.radiance);
                     modelBound = true;
                 }
+                integer(sceneProgram, "material", material);
                 const auto tint = m->color * o.tint;
                 glUniform4fv(glGetUniformLocation(sceneProgram, "tint"), 1, glm::value_ptr(tint));
                 integer(sceneProgram, "hasTexture", m->texture != 0);
@@ -894,13 +917,31 @@ void Renderer::render(Frame &f, const View &camera, const Look &look, float time
         water.meshes.front()->draw();
         glDepthMask(GL_TRUE);
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, f.final.fbo);
+    // Filter the HDR bright pass before tone mapping. A continuous low-resolution
+    // blur avoids the replicated bars produced by sparse full-resolution rings.
     glDisable(GL_DEPTH_TEST);
+    glUseProgram(bloomProgram);
+    integer(bloomProgram, "source", 0);
+    glBindVertexArray(quad);
+    glViewport(0, 0, f.bloom[0].width, f.bloom[0].height);
+    for (int pass = 0; pass < 3; ++pass) {
+        glBindFramebuffer(GL_FRAMEBUFFER, f.bloom[pass % 2].fbo);
+        integer(bloomProgram, "extractBright", pass == 0);
+        bindTexture(pass == 0 ? f.composite.color : f.bloom[(pass - 1) % 2].color, 0);
+        glUniform2f(glGetUniformLocation(bloomProgram, "stepSize"),
+                    pass == 0 ? 1.f / f.composite.width : (pass == 1 ? 1.f / f.bloom[0].width : 0.f),
+                    pass == 0 ? 1.f / f.composite.height : (pass == 2 ? 1.f / f.bloom[0].height : 0.f));
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, f.final.fbo);
+    glViewport(0, 0, f.final.width, f.final.height);
     glUseProgram(postProgram);
     integer(postProgram, "sceneColor", 0);
     uniform(postProgram, "exposure", look.exposure);
     bindTexture(f.composite.color, 0);
     bindTexture(f.composite.depth, 1);
+    bindTexture(f.bloom[0].color, 2);
+    integer(postProgram, "bloomColor", 2);
     integer(postProgram, "sceneDepth", 1);
     uniform(postProgram, "inverseViewProjection", glm::inverse(camera.projection * camera.view));
     uniform(postProgram, "eye", camera.eye);

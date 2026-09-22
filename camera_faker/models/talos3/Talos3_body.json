@@ -1,0 +1,1232 @@
+{
+  "source": "Talos3.dae",
+  "parts": [],
+  "source_triangles": 3011610,
+  "triangle_ratio": 0.4,
+  "normal_method": "CAD corner normals interpolated onto simplified faces, preserving seams",
+  "excluded_parts": [
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_28b607b-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_28b607b"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_1b6327e-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_1b6327e"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_cd8f5da-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_cd8f5da"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_9c86b8e-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_9c86b8e"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_5eedbba-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_5eedbba"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_ccebf26-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_ccebf26"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_cb597b5-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_cb597b5"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_WLP-M10-6_5MM-_30b7051-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/WLP-M10-6.5MM-_30b7051"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Sinky_Torpedo_Model__hole_-1-s_e2b53e0-mesh",
+      "name": "Torpedoes + Markers V8-1/Sinky Torpedo Model (hole)-1-s_e2b53e0"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Bottom_Cover-1-solid1_-_Part_3-mesh",
+      "name": "Torpedoes  Markers V8-1Bottom Cover-1-solid1 - Part 3"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Bottom_Cover-1-solid1_-_Part_2-mesh",
+      "name": "Torpedoes  Markers V8-1Bottom Cover-1-solid1 - Part 2"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Bottom_Cover-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Bottom Cover-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Spring__9435K123_-4-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Spring (9435K123)-4-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Spring__9435K123_-3-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Spring (9435K123)-3-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_91841A005_18-8_Stainless_Steel_86ba880-mesh",
+      "name": "Torpedoes + Markers V8-1/91841A005_18-8 Stainless Steel_86ba880"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Pushing_Arm_with_Shaft-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Pushing Arm with Shaft-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Left_Helix_Modified-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Left Helix Modified-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Top_Cover-1-solid1_-_Part_3-mesh",
+      "name": "Torpedoes  Markers V8-1Top Cover-1-solid1 - Part 3"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Top_Cover-1-solid1_-_Part_2-mesh",
+      "name": "Torpedoes  Markers V8-1Top Cover-1-solid1 - Part 2"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Top_Cover-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Top Cover-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Spring__9435K123_-2-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Spring (9435K123)-2-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Spring__9435K123_-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Spring (9435K123)-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Pushing_Arm-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Pushing Arm-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Right_Helix_Modified-1-solid1_-_Part-mesh",
+      "name": "Torpedoes + Markers V8-1/Right Helix Modified-1-solid1 - Part"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_Part1_Servo_Ho_5a7a18d-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/Part1^Servo Ho_5a7a18d"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_ServoHousingTo_6c63b98-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/ServoHousingTo_6c63b98"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Servo_Housing-1ServoHousingBotto_82527ec-mesh",
+      "name": "Torpedoes  Markers V8-1Servo Housing-1ServoHousingBotto_82527ec"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_ServoHousingBo_219539e-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/ServoHousingBo_219539e"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1__012_X_Ring-3-_b539c5d-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/#012 X Ring-3-_b539c5d"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1__012_X_Ring-1-_f2e9160-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/#012 X Ring-1-_f2e9160"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Servo_Housing-1Torpedo_Shaft-1-s_3272dda-mesh",
+      "name": "Torpedoes  Markers V8-1Servo Housing-1Torpedo Shaft-1-s_3272dda"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_Torpedo_Shaft-_3dbd347-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/Torpedo Shaft-_3dbd347"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1__012_X_Ring-2-_bf24dba-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/#012 X Ring-2-_bf24dba"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Servo_Housing-1Claw_Shaft-1-soli_4ef0f16-mesh",
+      "name": "Torpedoes  Markers V8-1Servo Housing-1Claw Shaft-1-soli_4ef0f16"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_Claw_Shaft-1-s_8172b69-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/Claw Shaft-1-s_8172b69"
+    },
+    {
+      "id": "Torpedoes__Markers_V8-1Servo_Housing-1XL-430_new-2Servo_34afe23-mesh",
+      "name": "Torpedoes  Markers V8-1Servo Housing-1XL-430_new-2Servo_34afe23"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_S_86e1608-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/S_86e1608"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_J_15555d4-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/J_15555d4"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_J_6e0e3c3-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/J_6e0e3c3"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_B_6d89656-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/B_6d89656"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_B_2225e1c-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/B_2225e1c"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_D_2742eb7-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/D_2742eb7"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Servo_Housing-1_XL-430_new-2_D_78bc5e7-mesh",
+      "name": "Torpedoes + Markers V8-1/Servo Housing-1/XL-430_new-2/D_78bc5e7"
+    },
+    {
+      "id": "Torpedoes___Markers_V8-1_Middle_Body_with_Straightener-_056e455-mesh",
+      "name": "Torpedoes + Markers V8-1/Middle Body with Straightener-_056e455"
+    }
+  ],
+  "excluded_source_triangles": 332116,
+  "material_repairs": [
+    {
+      "name": "Talos Main Housing-2/PolycarbonateChannels-1-solid1 - Part",
+      "from": "color_007-material",
+      "to": "Clear_004-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-2/Drawer Rail Top_718db58",
+      "from": "color_008-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Rail Top-1_0c14571",
+      "from": "color-4_007-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Rail Top-1_e9338e0",
+      "from": "color-4_008-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Rail Top-1_7f5f375",
+      "from": "color-5_006-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-2/Drawer Slide Ba_9ab2c85",
+      "from": "color-4_009-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Slide Base_beea989",
+      "from": "color-6_006-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-2/Drawer Slide Mi_84d72ea",
+      "from": "color-4_010-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Slide Midd_f02afbd",
+      "from": "color-7_006-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-2/Drawer Slide Mi_b2d15da",
+      "from": "color_009-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-2Drawer Slide Midd_c2e6f96",
+      "from": "color-4_011-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Rail Top-1_dd3f2c5",
+      "from": "color-4_012-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Rail Top-1_ecaf8df",
+      "from": "color-4_013-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-4/Drawer Slide Ba_cf40289",
+      "from": "color-4_014-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Closed Rails New-4/Drawer Slide Mi_c86f5dc",
+      "from": "color-4_015-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Slide Midd_39cd0ff",
+      "from": "color-8_005-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Slide Midd_1520c27",
+      "from": "color-4_016-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Slide Midd_a0560c0",
+      "from": "color-6_007-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Closed Rails New-4Drawer Slide Midd_454edff",
+      "from": "color-8_006-material",
+      "to": "satin_finish_aluminum-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1BatterySubcons_hpbh4f-1_c67d2f9",
+      "from": "color_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1BatterySubcons_hpbh4f-2_b349fe7",
+      "from": "color-5_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1BatterySubcons_hpbh4f-2_b947616",
+      "from": "color_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-1-solid1 - Part",
+      "from": "color_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-1-solid1 - Part 3",
+      "from": "color-5_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-1-solid1 - Part 4",
+      "from": "color-6_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-1-solid1 - Part 6",
+      "from": "color-12_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-1-solid1 - Part 7",
+      "from": "color-13_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-2-solid1 - Part",
+      "from": "color_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-2-solid1 - Part 3",
+      "from": "color-5_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-2-solid1 - Part 4",
+      "from": "color-6_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-2-solid1 - Part 6",
+      "from": "color-12_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-2-solid1 - Part 8",
+      "from": "color-2_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-3-solid1 - Part",
+      "from": "color_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-3-solid1 - Part 3",
+      "from": "color-5_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-3-solid1 - Part 4",
+      "from": "color-6_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-3-solid1 - Part 6",
+      "from": "color-12_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-3-solid1 - Part 7",
+      "from": "color-13_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-3-solid1 - Part 8",
+      "from": "color-3_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-4-solid1 - Part",
+      "from": "color_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-4-solid1 - Part 3",
+      "from": "color-6_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-4-solid1 - Part 5",
+      "from": "color-12_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-4-solid1 - Part 6",
+      "from": "color-13_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-7-solid1 - Part",
+      "from": "color_016-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-7-solid1 - Part 3",
+      "from": "color-6_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-7-solid1 - Part 5",
+      "from": "color-12_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-7-solid1 - Part 6",
+      "from": "color-13_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-7-solid1 - Part 7",
+      "from": "color-16_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-8-solid1 - Part",
+      "from": "color_017-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-8-solid1 - Part 3",
+      "from": "color-5_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-8-solid1 - Part 4",
+      "from": "color-6_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-8-solid1 - Part 6",
+      "from": "color-12_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-8-solid1 - Part 7",
+      "from": "color-13_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-10-solid1 - Part",
+      "from": "color_018-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-10-solid1 - Part 3",
+      "from": "color-5_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-10-solid1 - Part 4",
+      "from": "color-6_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-10-solid1 - Part 6",
+      "from": "color-12_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-10-solid1 - Part 7",
+      "from": "color-13_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-11-solid1 - Part",
+      "from": "color_019-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-11-solid1 - Part 2",
+      "from": "color-6_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-11-solid1 - Part 4",
+      "from": "color-12_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-11-solid1 - Part 5",
+      "from": "color-13_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-13-solid1 - Part",
+      "from": "color_020-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-13-solid1 - Part 4",
+      "from": "color-5_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-13-solid1 - Part 5",
+      "from": "color-6_016-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-13-solid1 - Part 7",
+      "from": "color-12_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-13-solid1 - Part 8",
+      "from": "color-13_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Port_Lid23-1/mcbh3f_Lid-14-solid1 - Part",
+      "from": "color_021-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-14-solid1 - Part 3",
+      "from": "color-6_017-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-14-solid1 - Part 4",
+      "from": "color-7_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-14-solid1 - Part 6",
+      "from": "color-12_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh3f_Lid-14-solid1 - Part 7",
+      "from": "color-13_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 3",
+      "from": "color-6_018-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 5",
+      "from": "color-9_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 6",
+      "from": "color-17_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 7",
+      "from": "color-18_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 8",
+      "from": "color-19_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 9",
+      "from": "color_022-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-1-solid1 - Part 10",
+      "from": "color-21_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-2-solid1 - Part 2",
+      "from": "color-5_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-2-solid1 - Part 3",
+      "from": "color-6_019-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-2-solid1 - Part 6",
+      "from": "color-2_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-2-solid1 - Part 7",
+      "from": "color-17_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Port_Lid23-1mcbh6f_Lid-2-solid1 - Part 8",
+      "from": "color-18_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Starboard_Lid_23-1/dbh8f_Lid-1-sol_72728a5",
+      "from": "color_023-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dbh8f_Lid-1-solid_0ae766c",
+      "from": "color-5_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dbh8f_Lid-1-solid_bb410e0",
+      "from": "color-6_020-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dbh8f_Lid-1-solid_6978248",
+      "from": "color-24_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Starboard_Lid_23-1/dbh8f_Lid-2-sol_f815bd4",
+      "from": "color_024-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dbh8f_Lid-2-solid_569703e",
+      "from": "color-6_021-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dbh8f_Lid-2-solid_d32ba2c",
+      "from": "color-6_022-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Starboard_Lid_23-1/mcbh4f_Lid-1-so_2ae109b",
+      "from": "color_025-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-1-soli_30161e7",
+      "from": "color-6_023-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-1-soli_353c169",
+      "from": "color-12_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-1-soli_0d4c87a",
+      "from": "color-13_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-1-soli_a3a6782",
+      "from": "color-26_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Starboard_Lid_23-1/mcbh4f_Lid-5-so_a66734f",
+      "from": "color_026-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-5-soli_84bc4b3",
+      "from": "color-6_024-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-5-soli_5c2517b",
+      "from": "color-12_016-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-5-soli_8d7716f",
+      "from": "color-13_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcbh4f_Lid-5-soli_5aa4033",
+      "from": "color-26_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2/Starboard_Lid_23-1/mcil4m-1-solid1 - Part",
+      "from": "color-8_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-1-solid1 - Part 2",
+      "from": "color_027-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-1-solid1 - Part 3",
+      "from": "color-21_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-1-solid1 - Part 4",
+      "from": "color-6_025-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-1-solid1 - Part 5",
+      "from": "color-30_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-2-solid1 - Part 2",
+      "from": "color-8_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-2-solid1 - Part 3",
+      "from": "color_028-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-2-solid1 - Part 4",
+      "from": "color-21_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-2-solid1 - Part 5",
+      "from": "color-6_026-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1mcil4m-2-solid1 - Part 6",
+      "from": "color-30_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dil8m-1-solid1 - Part 2",
+      "from": "color-7_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dil8m-1-solid1 - Part 3",
+      "from": "color-8_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dil8m-1-solid1 - Part 4",
+      "from": "color-9_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dil8m-1-solid1 - Part 5",
+      "from": "color_029-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Talos Main Housing-2Starboard_Lid_23-1dil8m-1-solid1 - Part 6",
+      "from": "color-6_027-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid1 - Part 2",
+      "from": "color-9_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid1 - Part 3",
+      "from": "color-4_019-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid1 - Part 5",
+      "from": "color-27_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid3 - Part 2",
+      "from": "color-5_018-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid4 - Part 2",
+      "from": "color-5_019-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid4 - Part 3",
+      "from": "color-2_015-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid4 - Part 4",
+      "from": "White-PW-MT11050_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid4 - Part 5",
+      "from": "White-PW-MT11050_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid5 - Part 2",
+      "from": "color-5_020-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid6 - Part 2",
+      "from": "color-5_021-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid6 - Part 3",
+      "from": "color-3_060-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid6 - Part 4",
+      "from": "White-PW-MT11050_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid9 - Part 3",
+      "from": "color-5_023-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid9 - Part 4",
+      "from": "color-4_020-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid9 - Part 6",
+      "from": "color-2_016-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2T200 Thruster-1-solid9 - Part 7",
+      "from": "White-PW-MT11050_009-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid1 - Part 3",
+      "from": "color-16_007-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid1 - Part 4",
+      "from": "White-PW-MT11050_010-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid1 - Part 5",
+      "from": "color_030-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2/Inner T200 Thruster_Dorito-1-solid2 - Part",
+      "from": "color-5_024-material",
+      "to": "red_low_gloss_plastic_007-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid3 - Part 2",
+      "from": "color-5_025-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid4 - Part 2",
+      "from": "color-5_026-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid5 - Part 2",
+      "from": "color-5_027-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid5 - Part 3",
+      "from": "color-6_029-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid6 - Part 2",
+      "from": "color-5_028-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Dorito-2Inner T200 Thruster_Dorito-1-solid7 - Part 2",
+      "from": "color-5_029-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid1 - Part 3",
+      "from": "color-5_030-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid1 - Part 4",
+      "from": "White-PW-MT11050_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/T200 Thruster_Taco-3-solid2 - Part",
+      "from": "color-5_031-material",
+      "to": "red_low_gloss_plastic_007-material"
+    },
+    {
+      "name": "Taco-2/T200 Thruster_Taco-3-solid3 - Part",
+      "from": "color_031-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid3 - Part 2",
+      "from": "color-5_032-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid3 - Part 4",
+      "from": "White-PW-MT11050_012-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/T200 Thruster_Taco-3-solid4 - Part",
+      "from": "color-5_033-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid4 - Part 2",
+      "from": "White-PW-MT11050_013-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/T200 Thruster_Taco-3-solid5 - Part",
+      "from": "color-5_034-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid5 - Part 2",
+      "from": "White-PW-MT11050_014-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/T200 Thruster_Taco-3-solid6 - Part",
+      "from": "color-5_035-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid6 - Part 2",
+      "from": "color-4_021-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid9 - Part 2",
+      "from": "color-6_030-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid9 - Part 4",
+      "from": "color-16_008-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid9 - Part 5",
+      "from": "color-4_022-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2T200 Thruster_Taco-3-solid9 - Part 6",
+      "from": "White-PW-MT11050_016-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid1 - Part 2",
+      "from": "color-5_036-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid1 - Part 3",
+      "from": "color_032-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid1 - Part 4",
+      "from": "color-6_031-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid1 - Part 5",
+      "from": "color-6_032-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/Inner T200 Thruster_Taco-1-solid2 - Part",
+      "from": "color-5_037-material",
+      "to": "red_low_gloss_plastic_007-material"
+    },
+    {
+      "name": "Taco-2/Inner T200 Thruster_Taco-1-solid3 - Part",
+      "from": "color-5_038-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2/Inner T200 Thruster_Taco-1-solid4 - Part",
+      "from": "color-5_039-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid5 - Part 2",
+      "from": "color-5_040-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid6 - Part 2",
+      "from": "color-5_041-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Taco-2Inner T200 Thruster_Taco-1-solid7 - Part 2",
+      "from": "color-7_011-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid1 - Part 2",
+      "from": "color-5_047-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredT200 Thruster-1-solid3 - Part",
+      "from": "color-5_048-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid3 - Part 2",
+      "from": "color-3_062-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid3 - Part 3",
+      "from": "color-3_063-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid3 - Part 4",
+      "from": "color-3_064-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredT200 Thruster-1-solid4 - Part",
+      "from": "color-5_049-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid4 - Part 2",
+      "from": "color-6_037-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredT200 Thruster-1-solid5 - Part",
+      "from": "color-5_050-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid5 - Part 2",
+      "from": "color-2_023-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredT200 Thruster-1-solid6 - Part",
+      "from": "color-5_051-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid9 - Part 2",
+      "from": "color-6_038-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid9 - Part 3",
+      "from": "color-4_027-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredT200 Thruster-1-solid9 - Part 5",
+      "from": "color-3_066-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid1 - Part 2",
+      "from": "color-5_052-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid1 - Part 4",
+      "from": "White-PW-MT11050_017-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid1 - Part 5",
+      "from": "color-40_005-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid2 - Part 2",
+      "from": "color-6_039-material",
+      "to": "red_low_gloss_plastic_007-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid3 - Part 2",
+      "from": "color-5_053-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3MirroredInner T200 Thruster-1-solid4 - Part 2",
+      "from": "color-5_054-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredInner T200 Thruster-1-solid5 - Part",
+      "from": "color-5_055-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "MirroredDorito-3/MirroredInner T200 Thruster-1-solid6 - Part",
+      "from": "color-5_056-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "DVL Assembly-1/mcil8f-1-solid1 - Part",
+      "from": "color-5_057-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "DVL Assembly-1mcil8f-1-solid1 - Part 3",
+      "from": "color-6_052-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "DVL Assembly-1mcil8f-1-solid1 - Part 4",
+      "from": "color-40_006-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "DVL Assembly-1mcdc8f-1-solid1 - Part 2",
+      "from": "color_037-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "DVL Assembly-1mcdc8f-1-solid1 - Part 3",
+      "from": "color-6_053-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5Mirrored_T200 Thruster_Taco-1-solid1 - Part 2",
+      "from": "color-9_042-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid3 - Part",
+      "from": "color-5_058-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid4 - Part",
+      "from": "color-5_059-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid5 - Part",
+      "from": "color-5_060-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid6 - Part",
+      "from": "color-5_061-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5Mirrored_T200 Thruster_Taco-1-solid9 - Part 2",
+      "from": "White-PW-MT11050_018-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5Mirrored_T200 Thruster_Taco-1-solid9 - Part 3",
+      "from": "White-PW-MT11050_019-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5Mirrored_Thruster Protector-1-solid1 - Part 2",
+      "from": "color-41_005-material",
+      "to": "glossy_rubber_002-material"
+    },
+    {
+      "name": "Mirrored_Taco-5Mirrored_Inner T200 Thruster-1-solid1 - Part 2",
+      "from": "White-PW-MT11050_020-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid3 - Part",
+      "from": "color-5_062-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid4 - Part",
+      "from": "color-5_063-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid5 - Part",
+      "from": "color-5_064-material",
+      "to": "black_low_gloss_plastic-material"
+    },
+    {
+      "name": "Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid6 - Part",
+      "from": "color-5_065-material",
+      "to": "black_low_gloss_plastic-material"
+    }
+  ],
+  "render_triangles": 1087230,
+  "materials": 27,
+  "bounds": [
+    [
+      -0.40312583643697997,
+      -0.42829291332389996,
+      -0.335841
+    ],
+    [
+      0.10569666303059999,
+      0.49669291715606,
+      0.3030276
+    ]
+  ]
+}

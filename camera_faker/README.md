@@ -223,7 +223,9 @@ view and both robot cameras.
 The pool deck begins outside the wall thickness, removing the overlapping faces
 that caused wall/deck flicker.
 
-The default robot is the original lightweight Talos model. Its launcher and
+The default robot is a detailed, reduced copy of RViz's Talos3 CAD model
+(about 1.09 million body triangles), with CAD surface normals preserved and the
+baked-in torpedo/marker assembly removed. Its separate launcher and
 four separate red payloads come from the Talos3 CAD: **two forward torpedoes and
 two downward markers**, all using the same 83 × 26 × 26 mm finned exterior. The
 launcher asset excludes its originally loaded round, so ammunition is never
@@ -231,8 +233,49 @@ baked into that mesh. Each loaded slot disappears when fired, and the same shape
 moves from that exact position into flight. Reload/reset restores the loaded
 rounds. **Focus → Payloads** or **Inspect launcher** in the task tab gives a close
 view of all four slots. Demo mode shows a full load; live mode follows task state.
-See [payload asset provenance](models/payloads/README.md). The full Talos3 mesh is
-no longer loaded by default, and the original CAD file is unchanged.
+See [payload asset provenance](models/payloads/README.md) and
+[body conversion instructions](models/talos3/README.md). The original RViz CAD
+file is unchanged; vehicle dynamics and collision geometry remain configured
+separately from the visual model.
+
+### Robot status LEDs
+
+Talos's optional `viewer.status_lights_config` points to
+[`status_lights.yaml`](../c_simulator/robots/talos/config/status_lights.yaml).
+Three emissive bars sit under the clear top of the port (+Y) hull. Their placement
+and dimensions are estimates from the supplied robot photograph and CAD bounds.
+They reuse the magnet task's LED material at four times its default radiance,
+with a smooth HDR bloom pass. This is a visual glow, not a physical light-source
+or heat model. The team describes the high-output LED board in its
+[2024 design report](https://robonation.org/app/uploads/sites/4/2024/07/RS24_TDR_OhioStateUniv-compressed_1-1.pdf).
+
+The relative `command/led` topic follows the selected robot namespace. RGB,
+solid, slow flash (2 s), fast flash (0.5 s), and breath (3 s) follow `LedCommand`
+and RViz's ROS-clock phase. The port lights accept ALU and ALL targets; NONE/CCB
+do not change them. A singleton flash overlays the last status for the configured
+`flash_duration` (0.15 s), then restores it. Lights start off until commanded.
+
+Status lights do not depend on a task/year or a robot name. A robot without this
+viewer setting creates no LED geometry or LED subscription. New robots can use
+`std_msgs/msg/ColorRGBA` (RGB color, alpha brightness) instead of the UWRT message;
+the renderer and animation state contain no Talos-specific placement or protocol.
+For example, a robot-owned YAML file can contain:
+
+```yaml
+input:
+  type: std_msgs/msg/ColorRGBA
+  topic: command/status_color
+lights:
+  - id: top_beacon
+    pose: [0, 0, 0.2, 0, 0, 0] # xyz/rpy in the model/origin frame, metres/radians
+    size: [0.05, 0.02, 0.003]
+    radiance: 200
+```
+
+Point `viewer.status_lights_config` at that file in the robot profile, or use the
+`status_lights_config:=...` viewer launch override. Optional `target_mask` values
+select command target bits; they default to all bits. Geometry, topic, radiance,
+and singleton duration can all be changed without modifying viewer code.
 
 Each bin vinyl now sits in a navy lattice crate, with white corrugated-plastic
 liners covering the lower half of its walls. Geometry uses the CleverMade 25 L
@@ -465,6 +508,9 @@ live under `src/pool_viewer`, `include/pool_viewer`, and
 ## Verification
 
 ```bash
+ctest --test-dir build/camera_faker -R pool_status_lights --output-on-failure
+ROS_DOMAIN_ID=126 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  python3 src/riptide_simulator/camera_faker/test/ros_status_lights_smoke.py
 ctest --test-dir build/camera_faker -R 'pool_camera_geometry|pool_depth_noise' --output-on-failure
 # Requires a desktop display. Use an isolated ROS domain for the synthetic TF fixture.
 ROS_DOMAIN_ID=126 python3 src/riptide_simulator/camera_faker/test/ros_camera_smoke.py

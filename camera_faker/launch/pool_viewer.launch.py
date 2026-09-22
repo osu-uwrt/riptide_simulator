@@ -40,6 +40,7 @@ def generate_launch_description():
         DeclareLaunchArgument("payload_model", default_value=""),
         DeclareLaunchArgument("launcher_model", default_value=""),
         DeclareLaunchArgument("claw_model", default_value=""),
+        DeclareLaunchArgument("status_lights_config", default_value=""),
         DeclareLaunchArgument("depth_preview", default_value="false"),
         DeclareLaunchArgument(
             "show_tf",
@@ -141,6 +142,7 @@ def viewer(context):
                     "payload_model": ParameterValue(selected("payload_model"), value_type=str),
                     "launcher_model": ParameterValue(selected("launcher_model"), value_type=str),
                     "claw_model": ParameterValue(selected("claw_model"), value_type=str),
+                    "status_lights_config": ParameterValue(selected("status_lights_config"), value_type=str),
                     "task_config": str(path / "task.yaml"),
                     "depth_preview": ParameterValue(LC("depth_preview"), value_type=bool),
                     "show_tf": ParameterValue(LC("show_tf"), value_type=bool),

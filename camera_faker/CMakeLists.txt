@@ -94,6 +94,13 @@ install(
 )
 
 if(BUILD_TESTING)
+  add_executable(pool_status_lights_test test/status_lights.cpp)
+  target_compile_features(pool_status_lights_test PRIVATE cxx_std_17)
+  target_compile_options(pool_status_lights_test PRIVATE -UNDEBUG)
+  target_include_directories(pool_status_lights_test PRIVATE include include/external ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(pool_status_lights_test yaml-cpp ${OpenCV_LIBS})
+  add_test(NAME pool_status_lights COMMAND pool_status_lights_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/../c_simulator/robots/talos/config/status_lights.yaml)
   add_executable(pool_camera_processor_test test/camera_processor.cpp)
   target_link_libraries(pool_camera_processor_test pool_camera_processing)
   target_compile_options(pool_camera_processor_test PRIVATE -UNDEBUG)
