@@ -238,6 +238,34 @@ See [payload asset provenance](models/payloads/README.md) and
 file is unchanged; vehicle dynamics and collision geometry remain configured
 separately from the visual model.
 
+### Thruster animation
+
+Talos's eight propellers rotate independently using realized forces from
+`simulator/actual_thruster_forces` (`std_msgs/msg/Float32MultiArray`, in vehicle
+thruster order). Rotation follows motor response, reverses with thrust, and
+stops at zero force. It uses ROS time, so pausing freezes the blades and a clock
+reset clears their phase. Missing force updates stop animation after 0.5 s.
+
+Adjust the displayed speed in [`models/talos3/thrusters.yaml`](models/talos3/thrusters.yaml):
+`speed_scale: 1.0` runs at full estimated RPM with no display speed cap. The
+`force_to_rpm` curves copy the existing forward/reverse calibration from Talos's
+vehicle YAML; 4 N gives about 1,371 RPM forward or 1,285 RPM reverse. This is an
+estimate from simulated force, not measured shaft feedback. RPM converts directly
+to radians/second using `2*pi/60`. Each curve uses signed force `F` in newtons:
+`c0 + c1*F + c2*tanh(F) + c3*abs(F)^0.25`. Fits that cross sign near idle clamp
+to zero. Other robots supply their own coefficients. Restart after YAML edits.
+At full speed, frame sampling can make blades appear stationary or turn backward;
+the integrated rotation still follows the estimated RPM. There is no motion blur.
+`force_deadband` and `timeout` configure stopping behavior.
+
+The robot profile opts in through `viewer.thruster_visuals_config`; the viewer
+also accepts `thruster_visuals_config:=/path/to/config.yaml`. Other robots can
+omit it, creating no rotor geometry or subscription. Each configured rotor has
+an `id`, `input_index`, mesh, `pivot`, `axis`, and `direction` (+1 or -1).
+Meshes and pivots use the robot model/origin frame in metres, with mesh paths
+relative to the YAML or absolute. Extract rotating parts from the static body
+before adding them here. The renderer has no fixed robot name or motor count.
+
 ### Robot status LEDs
 
 Talos's optional `viewer.status_lights_config` points to
@@ -508,6 +536,9 @@ live under `src/pool_viewer`, `include/pool_viewer`, and
 ## Verification
 
 ```bash
+ctest --test-dir build/camera_faker -R pool_thruster_visuals --output-on-failure
+ROS_DOMAIN_ID=128 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  python3 src/riptide_simulator/camera_faker/test/ros_thruster_visuals_smoke.py
 ctest --test-dir build/camera_faker -R pool_status_lights --output-on-failure
 ROS_DOMAIN_ID=126 RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   python3 src/riptide_simulator/camera_faker/test/ros_status_lights_smoke.py

@@ -2,6 +2,7 @@
 #include "pool_viewer/camera.hpp"
 #include "pool_viewer/frustum.hpp"
 #include "pool_viewer/status_lights.hpp"
+#include "pool_viewer/thruster_visuals.hpp"
 #include <glad/glad.h>
 #include <array>
 #include <map>
@@ -102,7 +103,8 @@ class Renderer {
              const std::string &mapping, const std::string &markers, const std::string &scene, const std::string &robot,
              const std::string &robotAsset = "", const std::string &taskConfig = "",
              const std::string &payloadAsset = "", const std::string &launcherAsset = "",
-             const std::string &clawAsset = "", const std::vector<StatusLight> &statusLights = {});
+             const std::string &clawAsset = "", const std::vector<StatusLight> &statusLights = {},
+             const std::vector<ThrusterRotor> &rotors = {});
     ~Renderer();
     void robotPose(const glm::mat4 &p);
     void payloadPoses(const std::vector<glm::mat4> &poses);
@@ -111,6 +113,7 @@ class Renderer {
     void magnetPose(const glm::mat4 &mount);
     void magnetLight(const std::string &name, bool green);
     void statusLight(const std::string &id, const glm::vec3 &color);
+    void thrusterRotor(const std::string &id, const glm::mat4 &transform);
     void shadows(const Look &look);
     // Overlays are drawn only when asked, so sensor renders never contain them.
     void render(Frame &frame, const View &camera, const Look &look, float time, bool showRobot = true,

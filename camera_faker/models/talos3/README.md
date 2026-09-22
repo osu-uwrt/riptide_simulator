@@ -4,11 +4,21 @@
 `Talos3.dae` used by RViz. It excludes the complete `Torpedoes + Markers V8`
 assembly (including flattened CAD names and its loaded round). The simulator
 renders `models/payloads/launcher.glb` and the four moving payloads separately,
-so no fixed launcher or ammunition is duplicated. The body has 1,087,230 triangles,
-27 materials and a 41.6 MiB GLB, versus 2,679,494 triangles in the original body
-without the launcher. `Talos3_body.json` records every excluded part and the
+so no fixed launcher or ammunition is duplicated. The static body has 1,053,293
+triangles, 27 materials and a 40.5 MiB GLB. Eight separate propellers add 33,937
+triangles, preserving the previous total of 1,087,230, versus 2,679,494 triangles
+in the original body without the launcher. `Talos3_body.json` records every excluded part and the
 conversion settings. CAD coordinates are preserved to keep the body aligned
 with the separate mechanisms.
+
+[`thrusters.yaml`](thrusters.yaml) maps the eight propeller meshes in `rotors/`
+to the vehicle's thruster input order. The converter extracts their named CAD
+geometry from the static body, so blades are not duplicated. Mesh vertices,
+pivots and axes share the original model frame. Pivots were fitted to the CAD
+hub cylinders to avoid wobble from rounded physics force-application positions;
+direction follows each thruster's handedness. Housings and stators remain fixed.
+The original simplification, normals and repaired materials also apply to the
+moving meshes.
 
 The converter retains 40% of each part's triangles, with a minimum of 160 for
 small parts. It transfers the original CAD corner normals onto simplified
@@ -48,14 +58,15 @@ torpedo outlet are inferred; see `c_simulator/config/talos_tasks.yaml` for the
 explicit simulation geometry and provenance.
 
 To regenerate from the release workspace (offline Python dependencies: NumPy,
-lxml, Open3D and trimesh):
+lxml, Open3D, trimesh and PyYAML):
 
 ```bash
 python3 src/riptide_simulator/camera_faker/scripts/prepare_talos_mesh.py \
   src/riptide_core/riptide_descriptions/meshes/Talos3.dae \
   src/riptide_simulator/camera_faker/models/talos3/Talos3_body.glb \
   --exclude-launcher --triangle-ratio 0.4 \
-  --material-repairs src/riptide_simulator/camera_faker/models/talos3/material_repairs.json
+  --material-repairs src/riptide_simulator/camera_faker/models/talos3/material_repairs.json \
+  --rotors-config src/riptide_simulator/camera_faker/models/talos3/thrusters.yaml
 ```
 
 Increase `--triangle-ratio` toward `1.0` to retain more geometry; `1.0` skips

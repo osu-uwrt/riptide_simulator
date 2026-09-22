@@ -94,6 +94,13 @@ install(
 )
 
 if(BUILD_TESTING)
+  add_executable(pool_thruster_visuals_test test/thruster_visuals.cpp)
+  target_compile_features(pool_thruster_visuals_test PRIVATE cxx_std_17)
+  target_compile_options(pool_thruster_visuals_test PRIVATE -UNDEBUG)
+  target_include_directories(pool_thruster_visuals_test PRIVATE include include/external ${OpenCV_INCLUDE_DIRS})
+  target_link_libraries(pool_thruster_visuals_test yaml-cpp ${OpenCV_LIBS})
+  add_test(NAME pool_thruster_visuals COMMAND pool_thruster_visuals_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/models/talos3/thrusters.yaml)
   add_executable(pool_status_lights_test test/status_lights.cpp)
   target_compile_features(pool_status_lights_test PRIVATE cxx_std_17)
   target_compile_options(pool_status_lights_test PRIVATE -UNDEBUG)

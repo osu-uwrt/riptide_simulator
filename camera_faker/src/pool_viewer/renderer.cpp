@@ -347,7 +347,7 @@ Renderer::Renderer(const std::string &shaders, const std::string &meshes, const 
                    const std::string &mapping, const std::string &markers, const std::string &sceneFile,
                    const std::string &robot, const std::string &robotAsset, const std::string &taskConfig,
                    const std::string &payloadAsset, const std::string &launcherAsset, const std::string &clawAsset,
-                   const std::vector<StatusLight> &statusLights)
+                   const std::vector<StatusLight> &statusLights, const std::vector<ThrusterRotor> &rotors)
     : meshRoot(meshes), textureRoot(textureFolder) {
     sceneProgram = program(shaders, "scene");
     waterProgram = program(shaders, "water");
@@ -479,6 +479,8 @@ Renderer::Renderer(const std::string &shaders, const std::string &meshes, const 
     auto robotInfo = scene["robot"]["model"];
     std::string robotMesh = robotInfo["riptide_mesh"].as<std::string>(robot);
     objects.push_back({"Vehicle", load(robotAsset.empty() ? robotMesh : robotAsset), glm::mat4(1), 0, true});
+    for (const auto &rotor : rotors)
+        objects.push_back({"Thruster rotor/" + rotor.id, load(rotor.mesh), glm::mat4(1), 0, true});
     for (const auto &light : statusLights) {
         box("Status light/" + light.id, light.mount, light.size, glm::vec3(1), 6, false);
         auto &emitter = objects.back();
@@ -668,6 +670,11 @@ void Renderer::statusLight(const std::string &id, const glm::vec3 &color) {
     for (auto &o : objects)
         if (o.name == "Status light/" + id)
             o.tint = glm::vec4(color, 1);
+}
+void Renderer::thrusterRotor(const std::string &id, const glm::mat4 &transform) {
+    for (auto &o : objects)
+        if (o.name == "Thruster rotor/" + id)
+            o.robotMount = transform;
 }
 void Renderer::magnetPose(const glm::mat4 &mount) {
     for (auto &o : objects)

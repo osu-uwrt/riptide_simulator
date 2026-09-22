@@ -1215,7 +1215,271 @@
       "to": "black_low_gloss_plastic-material"
     }
   ],
-  "render_triangles": 1087230,
+  "rotors": [
+    {
+      "id": "VUS",
+      "input_index": 0,
+      "pivot": [
+        -0.134,
+        -0.37158089,
+        0.24382236
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        -0.0
+      ],
+      "direction": -1,
+      "mesh": "rotors/VUS.glb",
+      "source_geometries": [
+        "MirroredDorito-3/MirroredT200 Thruster-1-solid2 - Part",
+        "MirroredDorito-3MirroredT200 Thruster-1-solid2 - Part 2"
+      ],
+      "triangles": 4084,
+      "bounds": [
+        [
+          -0.145031332698391,
+          -0.40948898373772746,
+          0.2058044
+        ],
+        [
+          -0.11501538381742998,
+          -0.339906103154575,
+          0.274741
+        ]
+      ]
+    },
+    {
+      "id": "VUP",
+      "input_index": 1,
+      "pivot": [
+        -0.134,
+        0.43998086,
+        0.24382232
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        -0.0
+      ],
+      "direction": 1,
+      "mesh": "rotors/VUP.glb",
+      "source_geometries": [
+        "Dorito-2/T200 Thruster-1-solid2 - Part",
+        "Dorito-2T200 Thruster-1-solid2 - Part 2"
+      ],
+      "triangles": 4073,
+      "bounds": [
+        [
+          -0.145030521136691,
+          0.408306096845425,
+          0.2058044
+        ],
+        [
+          -0.11501457225572999,
+          0.47788896625942623,
+          0.2747423
+        ]
+      ]
+    },
+    {
+      "id": "HUS",
+      "input_index": 2,
+      "pivot": [
+        -0.13982523,
+        -0.2597391,
+        0.1407391
+      ],
+      "axis": [
+        0.0,
+        0.70710678,
+        0.70710678
+      ],
+      "direction": 1,
+      "mesh": "rotors/HUS.glb",
+      "source_geometries": [
+        "MirroredDorito-3/MirroredInner T200 Thruster-1-solid2 - Part",
+        "MirroredDorito-3MirroredInner T200 Thruster-1-solid2 - Part 2"
+      ],
+      "triangles": 4450,
+      "bounds": [
+        [
+          -0.16493171606020185,
+          -0.28500423794454993,
+          0.11142945
+        ],
+        [
+          -0.10172591635622,
+          -0.231834302843141,
+          0.1686169
+        ]
+      ]
+    },
+    {
+      "id": "HUP",
+      "input_index": 3,
+      "pivot": [
+        -0.13982472,
+        0.32793908,
+        0.14093908
+      ],
+      "axis": [
+        0.0,
+        -0.70710678,
+        0.70710678
+      ],
+      "direction": -1,
+      "mesh": "rotors/HUP.glb",
+      "source_geometries": [
+        "Dorito-2/Inner T200 Thruster_Dorito-1-solid2 - Part",
+        "Dorito-2Inner T200 Thruster_Dorito-1-solid2 - Part 2"
+      ],
+      "triangles": 4379,
+      "bounds": [
+        [
+          -0.1649437400614075,
+          0.300234297156859,
+          0.11142202500000001
+        ],
+        [
+          -0.10172484562474998,
+          0.35340426205545,
+          0.1686169
+        ]
+      ]
+    },
+    {
+      "id": "HLS",
+      "input_index": 4,
+      "pivot": [
+        -0.13962457,
+        -0.25980261,
+        -0.14080261
+      ],
+      "axis": [
+        0.0,
+        0.70710678,
+        -0.70710678
+      ],
+      "direction": -1,
+      "mesh": "rotors/HLS.glb",
+      "source_geometries": [
+        "Taco-2/Inner T200 Thruster_Taco-1-solid2 - Part",
+        "Taco-2Inner T200 Thruster_Taco-1-solid2 - Part 2"
+      ],
+      "triangles": 4378,
+      "bounds": [
+        [
+          -0.16474365012840875,
+          -0.285131188145205,
+          -0.1686169
+        ],
+        [
+          -0.10152528668385,
+          -0.23196130304383,
+          -0.1114220375
+        ]
+      ]
+    },
+    {
+      "id": "HLP",
+      "input_index": 5,
+      "pivot": [
+        -0.13962401,
+        0.32800257,
+        -0.14100257
+      ],
+      "axis": [
+        0.0,
+        -0.70710678,
+        -0.70710678
+      ],
+      "direction": 1,
+      "mesh": "rotors/HLP.glb",
+      "source_geometries": [
+        "Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid2 - Part"
+      ],
+      "triangles": 4384,
+      "bounds": [
+        [
+          -0.16473944014052,
+          0.30036129695617,
+          -0.1686169
+        ],
+        [
+          -0.10152469626624999,
+          0.35353121185479497,
+          -0.11142615624999999
+        ]
+      ]
+    },
+    {
+      "id": "VLS",
+      "input_index": 6,
+      "pivot": [
+        -0.134,
+        -0.37170786,
+        -0.24382233
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        -0.0
+      ],
+      "direction": 1,
+      "mesh": "rotors/VLS.glb",
+      "source_geometries": [
+        "Taco-2/T200 Thruster_Taco-3-solid2 - Part",
+        "Taco-2T200 Thruster_Taco-3-solid2 - Part 2"
+      ],
+      "triangles": 4105,
+      "bounds": [
+        [
+          -0.144830703026121,
+          -0.4096158838913885,
+          -0.2747423625
+        ],
+        [
+          -0.11481475414505998,
+          -0.340032503338634,
+          -0.2058041
+        ]
+      ]
+    },
+    {
+      "id": "VLP",
+      "input_index": 7,
+      "pivot": [
+        -0.134,
+        0.44010785,
+        -0.24382233
+      ],
+      "axis": [
+        1.0,
+        0.0,
+        -0.0
+      ],
+      "direction": -1,
+      "mesh": "rotors/VLP.glb",
+      "source_geometries": [
+        "Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid2 - Part"
+      ],
+      "triangles": 4084,
+      "bounds": [
+        [
+          -0.144829891210321,
+          0.4084396935102324,
+          -0.27474224999999997
+        ],
+        [
+          -0.11481394232925998,
+          0.47801579105078,
+          -0.2058044
+        ]
+      ]
+    }
+  ],
+  "render_triangles": 1053293,
   "materials": 27,
   "bounds": [
     [
@@ -1228,5 +1492,6 @@
       0.49669291715606,
       0.3030276
     ]
-  ]
+  ],
+  "total_render_triangles": 1087230
 }

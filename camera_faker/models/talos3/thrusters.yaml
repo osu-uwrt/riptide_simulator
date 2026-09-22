@@ -1,0 +1,133 @@
+# Optional visual animation, driven by realized forces (newtons), not commands.
+# Full-speed RPM estimate from the vehicle's existing force calibration.
+# Pivot/axis and mesh vertices use the CAD/model origin, in metres.
+# Pivots follow the CAD hub cylinders, not the rounded force application points.
+topic: simulator/actual_thruster_forces
+timeout: 0.5
+force_deadband: 0.01
+speed_scale: 1.0 # 1 = real-time estimated RPM; no display speed cap.
+# Source: riptide_descriptions2/config/talos.yaml, thruster_solver.force_to_rpm_coefficents.
+# Signed RPM = c0 + c1*F + c2*tanh(F) + c3*abs(F)^0.25, F in newtons.
+# Separate signed forward/reverse fits; clamped to zero if the fit crosses sign near idle.
+force_to_rpm:
+  forward: [-475.886186, 32.327429, -324.744664, 1443.832105]
+  reverse: [257.460623, 42.948545, -24.402056, -986.338071]
+rotors:
+- id: VUS
+  input_index: 0
+  pivot:
+  - -0.134
+  - -0.37158089
+  - 0.24382236
+  axis:
+  - 1.0
+  - 0.0
+  - -0.0
+  direction: -1
+  mesh: rotors/VUS.glb
+  source_geometries:
+  - MirroredDorito-3/MirroredT200 Thruster-1-solid2 - Part
+  - MirroredDorito-3MirroredT200 Thruster-1-solid2 - Part 2
+- id: VUP
+  input_index: 1
+  pivot:
+  - -0.134
+  - 0.43998086
+  - 0.24382232
+  axis:
+  - 1.0
+  - 0.0
+  - -0.0
+  direction: 1
+  mesh: rotors/VUP.glb
+  source_geometries:
+  - Dorito-2/T200 Thruster-1-solid2 - Part
+  - Dorito-2T200 Thruster-1-solid2 - Part 2
+- id: HUS
+  input_index: 2
+  pivot:
+  - -0.13982523
+  - -0.2597391
+  - 0.1407391
+  axis:
+  - 0.0
+  - 0.70710678
+  - 0.70710678
+  direction: 1
+  mesh: rotors/HUS.glb
+  source_geometries:
+  - MirroredDorito-3/MirroredInner T200 Thruster-1-solid2 - Part
+  - MirroredDorito-3MirroredInner T200 Thruster-1-solid2 - Part 2
+- id: HUP
+  input_index: 3
+  pivot:
+  - -0.13982472
+  - 0.32793908
+  - 0.14093908
+  axis:
+  - 0.0
+  - -0.70710678
+  - 0.70710678
+  direction: -1
+  mesh: rotors/HUP.glb
+  source_geometries:
+  - Dorito-2/Inner T200 Thruster_Dorito-1-solid2 - Part
+  - Dorito-2Inner T200 Thruster_Dorito-1-solid2 - Part 2
+- id: HLS
+  input_index: 4
+  pivot:
+  - -0.13962457
+  - -0.25980261
+  - -0.14080261
+  axis:
+  - 0.0
+  - 0.70710678
+  - -0.70710678
+  direction: -1
+  mesh: rotors/HLS.glb
+  source_geometries:
+  - Taco-2/Inner T200 Thruster_Taco-1-solid2 - Part
+  - Taco-2Inner T200 Thruster_Taco-1-solid2 - Part 2
+- id: HLP
+  input_index: 5
+  pivot:
+  - -0.13962401
+  - 0.32800257
+  - -0.14100257
+  axis:
+  - 0.0
+  - -0.70710678
+  - -0.70710678
+  direction: 1
+  mesh: rotors/HLP.glb
+  source_geometries:
+  - Mirrored_Taco-5/Mirrored_Inner T200 Thruster-1-solid2 - Part
+- id: VLS
+  input_index: 6
+  pivot:
+  - -0.134
+  - -0.37170786
+  - -0.24382233
+  axis:
+  - 1.0
+  - 0.0
+  - -0.0
+  direction: 1
+  mesh: rotors/VLS.glb
+  source_geometries:
+  - Taco-2/T200 Thruster_Taco-3-solid2 - Part
+  - Taco-2T200 Thruster_Taco-3-solid2 - Part 2
+- id: VLP
+  input_index: 7
+  pivot:
+  - -0.134
+  - 0.44010785
+  - -0.24382233
+  axis:
+  - 1.0
+  - 0.0
+  - -0.0
+  direction: -1
+  mesh: rotors/VLP.glb
+  source_geometries:
+  - Mirrored_Taco-5/Mirrored_T200 Thruster_Taco-1-solid2 - Part

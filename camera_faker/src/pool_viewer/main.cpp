@@ -40,6 +40,7 @@
 #include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/float32.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/buffer.h>
@@ -397,6 +398,8 @@ class PoolViewer : public rclcpp::Node {
             throw std::runtime_error("Invalid lighting intensity or sun elevation");
         initializeWindow();
         statusLights = pool::StatusLights(declare_parameter<std::string>("status_lights_config", ""));
+        thrusterVisuals = pool::ThrusterVisuals(
+            declare_parameter<std::string>("thruster_visuals_config", ""), vehicle["thrusters"].size());
         renderer = std::make_unique<pool::Renderer>(
             declare_parameter<std::string>("shader_folder", ""),
             declare_parameter<std::string>("riptide_mesh_folder", ""),
@@ -404,7 +407,15 @@ class PoolViewer : public rclcpp::Node {
             declare_parameter<std::string>("marker_config", ""), declare_parameter<std::string>("scene_config", ""),
             robot, declare_parameter<std::string>("robot_model", ""), declare_parameter<std::string>("task_config", ""),
             declare_parameter<std::string>("payload_model", ""), declare_parameter<std::string>("launcher_model", ""),
-            declare_parameter<std::string>("claw_model", ""), statusLights.lights);
+            declare_parameter<std::string>("claw_model", ""), statusLights.lights, thrusterVisuals.rotors);
+        if (!thrusterVisuals.rotors.empty()) {
+            thrusterForceSubscription = create_subscription<std_msgs::msg::Float32MultiArray>(
+                thrusterVisuals.topic, 10, [this](const std_msgs::msg::Float32MultiArray &msg) {
+                    if (!thrusterVisuals.receive(msg.data, now().seconds()))
+                        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                                             "Ignoring invalid realized thruster forces for propeller animation");
+                });
+        }
         // Opt-in transport adapters: no subscriptions or Talos-specific geometry
         // are created for robot profiles without a status light configuration.
         if (statusLights.input == "riptide_msgs2/msg/LedCommand") {
@@ -638,6 +649,9 @@ class PoolViewer : public rclcpp::Node {
             updatePose();
             captureTf();
             captureDetections();
+            thrusterVisuals.advance(now().seconds());
+            for (const auto &rotor : thrusterVisuals.rotors)
+                renderer->thrusterRotor(rotor.id, rotor.transform());
             renderer->robotPose(body * modelOffset);
             for (const auto &light : statusLights.lights)
                 renderer->statusLight(light.id, light.state.color(now().seconds()));
@@ -797,6 +811,8 @@ class PoolViewer : public rclcpp::Node {
     std::string syncStatus;
     std::unique_ptr<pool::Renderer> renderer;
     pool::StatusLights statusLights;
+    pool::ThrusterVisuals thrusterVisuals;
+    rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr thrusterForceSubscription;
     rclcpp::Subscription<riptide_msgs2::msg::LedCommand>::SharedPtr ledSubscription;
     rclcpp::Subscription<std_msgs::msg::ColorRGBA>::SharedPtr colorSubscription;
     std::unique_ptr<tf2_ros::Buffer> buffer;

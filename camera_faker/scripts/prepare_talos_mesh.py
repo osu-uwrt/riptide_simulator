@@ -14,6 +14,7 @@ import numpy as np
 from lxml import etree as E
 import open3d as o3d
 import trimesh
+import yaml
 
 
 def weld_corners(corners, normals):
@@ -62,6 +63,8 @@ parser.add_argument('--triangle-ratio', type=float, default=.4,
                     help='Fraction of source triangles to retain per part (default: 0.4)')
 parser.add_argument('--material-repairs', type=Path,
                     help='JSON rules reusing named CAD materials on placeholder-colored parts')
+parser.add_argument('--rotors-config', type=Path,
+                    help='Extract named propellers to separate meshes using a viewer thruster YAML')
 args = parser.parse_args()
 if not 0 < args.triangle_ratio <= 1:
     parser.error('--triangle-ratio must be greater than zero and at most one')
@@ -75,6 +78,15 @@ report['excluded_parts'] = []
 report['excluded_source_triangles'] = 0
 report['material_repairs'] = []
 repair_rules = json.loads(args.material_repairs.read_text()) if args.material_repairs else []
+rotor_definitions = yaml.safe_load(args.rotors_config.read_text())['rotors'] if args.rotors_config else []
+rotor_by_geometry = {}
+for rotor in rotor_definitions:
+    for name in rotor['source_geometries']:
+        if name in rotor_by_geometry:
+            raise ValueError('Propeller geometry assigned twice: ' + name)
+        rotor_by_geometry[name] = rotor['id']
+rotor_batches = {r['id']: defaultdict(list) for r in rotor_definitions}
+extracted_geometries = set()
 visual_scene = None
 for _, e in E.iterparse(str(source), events=('end',), huge_tree=True):
     tag = E.QName(e).localname
@@ -167,23 +179,44 @@ def visit(node,parent):
                     break
             color=tuple(round(float(x),3) for x in effects[materials[material]])
             m=trimesh.Trimesh(vertices=vertices,faces=faces,vertex_normals=normals,process=False)
-            m.apply_transform(matrix);batches[color].append(m);bounds.append(m.bounds)
+            m.apply_transform(matrix)
+            if name in rotor_by_geometry:
+                rotor_batches[rotor_by_geometry[name]][color].append(m)
+                extracted_geometries.add(name)
+            else:
+                batches[color].append(m)
+            bounds.append(m.bounds)
         if bounds and any(k in (name or '').lower() for k in ('torpedo','marker','dropper','sinky')):
             b=np.asarray(bounds);report['parts'].append({'name':name,'min':b[:,0].min(axis=0).tolist(),'max':b[:,1].max(axis=0).tolist()})
     for child in node.findall('{*}node'):visit(child,matrix)
 for node in visual_scene.findall('{*}node'):visit(node,np.eye(4))
-scene=trimesh.Scene()
-for i,(color,meshes) in enumerate(batches.items()):
-    m=trimesh.util.concatenate(meshes)
-    # Single-part batches take trimesh's copy path, which can drop cached
-    # normals. Assign them explicitly so every material exports CAD shading.
-    m.vertex_normals = np.vstack([part.vertex_normals for part in meshes])
-    m.visual=trimesh.visual.texture.TextureVisuals(uv=np.zeros((len(m.vertices),2)),material=trimesh.visual.material.PBRMaterial(baseColorFactor=color,metallicFactor=.15,roughnessFactor=.5,alphaMode='BLEND' if color[3] < 1 else 'OPAQUE'))
-    scene.add_geometry(m,node_name='CAD_material_%d'%i)
+def batched_scene(material_batches):
+    scene = trimesh.Scene()
+    for i,(color,meshes) in enumerate(material_batches.items()):
+        m=trimesh.util.concatenate(meshes)
+        # Single-part batches take trimesh's copy path, which can drop cached
+        # normals. Assign them explicitly so every material exports CAD shading.
+        m.vertex_normals = np.vstack([part.vertex_normals for part in meshes])
+        m.visual=trimesh.visual.texture.TextureVisuals(uv=np.zeros((len(m.vertices),2)),material=trimesh.visual.material.PBRMaterial(baseColorFactor=color,metallicFactor=.15,roughnessFactor=.5,alphaMode='BLEND' if color[3] < 1 else 'OPAQUE'))
+        scene.add_geometry(m,node_name='CAD_material_%d'%i)
+    return scene
+
+if extracted_geometries != set(rotor_by_geometry):
+    raise ValueError('Missing propeller geometry: ' + str(set(rotor_by_geometry) - extracted_geometries))
+report['rotors'] = []
+for rotor in rotor_definitions:
+    rotor_scene = batched_scene(rotor_batches[rotor['id']])
+    asset = args.rotors_config.parent / rotor['mesh']
+    asset.parent.mkdir(parents=True, exist_ok=True)
+    asset.write_bytes(rotor_scene.export(file_type='glb'))
+    report['rotors'].append({**rotor, 'triangles': sum(len(m.faces) for m in rotor_scene.geometry.values()),
+                            'bounds': rotor_scene.bounds.tolist()})
+scene = batched_scene(batches)
 report['render_triangles']=sum(len(m.faces) for m in scene.geometry.values())
 report['materials']=len(batches);report['bounds']=scene.bounds.tolist()
+report['total_render_triangles'] = report['render_triangles'] + sum(r['triangles'] for r in report['rotors'])
 output.parent.mkdir(parents=True,exist_ok=True)
 output.write_bytes(scene.export(file_type='glb'))
 output.with_suffix('.json').write_text(json.dumps(report,indent=2))
-print('RESULT',{k:v for k,v in report.items() if k not in ('parts', 'excluded_parts', 'material_repairs')},flush=True)
+print('RESULT',{k:v for k,v in report.items() if k not in ('parts', 'excluded_parts', 'material_repairs', 'rotors')},flush=True)
 print('Repaired material assignments:', len(report['material_repairs']), flush=True)
