@@ -1,0 +1,18 @@
+# Shared by physics and the pool viewer. Course poses come from config.yaml;
+# visual meshes and their offsets come from riptide_rviz/config/markers.yaml.
+robot:
+  model:
+    riptide_mesh: talos
+  collision: talos.urdf
+
+april_tag:
+  visible: true  # Initial calibration-board visibility; T toggles it in the viewer.
+
+# Collision proxies keyed by the corresponding mapping frame. Hanging octagon
+# targets and slalom poles have no proxies here. Task contacts are configured in
+# c_simulator/config/talos_tasks.yaml.
+objects:
+  gate:
+    collision: gate.urdf
+  torpedo:
+    collision: torpedo.urdf

@@ -12,16 +12,10 @@ typedef Eigen::Matrix3d m3d;
 typedef Eigen::MatrixXd mXd;
 typedef Eigen::Quaterniond quat;
 
-class collisionBox
-{
-public:
-    collisionBox(std::string name_,
-                 double length_,
-                 double width_,
-                 double height_,
-                 v3d baseCenter,
-                 v3d baseOffset_ = v3d(0, 0, 0),
-                 quat baseOrientation = quat(1, 0, 0, 0),
+class collisionBox {
+  public:
+    collisionBox(std::string name_, double length_, double width_, double height_, v3d baseCenter,
+                 v3d baseOffset_ = v3d(0, 0, 0), quat baseOrientation = quat(1, 0, 0, 0),
                  quat baseOrientationOffset_ = quat(1, 0, 0, 0));
 
     v3d getCenter();
@@ -42,7 +36,7 @@ public:
     double minProjection(const v3d &axis);
     void setOrientation(quat orientation_);
 
-private:
+  private:
     m3d rotM;
     v3d center;
     mXd vertices;
@@ -56,8 +50,7 @@ private:
     quat baseOrientationOffset;
 };
 
-struct collisionResult
-{
+struct collisionResult {
     double depth;
     bool collided;
     v3d unitDirection;

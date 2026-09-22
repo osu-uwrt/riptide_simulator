@@ -1,0 +1,31 @@
+schema_version: 1
+id: example_auv
+vehicle: config/vehicle.yaml
+hydrodynamics: config/hydrodynamics.yaml
+sensors: config/sensors.yaml
+simulator: config/simulator.yaml
+equipment: config/equipment.yaml
+behavior: behavior/mechanisms.py:Mechanisms
+capabilities:
+  signal: beacon
+collision: assets/body.urdf
+model: assets/body.obj
+adapter: generic
+cameras:
+- name: survey
+  topic_root: survey
+  intrinsics:
+    width: 640
+    height: 480
+    fx: 400.0
+    fy: 400.0
+    cx: 320.0
+    cy: 240.0
+    rate: 10.0
+  truth_tf_owner: viewer
+viewer: {}
+controls:
+- label: Flash beacon
+  type: bool_action
+  topic: command/beacon
+  value: true

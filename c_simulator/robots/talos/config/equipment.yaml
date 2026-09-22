@@ -1,0 +1,75 @@
+torpedo:
+  slot_offsets:
+  - - 0.01594921
+    - -0.00735017
+    - -0.0218555
+    - 0
+    - 0
+    - 0
+  - - 0.01594921
+    - -0.0088594
+    - -0.0218555
+    - 0
+    - 0
+    - 0
+  count: 2
+  length: 0.08299993
+  radius: 0.013
+  neutral_buoyancy: false
+  mass: 0.01222
+  displaced_volume: 1.2e-05
+  added_mass: 0.003
+  drag_axial: 0.015
+  drag_lateral: 0.35
+  center_of_mass: 0.02
+  center_of_buoyancy: -0.02
+  center_of_drag: -0.025
+  angular_damping: 0.01
+  spring_energy: 0.047
+  cooldown: 0.5
+dropper:
+  slot_offsets:
+  - - -0.04337956
+    - -0.01560642
+    - -0.12296563
+    - 0
+    - 1.5707963267948966
+    - 0
+  - - -0.04337956
+    - 0.01939685
+    - -0.12296563
+    - 0
+    - 1.5707963267948966
+    - 0
+  count: 2
+  length: 0.08299993
+  radius: 0.013
+  neutral_buoyancy: false
+  mass: 0.01488
+  displaced_volume: 1.2e-05
+  added_mass: 0.003
+  drag_axial: 0.015
+  drag_lateral: 0.35
+  spring_energy: 0.047
+  cooldown: 0.5
+claw:
+  pose:
+  - 0.1845620038521386
+  - 0.034362
+  - -0.4164364383477267
+  - 0
+  - 0
+  - 0
+  min_gap: 0.0012
+  max_gap: 0.14
+  jaw_speed: 0.033
+  hold_force: 12.0
+  friction: 1.2
+  contact_margin: 0.001
+  grasp_dwell: 0.04
+  slip_distance: 0.025
+magnet_lights:
+  robot_tip_offset:
+  - 0
+  - 0
+  - 0.05

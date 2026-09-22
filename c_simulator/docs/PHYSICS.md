@@ -24,7 +24,7 @@ remain separate possible extensions.
 ## Equations and coordinate conventions
 
 World is `map`, Z up. Body uses ROS forward/left/up. State is
-`[x,y,z,qw,qx,qy,qz,u,v,w,p,q,r]`: position at **COM**, body-to-world unit quaternion,o
+`[x,y,z,qw,qx,qy,qz,u,v,w,p,q,r]`: position at **COM**, body-to-world unit quaternion,
 and absolute body linear/angular velocity. ROS ground-truth pose and reset poses
 refer to **base_link**, with the rotating COM-to-base offset applied explicitly.
 All distances, angles, forces and torques use SI units and radians.
@@ -65,7 +65,7 @@ The optional oscillatory current is a disturbance scenario, not a wave-field sol
 
 ## Parameters and provenance
 
-Default plant: [`../config/talos_hydrodynamics.yaml`](../config/talos_hydrodynamics.yaml).
+Default plant: [Talos hydrodynamics](../robots/talos/config/hydrodynamics.yaml).
 It is separate from controller/feed-forward configuration: tuning the controller
 does not silently retune its simulated plant. The loader rejects nonfinite,
 nonsymmetric or nonphysical inertia/damping. Another vehicle needs its own profile.
@@ -104,7 +104,7 @@ torque/angular-velocity units; quadratic drag uses their squared velocities.
 COB and damping-center offsets are body vectors **relative to COM**. Vehicle YAML
 mounts and `base_link` are CAD-origin coordinates; the adapter subtracts COM.
 Sensor mounts and rates come from the vehicle and legacy sensor configuration.
-The simulation-only `config/talos_sensors.yaml` supplies `imu_gravity`,
+The simulation-only [`robots/talos/config/sensors.yaml`](../robots/talos/config/sensors.yaml) supplies `imu_gravity`,
 `imu_yaw_drift`, `dvl_noise_stddev` and `dvl_variance`; select another profile with the
 `sensor_config` launch argument. Talos's IMU output uses its existing EKF gravity
 calibration (9.755455 m/s²), while plant dynamics retain physical gravity.

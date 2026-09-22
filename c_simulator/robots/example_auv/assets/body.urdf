@@ -1,0 +1,1 @@
+<robot name="example_auv"><link name="body"><collision><geometry><box size="0.5 0.3 0.3"/></geometry></collision></link></robot>

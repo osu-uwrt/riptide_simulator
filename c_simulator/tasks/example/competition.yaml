@@ -1,0 +1,17 @@
+schema_version: 1
+id: example
+behavior: behavior/node.py:TaskSimulator
+config: config/tasks.yaml
+scoring: config/scoring.yaml
+required_capabilities: []
+ui:
+  title: Observation challenge (example)
+  run_options: []
+  focus:
+  - Course
+  - Vehicle
+  - station_a
+  - station_b
+  demo_targets: []
+validator: behavior/validate.py:validate
+scene: config/scene.yaml

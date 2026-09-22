@@ -1,0 +1,91 @@
+schema_version: 1
+id: '2026'
+behavior: behavior/node.py:TaskSimulator
+config: config/tasks.yaml
+scoring: config/scoring.yaml
+mapping: config/mapping.yaml
+markers: config/markers.yaml
+scene: config/scene.yaml
+mesh_root: package://riptide_meshes/meshes
+required_capabilities:
+- launcher
+- dropper
+- gripper
+- magnet
+ui:
+  title: RoboSub 2026 scorecard
+  run_options:
+  - key: role
+    label: Intended role
+    type: choice
+    default: repair
+    choices:
+    - value: repair
+      label: Survey & Repair
+    - value: rescue
+      label: Search & Rescue
+  - key: heading_coin
+    label: Heading coin flip
+    type: bool
+    default: true
+  - key: role_coin
+    label: Role coin flip
+    type: bool
+    default: true
+  focus:
+  - Course
+  - Vehicle
+  - gate
+  - torpedo
+  - bin
+  - table
+  - Payloads
+  - Claw
+  - octagon
+  demo_targets:
+  - gate
+  - torpedo
+  - bin
+  - table
+  manual_adjustment: true
+  score_note: Pinger awards await future acoustic integration. No session countdown
+    or automatic time bonus is applied to individual runs.
+  score_fields:
+  - key: basket_count
+    label: Objects in both baskets
+  - key: time_bonus_eligible
+    label: Time-bonus prerequisites met
+  previews:
+    gate:
+      depth: 0.75
+    bin:
+      depth: 0.55
+      camera: dfc
+    table:
+      depth: 0.55
+      camera: dfc
+  mechanism_panel: payload_claw
+required_frames:
+- torpedo
+- bin_vinyl1
+- bin_vinyl2
+- bin_vinyl3
+- bin_vinyl4
+- table
+- helmet
+- warning
+- gate
+- gate_repair
+- slalom_front
+- slalom_middle
+- slalom_back
+- octagon
+- compass
+- hammer_and_wrench
+- buoy
+- sos
+equipment_sections:
+- torpedo
+- dropper
+- claw
+- magnet_lights

@@ -1,0 +1,103 @@
+crate:
+  outer_width: 0.333248
+  inner_width: 0.3048
+  outer_height: 0.2794
+  base_thickness: 0.008128
+  liner_thickness: 0.004
+  liner_height_fraction: 0.5
+magnet_lights:
+  trigger_distance: 0.1524
+  activation_time: 0.5
+  led_radiance: 200.0
+  face_pose:
+  - 0
+  - 0
+  - 0
+  - 0
+  - -0.7853981633974483
+  - 0
+  sensor_offset:
+  - -0.008
+  - 0
+  - 0
+  targets:
+    magnet_target1: red
+    magnet_target2: red
+claw:
+  props:
+    pill:
+      mesh: table_pill
+      mass: 0.12
+      volume: 9.0e-05
+      basket: helmet
+    bandage:
+      mesh: table_bandage
+      mass: 0.1
+      volume: 7.0e-05
+      basket: helmet
+    nut_and_bolt:
+      mesh: table_nut_and_bolt
+      mass: 0.12
+      volume: 9.0e-05
+      basket: warning
+    plug:
+      mesh: table_plug
+      mass: 0.1
+      volume: 7.0e-05
+      basket: warning
+octagon:
+  apothem: 1.3716
+  pipe_radius: 0.010668
+  surface_z: 0.0
+scoring:
+  attempt_radius: 3.0
+  max_pose_step: 2.0
+  gate_half_width: 1.5
+  gate_top: 0.75
+  slalom_half_width: 1.55
+  slalom_bottom: -0.81
+  slalom_top: 0.474
+  breach_margin: 0.02
+  surface_dwell: 0.5
+  facing_tolerance_deg: 15.0
+  facing_dwell: 0.5
+  turn_tolerance_deg: 15.0
+table_collision:
+  slab_size:
+  - 0.635
+  - 0.635
+  - 0.01905
+  slab_center:
+  - 0.0
+  - 0.0
+  - -0.009525
+torpedo:
+  target_class: fire
+  panel_half_size: 0.3048
+  holes:
+  - name: fire_large
+    class: fire
+    uv:
+    - 0.16142625
+    - 0.58890478
+    radius_uv: 0.10469
+  - name: fire_small
+    class: fire
+    uv:
+    - 0.51378955
+    - 0.81221886
+    radius_uv: 0.08365
+  - name: blood_large
+    class: blood
+    uv:
+    - 0.85499477
+    - 0.14589262
+    radius_uv: 0.10469
+  - name: blood_small
+    class: blood
+    uv:
+    - 0.50045453
+    - 0.18734768
+    radius_uv: 0.08365
+dropper:
+  target_class: fire

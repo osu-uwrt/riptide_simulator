@@ -1,0 +1,17 @@
+schema_version: 1
+id: small_pool
+length: 12.0
+width: 8.0
+depth: 3.0
+water_level: 0.0
+deck_height: 0.305288888
+water_density: 998.2
+current_velocity:
+- 0.0
+- 0.0
+- 0.0
+current_oscillation_amplitude:
+- 0.0
+- 0.0
+- 0.0
+current_oscillation_frequency: 0.0

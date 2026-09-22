@@ -1,0 +1,15 @@
+regions:
+- id: station_a
+  position:
+  - 3.0
+  - 3.0
+  - -1.0
+  radius: 0.6
+  dwell: 0.2
+- id: station_b
+  position:
+  - 5.0
+  - 3.0
+  - -1.0
+  radius: 0.6
+  dwell: 0.2

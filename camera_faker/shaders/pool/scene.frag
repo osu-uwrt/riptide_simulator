@@ -11,6 +11,8 @@ uniform int hasTexture,material,useShadow,clipWater;
 uniform float time,caustics,directLight,ambientLight;
 uniform float ledRadiance;
 uniform vec3 waterTint,waterAbsorption;
+uniform float waterLevel;
+uniform vec3 poolSize;
 uniform float waterScattering,waterDistanceScale,waterDistancePower,waterClearDistance;
 uniform int outdoor;
 uniform int holeCount;
@@ -53,8 +55,9 @@ float caustic(vec2 p){
   return pow(max(0.,1.-abs(a)*.68),12.)*.65+pow(max(0.,1.-abs(b)*.75),14.)*.45;
 }
 void main(){
+  float worldZ=world.z-waterLevel,eyeZ=eye.z-waterLevel;
   for(int i=0;i<holeCount;i++)if(distance(texcoord,holes[i].xy)<holes[i].z)discard;
-  if(clipWater==1 && world.z<0.015)discard;
+  if(clipWater==1 && worldZ<0.015)discard;
   vec4 sampled=hasTexture==1?texture(albedo,texcoord):vec4(1);
   if(sampled.a<.4)discard;
   vec3 base=sampled.rgb*tint.rgb;
@@ -66,19 +69,19 @@ void main(){
     base*=mix(.63,1.,g)*(1.+(hash(floor(tile/.1524))-.5)*.035*(1.-smoothstep(.02,.10,max(fwidth(tile.x),fwidth(tile.y)))));
     float lane=0;
     if(abs(pn.z)>.5){
-      float s1=stripe(poolPosition.y,(22.86-7.*2.7432)/2.,8);
-      float s2=stripe(poolPosition.x,(50.-16.*2.7432)/2.,17);
-      lane=max(s1*step(2.,poolPosition.x)*step(poolPosition.x,48.),s2*step(2.,poolPosition.y)*step(poolPosition.y,20.86));
+      float s1=stripe(poolPosition.y,(poolSize.y-7.*2.7432)/2.,8);
+      float s2=stripe(poolPosition.x,(poolSize.x-16.*2.7432)/2.,17);
+      lane=max(s1*step(2.,poolPosition.x)*step(poolPosition.x,(poolSize.x-2.)),s2*step(2.,poolPosition.y)*step(poolPosition.y,(poolSize.y-2.)));
       // T-shaped lane ends, with the same metre-wide heads as the original scene.
-      float endX=min(abs(poolPosition.x-2.),abs(poolPosition.x-48.));
-      float endY=min(abs(poolPosition.y-2.),abs(poolPosition.y-20.86));
-      float nearY=abs(mod(poolPosition.y-(22.86-7.*2.7432)/2.+1.3716,2.7432)-1.3716);
-      float nearX=abs(mod(poolPosition.x-(50.-16.*2.7432)/2.+1.3716,2.7432)-1.3716);
+      float endX=min(abs(poolPosition.x-2.),abs(poolPosition.x-(poolSize.x-2.)));
+      float endY=min(abs(poolPosition.y-2.),abs(poolPosition.y-(poolSize.y-2.)));
+      float nearY=abs(mod(poolPosition.y-(poolSize.y-7.*2.7432)/2.+1.3716,2.7432)-1.3716);
+      float nearX=abs(mod(poolPosition.x-(poolSize.x-16.*2.7432)/2.+1.3716,2.7432)-1.3716);
       lane=max(lane,(1-smoothstep(.12,.14,endX))*step(nearY,.5));
       lane=max(lane,(1-smoothstep(.12,.14,endY))*step(nearX,.5));
     }else{
-      float line=abs(pn.x)>.5?stripe(poolPosition.y,(22.86-7.*2.7432)/2.,8):stripe(poolPosition.x,(50.-16.*2.7432)/2.,17);
-      lane=line*step(poolPosition.z,0.);
+      float line=abs(pn.x)>.5?stripe(poolPosition.y,(poolSize.y-7.*2.7432)/2.,8):stripe(poolPosition.x,(poolSize.x-16.*2.7432)/2.,17);
+      lane=line*step(poolPosition.z,waterLevel);
       base=mix(base,vec3(.065,.20,.27),step(-.13,poolPosition.z)*step(poolPosition.z,.04));
     }
     base=mix(base,vec3(.035,.07,.09),lane*.91);
@@ -98,21 +101,21 @@ void main(){
   float rough=material==5?.06:(material==1?.26:.54);
   float spec=pow(nh,mix(85.,14.,rough))*(material==5?1.4:(material==1?.17:.055));
   vec3 lighting=base*(ambient*ambientLight+(outdoor==1?vec3(1.15,1.08,.95):vec3(.92,1.01,1.08))*nl*vis*directLight)+spec*vis*directLight;
-  if(world.z<0){
+  if(worldZ<0){
     lighting*=vec3(.84,.97,1.04);
     float c=caustic(world.xy+world.z*n.xy*.5);
-    lighting+=base*c*caustics*directLight*exp(world.z*.14)*(.3+.7*max(n.z,0.))*(.35+.65*vis);
+    lighting+=base*c*caustics*directLight*exp(worldZ*.14)*(.3+.7*max(n.z,0.))*(.35+.65*vis);
     // Approximate incoming surface light with a vertical path through the water.
     // Use physical depth in metres; viewing-distance controls apply below.
-    lighting*=exp(-waterAbsorption*(-world.z));
+    lighting*=exp(-waterAbsorption*(-worldZ));
   }
   // Emissive materials generate their own light and only lose it on the way to the camera.
   if(material==3)lighting=base*1.65;
   if(material==6)lighting=base*ledRadiance;
   float d=length(eye-world),wet=0;
-  if(eye.z<0 && world.z<0)wet=d;
-  else if(eye.z>=0 && world.z<0)wet=d*(-world.z)/max(.001,eye.z-world.z);
-  else if(eye.z<0 && world.z>=0)wet=d*(-eye.z)/max(.001,world.z-eye.z);
+  if(eyeZ<0 && worldZ<0)wet=d;
+  else if(eyeZ>=0 && worldZ<0)wet=d*(-worldZ)/max(.001,eye.z-world.z);
+  else if(eyeZ<0 && worldZ>=0)wet=d*(-eyeZ)/max(.001,world.z-eye.z);
   float opticalDistance=pow(max(0.,wet-waterClearDistance)*waterDistanceScale,waterDistancePower);
   float transmission=exp(-opticalDistance*waterScattering);
   vec3 attenuation=exp(-opticalDistance*waterAbsorption)*transmission;

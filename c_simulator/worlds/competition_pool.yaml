@@ -1,0 +1,17 @@
+schema_version: 1
+id: competition_pool
+length: 50.0
+width: 22.86
+depth: 2.1336
+water_level: 0.0
+deck_height: 0.305288888
+water_density: 998.2
+current_velocity:
+- 0.0
+- 0.0
+- 0.0
+current_oscillation_amplitude:
+- 0.0
+- 0.0
+- 0.0
+current_oscillation_frequency: 0.1

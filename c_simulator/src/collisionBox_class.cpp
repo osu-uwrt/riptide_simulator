@@ -1,15 +1,8 @@
 #include "c_simulator/collisionBox.h"
 #include <cmath>
 
-collisionBox::collisionBox(std::string name_,
-                           double length_,
-                           double width_,
-                           double height_,
-                           v3d baseCenter,
-                           v3d baseOffset_,
-                           quat baseOrientation,
-                           quat baseOrientationOffset_)
-{
+collisionBox::collisionBox(std::string name_, double length_, double width_, double height_, v3d baseCenter,
+                           v3d baseOffset_, quat baseOrientation, quat baseOrientationOffset_) {
     name = name_;
     length = std::abs(length_);
     width = std::abs(width_);
@@ -22,8 +15,7 @@ collisionBox::collisionBox(std::string name_,
     setVertices();
 }
 
-void collisionBox::updateLocation(const vXd &state)
-{
+void collisionBox::updateLocation(const vXd &state) {
     // Get quaternion from state
     quat q;
     q.w() = state[3];
@@ -37,58 +29,47 @@ void collisionBox::updateLocation(const vXd &state)
     // Also update vertice location
     setVertices();
 }
-v3d collisionBox::getCenter()
-{
+v3d collisionBox::getCenter() {
     return center;
 }
-v3d collisionBox::getAxis(int index)
-{
+v3d collisionBox::getAxis(int index) {
     return rotM.col(index);
 }
-std::string collisionBox::getName()
-{
+std::string collisionBox::getName() {
     return name;
 }
-m3d collisionBox::rotationMatrix()
-{
+m3d collisionBox::rotationMatrix() {
     return rotM;
 }
-double collisionBox::maxProjection(const v3d &axis)
-{
+double collisionBox::maxProjection(const v3d &axis) {
     return (vertices.transpose() * axis).maxCoeff();
 }
-double collisionBox::minProjection(const v3d &axis)
-{
+double collisionBox::minProjection(const v3d &axis) {
     return (vertices.transpose() * axis).minCoeff();
 }
 
-v3d collisionBox::maxVertex(const v3d &axis)
-{
+v3d collisionBox::maxVertex(const v3d &axis) {
     // No vertices in box, pick the furthest on the axis
     int maxIndex;
     (vertices.transpose() * axis).maxCoeff(&maxIndex);
     return vertices.col(maxIndex);
 }
-v3d collisionBox::minVertex(const v3d &axis)
-{
+v3d collisionBox::minVertex(const v3d &axis) {
     // No vertices in box, pick the shortest on the axis
     int minIndex;
     (vertices.transpose() * axis).minCoeff(&minIndex);
     return vertices.col(minIndex);
 }
 
-bool collisionBox::isInBox(const v3d &point)
-{
+bool collisionBox::isInBox(const v3d &point) {
     // Transform from world cordinates to box cordinates
     v3d point_body = orientation.conjugate() * (point - center);
     // Return if it is inside or not
-    return std::abs(point_body[0]) <= length / 2 &&
-           std::abs(point_body[1]) <= width / 2 &&
+    return std::abs(point_body[0]) <= length / 2 && std::abs(point_body[1]) <= width / 2 &&
            std::abs(point_body[2]) <= height / 2;
 }
 
-v3d collisionBox::moveInBox(const v3d &point)
-{
+v3d collisionBox::moveInBox(const v3d &point) {
     // Transform from world cordinates to box cordinates
     v3d point_body = orientation.conjugate() * (point - center);
     // Move vector to within box bounds
@@ -99,8 +80,7 @@ v3d collisionBox::moveInBox(const v3d &point)
     // Transform back to world cordinates
     return orientation * point_body + center;
 }
-void collisionBox::setVertices()
-{
+void collisionBox::setVertices() {
     vertices.resize(3, 8);
 
     // Store vertex point relative to box axes
@@ -116,25 +96,20 @@ void collisionBox::setVertices()
     // Convert from box cordinates to world cordinates
     vertices = rotM * vertices + center.replicate(1, 8);
 }
-double collisionBox::getLength()
-{
+double collisionBox::getLength() {
     return length;
 }
-double collisionBox::getWidth()
-{
+double collisionBox::getWidth() {
     return width;
 }
-double collisionBox::getHeight()
-{
+double collisionBox::getHeight() {
     return height;
 }
-quat collisionBox::getOrientation()
-{
+quat collisionBox::getOrientation() {
     return orientation;
 }
 
-collisionResult::collisionResult()
-{
+collisionResult::collisionResult() {
     depth = 0;
     collided = false;
     unitDirection = v3d(1, 0, 0);

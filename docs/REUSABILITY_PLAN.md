@@ -1,6 +1,23 @@
 # Robot and task independence
 
-Status: proposed plan only. The architecture below has not been implemented.
+Status: the config-driven robot/year/scenario implementation is present. See
+[Configuration and extension guide](CONFIGURATION.md) for the supported schemas,
+commands, behavior contracts and current boundaries.
+
+Implemented: shared resolution/validation, installed robot and year packs,
+arbitrary camera lists and thruster counts, optional sensor schedules, generic
+propulsion, robot-local mechanisms, year-local scoring/UI defaults, shared pool
+geometry, neutral scenarios, custom standalone namespaces, and an independent
+example robot/task pack. Existing Talos regressions and the example profile
+have automated coverage.
+
+The architecture below remains the longer-term design reference. A dynamically
+loaded C++ contact ABI, separate build packages for UWRT adapters, a fully typed
+versioned event protocol, arbitrary terrain, and per-task enablement inside the
+2026 pack are not implemented. The current 2026 pack enables its course as a unit;
+other packs can compose multiple instances in their own configuration. The
+example's observation regions demonstrate this. Python behavior registration and
+configurable scene boxes are available now.
 
 ## Goal and scope
 

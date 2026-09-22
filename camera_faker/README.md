@@ -1,5 +1,8 @@
 # Riptide RoboSub viewer
 
+This reference describes the Talos viewer setup. For other robots, camera lists,
+tasks, or pools, start with the [configuration guide](../docs/CONFIGURATION.md).
+
 A new OpenGL 3.3 renderer and operator window, with forward and downward ZED X
 Mini camera simulation. `c_simulator` provides the Fossen vehicle plant, collisions, simulated sensors,
 and actuator response; your existing ROS nodes provide control and autonomy. The viewer
@@ -203,7 +206,7 @@ A red light turns green after the magnet tip remains within six inches of its
 sensor for 0.5 simulated seconds, then stays green until reset. Each light is
 independent. The lenses emit HDR light with camera bloom under indoor and outdoor
 lighting; actual red/green pixels appear in both robot cameras. Adjust
-`magnet_lights.led_radiance` in `talos_tasks.yaml` for brightness (default 60).
+`magnet_lights.led_radiance` in the [2026 task config](../c_simulator/tasks/2026/config/tasks.yaml) for brightness (default 60).
 
 [Red camera sample](docs/magnet-lights/red.png) ·
 [Green camera sample](docs/magnet-lights/green.png) ·
@@ -376,10 +379,11 @@ Missing transforms are retried without substituting a newer pose.
 Camera-view overlays use the pose and projection of the displayed
 RGB or depth image, even while the vehicle moves between camera acquisitions.
 `demo_task` uses `gate`, `torpedo`, `bin`, or `table`; `initial_focus` additionally
-accepts `Course`, `Vehicle`, and `Payloads`. The default mapping is `../config.yaml` when
-using a symlink install, otherwise the installed copy. Select the same mapping
-file used by your mapping node. The current course and camera defaults are for
-Talos; another robot needs its own mapping entry, mesh, and both camera mounts.
+accepts `Course`, `Vehicle`, and `Payloads` for the 2026 pack. The selected year
+provides mapping and viewer metadata; the selected robot provides its model and
+camera list. Launch resolves them together, and full bringup forwards the same
+mapping to the mapping node. Use matching robot/year/scenario selections when
+starting the viewer separately.
 
 Node-only parameters include `render_rate` (30 Hz), `fixed_frame` (`map`),
 `depth_noise`, `depth_model.*`, `point_cloud.enabled/rate/stride`, and startup lighting parameters
@@ -461,7 +465,7 @@ Preview mode instead labels the fixed, configured base and payload frames as a p
 Start with axes enabled using `show_tf:=true` on `pool_viewer.launch.py`.
 
 Loaded payloads and release physics compose the robot actuator frames with the
-CAD seating offsets in `talos_tasks.yaml`. TF aiming origins are separate from
+CAD seating offsets in [Talos equipment](../c_simulator/robots/talos/config/equipment.yaml). TF aiming origins are separate from
 the physical projectile centers. The four rounds remain inside the CAD launcher
 and release continuously from their seats. Restart after configuration changes.
 

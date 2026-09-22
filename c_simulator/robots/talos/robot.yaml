@@ -1,0 +1,30 @@
+schema_version: 1
+id: talos
+vehicle: package://riptide_descriptions2/config/talos.yaml
+hydrodynamics: config/hydrodynamics.yaml
+sensors: config/sensors.yaml
+simulator: package://riptide_descriptions2/config/simulator.yaml
+equipment: config/equipment.yaml
+behavior: behavior/mechanisms.py:Mechanisms
+capabilities:
+  launcher: torpedo
+  dropper: dropper
+  gripper: claw
+  magnet: magnet_lights
+collision: package://c_simulator/collision_files/robots/talos.urdf
+model: package://riptide_meshes/meshes/talos/model.dae
+adapter: uwrt
+cameras:
+- name: ffc
+  config: package://riptide_hardware2/cfg/ffc_config.yaml
+  topic_root: ffc/zed_node
+  truth_tf_owner: physics
+- name: dfc
+  config: package://riptide_hardware2/cfg/dfc_config.yaml
+  topic_root: dfc/zed_node
+  truth_tf_owner: viewer
+viewer:
+  payload_model: package://camera_faker/models/payloads/projectile.glb
+  launcher_model: package://camera_faker/models/payloads/launcher.glb
+  claw_model: package://camera_faker/models/claw/gripper.glb
+  camera_settings: package://camera_faker/config/cameras.yaml

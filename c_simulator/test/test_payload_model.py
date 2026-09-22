@@ -44,6 +44,20 @@ class PayloadModel(unittest.TestCase):
         for mount in payload_mounts(vehicle, self.cfg, 'dropper'):
             np.testing.assert_allclose(mount[:3, 0], [0, 1, 0], atol=1e-12)
 
+    def test_three_slots_without_legacy_baseline(self):
+        vehicle=dict(base_link=[0,0,0],torpedoes=dict(pose=[1,0,0,0,0,0]))
+        self.cfg['torpedo'].update(count=3,slot_offsets=[[0,y,0,0,0,0] for y in (-.1,0,.1)])
+        mounts=payload_mounts(vehicle,self.cfg,'torpedo')
+        np.testing.assert_allclose([m[:3,3] for m in mounts],[[1,-.1,0],[1,0,0],[1,.1,0]])
+
+    def test_water_level_translation_preserves_flight(self):
+        cfg=dict(self.cfg['dropper'])
+        position=np.array([0.,0.,-1.]);velocity=np.array([.2,0.,0.]);axis=np.array([0.,0.,-1.])
+        p,v=advance(position,velocity,axis,cfg,np.zeros(3),998.2,.02)
+        cfg['water_level']=4.
+        shifted,w=advance(position+[0,0,4],velocity,axis,cfg,np.zeros(3),998.2,.02)
+        np.testing.assert_allclose(shifted,p+[0,0,4]);np.testing.assert_allclose(w,v)
+
     def test_invalid_mounts_rejected(self):
         vehicle = dict(base_link=[0, 0, 0], torpedoes=dict(pose=[0]*6, baseline=float('nan')))
         with self.assertRaises(ValueError):

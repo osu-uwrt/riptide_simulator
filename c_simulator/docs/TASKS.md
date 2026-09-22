@@ -6,7 +6,7 @@ available separately from the point ledger.
 
 `physics_simulator.launch.py` starts `task_simulator.py` by default, so the normal
 `riptide_bringup2 simulation.launch.py robot:=talos` entry includes it. Disable
-the task node with `with_tasks:=false`. It consumes vehicle ground truth and the
+competition tasks with `with_tasks:=false`. It consumes vehicle ground truth and the
 plant's integrated `simulator/time`; payloads pause with that clock. It requires
 fresh ground truth to fire. Resetting the vehicle clears payloads and scores,
 reloads both mechanisms and disarms them.
@@ -52,10 +52,12 @@ CAD mesh URI, scale and orientation for RViz and the OpenGL viewer.
 
 ## Shared geometry and assumptions
 
-[`talos_tasks.yaml`](../config/talos_tasks.yaml) supplies geometry to physics,
-tasks and rendering. Pass the same `task_config` and `mapping_config` to separately
-launched nodes. Normal combined bringup shares these launch arguments. Configuration
-changes take effect on restart; viewer depth-noise controls are separately live.
+[Talos equipment](../robots/talos/config/equipment.yaml) supplies mechanism and
+payload properties; [2026 tasks](../tasks/2026/config/tasks.yaml) supplies target
+geometry. Launch resolves both into shared inputs for physics, tasks, and rendering.
+Use the same robot/year/scenario when launching components separately. See the
+[configuration guide](../../docs/CONFIGURATION.md) for other robots and courses.
+Configuration changes take effect on restart; viewer depth-noise controls are live.
 
 The mechanism follows the team's design reports:
 
@@ -193,9 +195,10 @@ the viewer applies these to the actual LED meshes in observer, FFC and DFC views
 activation. There is no fabricated perception output. Open **Tasks & claw →
 Inspect lights** for a close view. Light colors also appear in that tab.
 
-Tune `magnet_lights` in `talos_tasks.yaml`: initial target colors, trigger
-distance, dwell time, sensor inset, robot tip offset, face tilt and
-`led_radiance` (HDR brightness). Restart after edits. Bright lenses produce
+Tune `magnet_lights` in [2026 tasks](../tasks/2026/config/tasks.yaml): initial target colors, trigger
+distance, dwell time, sensor inset, face tilt and `led_radiance` (HDR brightness).
+The robot tip offset belongs to [Talos equipment](../robots/talos/config/equipment.yaml).
+Restart after edits. Bright lenses produce
 camera bloom indoors and outdoors; the clear cover remains visible and supplies
 the enclosure's metric depth. Appearance/material parameters are rendering
 priors, not calibrated radiometry. See

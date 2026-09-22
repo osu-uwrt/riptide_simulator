@@ -217,11 +217,17 @@ def main():
                 np.testing.assert_allclose(xyz[:, :, 2], d[::8, ::8], atol=1e-6)
                 assert not configure({'depth_model.min_range': 9., 'depth_model.max_range': 8.}).successful
                 assert configure({'depth_model.dropout': 1.}).successful
-                records['dfc'].clear(); spin(1., True)
-                complete = [m for m in records['dfc'].values() if len(m) == len(types)]
-                assert complete
+                # The worker may finish a frame captured before the parameter
+                # response. Wait for the first synchronized frame using the new model.
+                records['dfc'].clear()
+                deadline=time.monotonic()+4
+                complete=[]
+                while not complete and time.monotonic()<deadline:
+                    spin(.1,True)
+                    complete=[m for m in records['dfc'].values() if len(m)==len(types)
+                              and np.isnan(np.frombuffer(m['depth/depth_registered'].data,dtype='<f4')).all()]
+                assert complete, 'No frame applied the updated dropout model'
                 m = complete[-1]
-                assert np.isnan(np.frombuffer(m['depth/depth_registered'].data, dtype='<f4')).all()
                 cloud = m['point_cloud/cloud_registered']
                 xyz = np.ndarray((cloud.height, cloud.width, 3), dtype='<f4', buffer=bytes(cloud.data), strides=(cloud.row_step, cloud.point_step, 4))
                 assert np.isnan(xyz).all(), 'Cloud did not preserve depth dropouts'

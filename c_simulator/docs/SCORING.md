@@ -1,5 +1,10 @@
 # RoboSub 2026 run scoring
 
+Point values and supported limits live in [scoring.yaml](../tasks/2026/config/scoring.yaml).
+Run options and their defaults live in [competition.yaml](../tasks/2026/competition.yaml);
+heading and role coin flips start checked. New scoring conditions belong in
+[the year's behavior](../tasks/2026/behavior/scoring.py).
+
 Open **Run score** in the pool viewer. Select an intended role, then **Start run**.
 This clears the task scene, reloads/disarms the actuators, resets the ledger and
 starts an individual-run stopwatch. The robot stays where it is. Enable/arm the
@@ -84,7 +89,7 @@ The octagon has eight white cylindrical PVC sides at water level, with 9 ft
 and legacy octagon collision dimensions. Half-inch nominal PVC uses a 0.84-inch
 outside diameter. Existing inward-facing sign meshes remain at their mapped
 positions, suspended below the ring. The renderer and physical collision proxies
-use the same `octagon` dimensions from `talos_tasks.yaml`; the physical proxies
+use the same `octagon` dimensions from [the 2026 task config](../tasks/2026/config/tasks.yaml); the physical proxies
 are narrow boxes around the pipes. No acoustic pinger is created.
 
 The deterministic judge uses the plant's box collision envelope (COM coordinates

@@ -19,7 +19,7 @@ from nav_msgs.msg import Odometry
 from visualization_msgs.msg import MarkerArray, Marker
 from riptide_msgs2.msg import KillSwitchReport, ActuatorStatus
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from task_simulator import rotation, frame
+from riptide_sim_config.geometry import rotation, frame
 from magnet_light_model import MagnetLights
 
 
@@ -27,7 +27,9 @@ def main():
     assert os.environ.get('ROS_DOMAIN_ID') not in (None,'','0')
     rclpy.init();node=Node('task_reset_regression')
     package=Path(share('c_simulator'));vehicle_path=Path(share('riptide_descriptions2'))/'config/talos.yaml'
-    task_path=package/'config/talos_tasks.yaml';mapping_path=package/'config/simulation.yaml'
+    from riptide_sim_config import resolve
+    resolved=resolve()
+    task_path=resolved/'task.yaml';mapping_path=resolved/'mapping.yaml'
     cfg=yaml.safe_load(task_path.read_text());vehicle=yaml.safe_load(vehicle_path.read_text())
     data=yaml.safe_load(mapping_path.read_text())['/talos/riptide_mapping2']['ros__parameters']['init_data']
     def resolve(key):

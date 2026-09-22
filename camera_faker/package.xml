@@ -15,6 +15,7 @@
   <depend>visualization_msgs</depend>
   <depend>std_srvs</depend>
   <depend>riptide_msgs2</depend>
+  <exec_depend>c_simulator</exec_depend>
   <exec_depend>riptide_meshes</exec_depend>
   <exec_depend>riptide_descriptions2</exec_depend>
   <exec_depend>apriltag_ros</exec_depend>

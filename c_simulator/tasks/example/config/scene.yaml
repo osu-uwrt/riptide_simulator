@@ -1,0 +1,38 @@
+objects: {}
+april_tag:
+  visible: false
+entities:
+- id: station_a
+  pose:
+  - 3
+  - 3
+  - -1.6
+  - 0
+  - 0
+  - 0
+  size:
+  - 1.2
+  - 1.2
+  - 0.02
+  color:
+  - 0.3
+  - 0.8
+  - 0.4
+  collision: false
+- id: station_b
+  pose:
+  - 5
+  - 3
+  - -1.6
+  - 0
+  - 0
+  - 0
+  size:
+  - 1.2
+  - 1.2
+  - 0.02
+  color:
+  - 0.2
+  - 0.6
+  - 0.9
+  collision: false

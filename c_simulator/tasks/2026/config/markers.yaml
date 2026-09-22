@@ -1,0 +1,160 @@
+/**/marker_publisher:
+  ros__parameters:
+    update_period: 0.1
+    mesh_pkg: riptide_meshes
+    mesh_directory: meshes
+    marker_topic: mapping_markers
+    markers:
+      marker0:
+        mesh: gate  # NOTE: if this is "arrow", "sphere", or "cube", the builtin message support for those shapes will be used instead of a mesh file
+        frame: gate_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, -1.5, 0.0, 0.0, 0.0, 0.0] # xyzrpw
+        color: [0.0, 0.0, 0.0, 0.0]           # rgba
+      marker1:
+        mesh: gate_repair
+        frame: gate_repair_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker2:
+        mesh: gate_rescue
+        frame: gate_rescue_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker3:
+        mesh: slalom
+        frame: slalom_front_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker4:
+        mesh: slalom
+        frame: slalom_middle_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker5:
+        mesh: slalom
+        frame: slalom_back_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker6:
+        mesh: torpedo
+        frame: torpedo_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker7:
+        mesh: bin
+        frame: bin_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker8:
+        mesh: bin_vinyl
+        frame: bin_vinyl1_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker9:
+        mesh: bin_vinyl
+        frame: bin_vinyl2_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker10:
+        mesh: bin_vinyl
+        frame: bin_vinyl3_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker11:
+        mesh: bin_vinyl
+        frame: bin_vinyl4_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker12:
+        mesh: bin_magnet
+        frame: magnet_target1_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker13:
+        mesh: bin_magnet
+        frame: magnet_target2_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+
+      # Table
+      marker14:
+        mesh: table
+        frame: table_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker15:
+        mesh: table_basket_warning
+        frame: warning_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker16:
+        mesh: table_basket_helmet
+        frame: helmet_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker17:
+        mesh: table_pill
+        frame: pill_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker18:
+        mesh: table_plug
+        frame: plug_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker19:
+        mesh: table_nut_and_bolt
+        frame: nut_and_bolt_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker20:
+        mesh: table_bandage
+        frame: bandage_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      # Octagon
+      marker21:
+        mesh: octagon_buoy
+        frame: buoy_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker22:
+        mesh: octagon_sos
+        frame: sos_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker23:
+        mesh: octagon_hammer_and_wrench
+        frame: hammer_and_wrench_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]
+      marker24:
+        mesh: octagon_compass
+        frame: compass_frame
+        scale: [1.0, 1.0, 1.0]
+        pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        color: [0.0, 0.0, 0.0, 0.0]

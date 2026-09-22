@@ -1,0 +1,3 @@
+beacon:
+  topic: command/beacon
+  hold_seconds: 0.25
