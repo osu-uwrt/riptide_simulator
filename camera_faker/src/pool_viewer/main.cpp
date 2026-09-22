@@ -1,4 +1,4 @@
-#include "pool_viewer/depth_noise.hpp"
+#include "pool_viewer/camera_processor.hpp"
 #include "pool_viewer/detection_pose.hpp"
 #include "pool_viewer/renderer.hpp"
 #include "pool_viewer/payload_mounts.hpp"
@@ -78,6 +78,7 @@ ImTextureID textureID(GLuint t) {
     return static_cast<ImTextureID>(t);
 }
 struct CameraOutput {
+    std::string computeWarning;
     cv::Mat preview;
     pool::View view;
     double processingMs = 0;
@@ -110,6 +111,7 @@ struct Camera {
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info, leftInfo, depthInfo;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud;
     std::mt19937 random{7};
+    std::unique_ptr<pool::CameraProcessor> cameraProcessor;
     ~Camera() {
         if (pending.valid())
             pending.wait();
@@ -139,6 +141,12 @@ class PoolViewer : public rclcpp::Node {
         cloudRate = declare_parameter<double>("point_cloud.rate", 5.);
         cloudStride = declare_parameter<int>("point_cloud.stride", 8);
         cloudOverlay = std::max(0, int(declare_parameter<int>("point_cloud.overlay", 0)));
+        rcl_interfaces::msg::ParameterDescriptor computeDescriptor;
+        computeDescriptor.read_only = true;
+        computeDescriptor.description = "Camera images/depth/clouds: auto (CUDA when available) or cpu";
+        const auto cameraCompute = declare_parameter<std::string>("camera_compute", "auto", computeDescriptor);
+        if (cameraCompute != "auto" && cameraCompute != "cpu")
+            throw std::invalid_argument("camera_compute must be auto or cpu");
         depthModel.rangeSigma = declare_parameter<double>("depth_noise", .0015);
         depthModel.enabled = declare_parameter<bool>("depth_model.enabled", true);
         depthModel.baseSigma = declare_parameter<double>("depth_model.base_sigma", .002);
@@ -280,6 +288,8 @@ class PoolViewer : public rclcpp::Node {
             c.index = index++;
             c.physicsMount = cameraProfile["truth_tf_owner"].as<std::string>("viewer") == "physics";
             c.name = name;
+            c.cameraProcessor = std::make_unique<pool::CameraProcessor>(cameraCompute);
+            RCLCPP_INFO(get_logger(), "%s camera processing: %s", name.c_str(), c.cameraProcessor->description().c_str());
             c.depthPreview = depthPreview;
             c.frame = robot + "/" + name + "_left_camera_optical_frame";
             c.truthFrame = "simulator/" + c.frame;
@@ -942,6 +952,8 @@ class PoolViewer : public rclcpp::Node {
         if (!c.pending.valid() || c.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
             return;
         auto output = c.pending.get();
+        if (!output.computeWarning.empty())
+            RCLCPP_WARN(get_logger(), "%s: %s", c.name.c_str(), output.computeWarning.c_str());
         c.processingMs = output.processingMs;
         if (output.hasCloud) {
             const int slot = c.index;
@@ -1009,26 +1021,21 @@ class PoolViewer : public rclcpp::Node {
             const auto start = Clock::now();
             CameraOutput output;
             output.view = view;
-            if (wantDepth) {
-                for (int y = 0; y < depth.rows; ++y)
-                    for (int x = 0; x < depth.cols; ++x) {
-                        float &z = depth.at<float>(y, x);
-                        z = z >= .999999f ? NAN : pool::linearDepth(z, c.k.nearPlane, c.k.farPlane);
-                    }
-                depthModel.apply(depth, c.random);
-                if (depthPreview) {
-                    cv::Mat gray;
-                    auto &preview = output.preview;
-                    depth.convertTo(gray, CV_8U, 255 / depthModel.maxRange);
-                    cv::applyColorMap(gray, preview, cv::COLORMAP_TURBO);
-                    for (int y = 0; y < depth.rows; ++y)
-                        for (int x = 0; x < depth.cols; ++x)
-                            if (!std::isfinite(depth.at<float>(y, x)))
-                                preview.at<cv::Vec3b>(y, x) = {16, 22, 27};
-                    cv::cvtColor(preview, preview, cv::COLOR_BGR2RGB);
-                    cv::flip(preview, preview, 0);
-                }
-            }
+            pool::CameraRequest request;
+            request.nearPlane = c.k.nearPlane;
+            request.farPlane = c.k.farPlane;
+            request.noise = depthModel;
+            request.fx = c.k.fx;
+            request.fy = c.k.fy;
+            request.cx = c.k.cx;
+            request.cy = c.k.cy;
+            request.cloudStride = point ? cloudStride : 0;
+            request.jpeg = emit && (demand.compressed || demand.leftCompressed);
+            request.preview = wantDepth && depthPreview;
+            auto products = c.cameraProcessor->processFrame(rgb, depth, request, c.random);
+            depth = std::move(products.depth);
+            output.preview = std::move(products.preview);
+            output.computeWarning = std::move(products.warning);
             if (emit) {
                 std_msgs::msg::Header header;
                 header.stamp = stamp;
@@ -1066,9 +1073,7 @@ class PoolViewer : public rclcpp::Node {
                         sensor_msgs::msg::CompressedImage m;
                         m.header = header;
                         m.format = "rgb8; jpeg compressed bgr8";
-                        cv::Mat bgr;
-                        cv::cvtColor(rgb, bgr, cv::COLOR_RGB2BGR);
-                        cv::imencode(".jpg", bgr, m.data, {cv::IMWRITE_JPEG_QUALITY, 93});
+                        m.data = std::move(products.jpeg);
                         if (demand.compressed)
                             c.compressed->publish(m);
                         if (demand.leftCompressed)
@@ -1092,46 +1097,26 @@ class PoolViewer : public rclcpp::Node {
                     m.is_dense = false;
                     sensor_msgs::PointCloud2Modifier modifier(m);
                     modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
-                    const int w = (c.k.width + cloudStride - 1) / cloudStride,
-                              h = (c.k.height + cloudStride - 1) / cloudStride;
-                    modifier.resize(w * h);
-                    m.width = w;
-                    m.height = h;
-                    m.row_step = m.point_step * w;
-                    sensor_msgs::PointCloud2Iterator<float> x(m, "x"), y(m, "y"), z(m, "z");
-                    sensor_msgs::PointCloud2Iterator<uint8_t> r(m, "r"), g(m, "g"), b(m, "b");
-                    for (int v = 0; v < c.k.height; v += cloudStride)
-                        for (int u = 0; u < c.k.width; u += cloudStride, ++x, ++y, ++z, ++r, ++g, ++b) {
-                            const float d = depth.at<float>(v, u);
-                            *x = (u - c.k.cx) * d / c.k.fx;
-                            *y = (v - c.k.cy) * d / c.k.fy;
-                            *z = d;
-                            auto pixel = rgb.at<cv::Vec3b>(v, u);
-                            *r = pixel[0];
-                            *g = pixel[1];
-                            *b = pixel[2];
-                        }
+                    modifier.resize(products.cloud.size());
+                    m.width = products.cloudWidth;
+                    m.height = products.cloudHeight;
+                    m.row_step = m.point_step * m.width;
+                    std::memcpy(m.data.data(), products.cloud.data(), products.cloud.size() * sizeof(pool::CloudPoint));
                     c.cloud->publish(m);
                 }
             }
             // Same samples as the published cloud (stride, depth noise, RGB),
             // rotated from the optical frame into the camera link frame so the
             // render-time camera pose places them where they were measured.
-            if (point && drawCloud && depth.rows == c.k.height && depth.cols == c.k.width && rgb.rows == c.k.height &&
-                rgb.cols == c.k.width) {
+            if (point && drawCloud && !products.cloud.empty()) {
                 output.hasCloud = true;
                 output.world = world;
-                output.cloud.reserve(size_t(c.k.width / cloudStride + 1) * size_t(c.k.height / cloudStride + 1) * 6);
-                for (int v = 0; v < c.k.height; v += cloudStride)
-                    for (int u = 0; u < c.k.width; u += cloudStride) {
-                        const float d = depth.at<float>(v, u);
-                        if (!std::isfinite(d))
-                            continue;
-                        const float X = (u - c.k.cx) * d / c.k.fx, Y = (v - c.k.cy) * d / c.k.fy;
-                        const auto pixel = rgb.at<cv::Vec3b>(v, u);
-                        output.cloud.insert(output.cloud.end(),
-                                            {d, -X, -Y, pixel[0] / 255.f, pixel[1] / 255.f, pixel[2] / 255.f});
-                    }
+                output.cloud.reserve(products.cloud.size() * 6);
+                for (const auto &p : products.cloud) {
+                    if (!std::isfinite(p.z))
+                        continue;
+                    output.cloud.insert(output.cloud.end(), {p.z, -p.x, -p.y, p.r / 255.f, p.g / 255.f, p.b / 255.f});
+                }
             }
             output.processingMs = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
             return output;

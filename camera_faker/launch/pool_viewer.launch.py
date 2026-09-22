@@ -23,6 +23,11 @@ def generate_launch_description():
         publish_camera_optical_tf = "true"
     arguments = [
         DeclareLaunchArgument(
+            "camera_compute",
+            default_value="",
+            description="Camera compute backend: auto or cpu; empty uses camera_settings (default auto)",
+        ),
+        DeclareLaunchArgument(
             "camera_settings",
             default_value="",
             description="YAML startup settings for camera scales, depth model, and water appearance",
@@ -112,6 +117,9 @@ def viewer(context):
         return LC(key).perform(context) or defaults.get(key, "")
 
     camera_params = {}
+    compute = LC("camera_compute").perform(context)
+    if compute:
+        camera_params["camera_compute"] = compute
     for camera in robot.get("sim_cameras", []):
         camera_params[camera["name"] + ".config"] = camera.get("config", "")
         camera_params[camera["name"] + ".calibration_file"] = context.launch_configurations.get(

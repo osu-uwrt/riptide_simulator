@@ -173,6 +173,11 @@ def main():
                     cloud = m['point_cloud/cloud_registered']
                     assert (cloud.width, cloud.height) == ((rgb.width+7)//8, (rgb.height+7)//8)
                     assert cloud.row_step == cloud.width*cloud.point_step
+                    color_offset = next(field.offset for field in cloud.fields if field.name == 'rgb')
+                    cloud_bgr = np.ndarray((cloud.height, cloud.width, 3), dtype=np.uint8,
+                                           buffer=bytes(cloud.data), offset=color_offset,
+                                           strides=(cloud.row_step, cloud.point_step, 1))
+                    assert np.array_equal(cloud_bgr, raw[::8, ::8, ::-1]), 'Cloud RGB is misregistered'
                     d = np.frombuffer(depth.data, dtype='<f4').reshape(depth.height, depth.width)
                     original_depth[name] = d.copy()
                     cloud_xyz = np.ndarray((cloud.height, cloud.width, 3), dtype='<f4', buffer=bytes(cloud.data), strides=(cloud.row_step, cloud.point_step, 4))

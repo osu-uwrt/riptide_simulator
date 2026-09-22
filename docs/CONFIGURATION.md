@@ -15,6 +15,7 @@ All paths below are relative to `c_simulator/` unless stated otherwise.
 | Mass, thrusters, COM, or sensor mounts | The vehicle YAML referenced by `robots/<robot>/robot.yaml` |
 | Drag, buoyancy, or motor response | `robots/<robot>/config/hydrodynamics.yaml` |
 | Sensor noise or drift | `robots/<robot>/config/sensors.yaml` |
+| Camera CPU/CUDA selection, depth noise, or water appearance | The robot manifest’s `viewer.camera_settings` YAML (Talos uses `camera_faker/config/cameras.yaml`) |
 | Cameras, calibration, or model assets | `robots/<robot>/robot.yaml` and its referenced files |
 | Launcher, gripper, or other equipment | `robots/<robot>/config/equipment.yaml` |
 | Course layout and visuals | `tasks/<year>/config/`; 2026 uses `mapping.yaml`, `markers.yaml`, and `scene.yaml` |

@@ -116,6 +116,7 @@ def main():
         process = subprocess.Popen([
             'ros2', 'launch', 'camera_faker', 'pool_viewer.launch.py',
             'headless:=true', 'exit_after_frames:=100000', 'profile:=true',
+            'use_sim_time:=false',  # This TF fixture uses wall time and supplies no /clock.
             'camera_settings:=' + str(Path(__file__).with_name('camera_scales.yaml')),
         ], stdout=log, stderr=log, start_new_session=True)
         try:

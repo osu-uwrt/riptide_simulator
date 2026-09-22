@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.18)
 project(camera_faker)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -6,7 +6,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-Wall;-Wextra;-Wpedantic>")
 endif()
 
 
@@ -27,6 +27,41 @@ find_package(glfw3 REQUIRED)
 find_package(assimp REQUIRED)
 find_package(OpenCV REQUIRED)
 
+# CUDA is optional at build time and probed again at runtime. CPU-only hosts
+# need neither the toolkit nor an NVIDIA driver.
+option(POOL_ENABLE_NVJPEG "Use nvJPEG for compressed camera images when available" ON)
+option(POOL_ENABLE_CUDA "Build CUDA camera processing when a toolkit is available" ON)
+if(POOL_ENABLE_CUDA)
+  include(CheckLanguage)
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_RUNTIME_LIBRARY Static)
+    find_package(CUDAToolkit REQUIRED)
+  endif()
+endif()
+
+add_library(pool_camera_processing STATIC src/pool_viewer/camera_processor.cpp)
+target_compile_features(pool_camera_processing PUBLIC cxx_std_17)
+target_include_directories(pool_camera_processing PUBLIC include ${OpenCV_INCLUDE_DIRS} PRIVATE include/external)
+target_link_libraries(pool_camera_processing PUBLIC ${OpenCV_LIBS} PRIVATE yaml-cpp)
+if(POOL_ENABLE_CUDA AND CMAKE_CUDA_COMPILER)
+  target_sources(pool_camera_processing PRIVATE src/pool_viewer/camera_cuda.cu)
+  target_compile_definitions(pool_camera_processing PRIVATE POOL_HAS_CUDA=1)
+  set_target_properties(pool_camera_processing PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+  message(STATUS "Camera processing: CUDA with CPU fallback")
+  # Static linkage keeps CUDA-enabled executables usable on CPU-only machines.
+  if(POOL_ENABLE_NVJPEG AND TARGET CUDA::nvjpeg_static AND TARGET CUDA::culibos)
+    target_compile_definitions(pool_camera_processing PRIVATE POOL_HAS_NVJPEG=1)
+    target_link_libraries(pool_camera_processing PRIVATE CUDA::nvjpeg_static CUDA::culibos)
+    message(STATUS "Camera JPEG encoding: nvJPEG with CPU fallback")
+  else()
+    message(STATUS "Camera JPEG encoding: CPU (static nvJPEG unavailable or disabled)")
+  endif()
+else()
+  message(STATUS "Camera processing: CPU (CUDA unavailable or disabled)")
+endif()
+
 set_source_files_properties(include/external/glad/glad.c PROPERTIES COMPILE_OPTIONS "-Wno-pedantic")
 
 add_library(pool_imgui STATIC
@@ -42,7 +77,7 @@ add_executable(pool_viewer include/external/glad/glad.c
 target_compile_features(pool_viewer PRIVATE cxx_std_17)
 target_include_directories(pool_viewer PRIVATE include include/external ${OpenCV_INCLUDE_DIRS})
 ament_target_dependencies(pool_viewer rclcpp geometry_msgs sensor_msgs std_msgs std_srvs visualization_msgs riptide_msgs2 tf2 tf2_ros)
-target_link_libraries(pool_viewer pool_imgui glfw assimp yaml-cpp ${OpenCV_LIBS})
+target_link_libraries(pool_viewer pool_camera_processing pool_imgui glfw assimp yaml-cpp ${OpenCV_LIBS})
 
 install(TARGETS pool_viewer
   DESTINATION lib/${PROJECT_NAME}
@@ -59,6 +94,13 @@ install(
 )
 
 if(BUILD_TESTING)
+  add_executable(pool_camera_processor_test test/camera_processor.cpp)
+  target_link_libraries(pool_camera_processor_test pool_camera_processing)
+  target_compile_options(pool_camera_processor_test PRIVATE -UNDEBUG)
+  target_include_directories(pool_camera_processor_test PRIVATE include/external)
+  add_test(NAME pool_camera_processor COMMAND pool_camera_processor_test)
+  add_test(NAME pool_camera_cuda COMMAND pool_camera_processor_test --cuda)
+  set_tests_properties(pool_camera_cuda PROPERTIES SKIP_RETURN_CODE 77)
   add_executable(pool_detection_pose_test test/detection_pose.cpp)
   target_compile_features(pool_detection_pose_test PRIVATE cxx_std_17)
   target_compile_options(pool_detection_pose_test PRIVATE -UNDEBUG)

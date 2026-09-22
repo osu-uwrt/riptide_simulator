@@ -102,7 +102,61 @@ timestamp, and depth previews/clouds use the same depth realization. If processi
 is slower than the configured camera rate, acquisitions are skipped while that
 camera is busy; there is no growing output queue. This keeps the viewer responsive
 but does not guarantee the configured sensor rate under load. Full-resolution
-depth processing and perception still need CPU time.
+camera output and perception still need CPU time, even when CUDA handles camera processing.
+
+### Optional CUDA acceleration
+
+`camera_compute: auto` in [config/cameras.yaml](config/cameras.yaml) selects CUDA
+for depth conversion/noise, depth-preview coloring, and organized XYZ/RGB point
+clouds. Compressed RGB images use nvJPEG when that optional library is built in.
+Each camera logs its compute and JPEG backends at startup. Missing CUDA support,
+an unavailable device/driver, or a processing failure selects the existing CPU path. A runtime failure retries that frame on
+the CPU and keeps that camera on CPU for the rest of the run.
+
+Override the YAML at launch with `camera_compute:=cpu` or `camera_compute:=auto`:
+
+```bash
+ros2 launch riptide_bringup2 simulation.launch.py robot:=talos camera_compute:=cpu
+```
+
+The setting is read-only after startup. Physics, task logic, ROS message assembly,
+and GPU readback remain on the CPU. RGB scene rendering and water effects already
+use OpenGL independently of CUDA; a display is still required.
+
+Clouds and previews use the same noisy depth on the device; cloud coloring and
+JPEG share one RGB upload. Cloud dimensions, NaNs, colors, intrinsics, and message
+timestamps keep the existing conventions. Raw RGB pixels are unchanged. CPU/GPU
+noise samples and JPEG bytes can differ. Both encoders use quality 93 and 4:2:0
+sampling. Force CPU when comparing against previous seeded CPU runs.
+
+If nvJPEG cannot initialize or encode a frame, JPEG alone falls back to OpenCV
+and logs one warning; depth and clouds can continue on CUDA. A general CUDA
+failure retries the complete acquisition on CPU before publishing anything.
+
+Normal builds detect `nvcc` automatically. To enable CUDA after installing a
+compatible NVIDIA CUDA toolkit, rebuild from the workspace root with a fresh
+CMake cache, then source the workspace:
+
+```bash
+colcon build --packages-select camera_faker --symlink-install --cmake-clean-cache
+source install/setup.bash
+```
+
+The build reports the compute and JPEG backends separately. nvJPEG requires the
+toolkit's static `nvjpeg` and `culibos` libraries; without them JPEG stays on CPU.
+`--cmake-args -DPOOL_ENABLE_NVJPEG=OFF` disables only GPU JPEG encoding. See the
+[NVIDIA nvJPEG documentation](https://docs.nvidia.com/cuda/nvjpeg/) for the encoder API.
+
+Add `--cmake-args -DPOOL_ENABLE_CUDA=OFF` to build without CUDA even if the toolkit
+is installed. `-DCMAKE_CUDA_ARCHITECTURES=<architecture>` can target a particular GPU;
+otherwise CMake uses the compiler's default. Runtime device selection uses the
+first usable visible CUDA device; `CUDA_VISIBLE_DEVICES` can restrict selection.
+CUDA's runtime is linked statically so a CUDA-enabled build can also start on a
+machine without an NVIDIA driver.
+
+GPU transfers have a cost; CUDA is not guaranteed to be faster at small image
+sizes. Compare `profile:=true` timings with `camera_compute:=auto` and `cpu` at
+your normal resolution and subscriber load.
 
 Use `profile:=true` to log render dimensions and timings every three seconds.
 Timings separate ROS callbacks, rendering submission, GPU readback, and the latest

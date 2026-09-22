@@ -22,7 +22,12 @@ ros2 launch c_simulator full_simulator.launch.py robot:=example_auv year:=exampl
 
 Use `scenario:=empty_pool` for robot-only practice, or `with_camera_faker:=false`
 for physics without rendering. `headless:=true` hides the window but still needs
-an OpenGL 3.3 display. The simulator runs on the CPU and needs no CUDA.
+an OpenGL 3.3 display. Physics and tasks run on the CPU; rendering uses OpenGL.
+Camera image, depth, and point-cloud processing automatically uses CUDA when
+built with a CUDA toolkit and a working NVIDIA GPU is available; otherwise it
+uses the CPU. CUDA is optional.
+See [camera acceleration](camera_faker/README.md#optional-cuda-acceleration) for
+build options and forcing CPU processing.
 Bullet and the Python dependencies in [requirements.txt](c_simulator/requirements.txt)
 are needed for the existing contact models.
 

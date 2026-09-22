@@ -39,6 +39,7 @@ Paths below are relative to the repository root.
 | `c_simulator/scripts/payload_model.py`, `claw_world.py`, `magnet_light_model.py` | Shared interaction models |
 | `c_simulator/src/task_contacts.cpp` | The existing claw/prop contact bridge into vehicle physics |
 | `camera_faker/src/pool_viewer/main.cpp` | Camera publication, TF, viewer controls, or ROS commands |
+| `camera_faker/src/pool_viewer/camera_processor.cpp`, `camera_cuda.cu` | CPU/CUDA selection, camera JPEG, preview/cloud generation, or fallback |
 | `camera_faker/src/pool_viewer/renderer.cpp` | Scene construction and rendering |
 | `camera_faker/include/pool_viewer/`, `shaders/pool/` | Camera geometry, depth effects, and shaders |
 
@@ -77,7 +78,14 @@ colcon test --packages-select c_simulator camera_faker \
   --ctest-args -E 'lint|flake8|pep257|copyright|uncrustify|cppcheck'
 ```
 
-That command excludes lint checks. For a live profile/behavior change, also run:
+That command excludes lint checks. `pool_camera_processor` checks CPU depth, cloud
+coordinates/colors/padding, JPEG decoding, preview orientation, and recovery from
+an injected GPU failure. `pool_camera_cuda` checks the same outputs on CUDA and
+skips when no CUDA device is available. It also exercises RGB-only acquisitions,
+resizing, cropped inputs, and concurrent cameras. Run it on an NVIDIA machine
+when editing `camera_cuda.cu`; CPU-only CI cannot validate GPU execution.
+
+For a live profile/behavior change, also run:
 
 ```bash
 ROS_DOMAIN_ID=179 python3 src/riptide_simulator/c_simulator/test/ros_profiles_smoke.py

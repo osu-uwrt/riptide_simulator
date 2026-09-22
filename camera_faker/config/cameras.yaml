@@ -5,6 +5,7 @@
 # The optional common camera_scale launch argument multiplies both scales.
 /**:
   ros__parameters:
+    camera_compute: auto # CUDA images/depth/clouds when available; cpu forces the CPU path.
     ffc:
       resolution_scale: 1.0
     dfc:
