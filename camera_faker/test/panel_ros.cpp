@@ -9,6 +9,8 @@
 #include <std_srvs/srv/set_bool.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <thread>
 #include "pool_viewer/panels/pose_math.hpp"
@@ -31,6 +33,8 @@ int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     const std::string robot = "operator_test_" + std::to_string(getpid());
     auto node = std::make_shared<rclcpp::Node>("operator_test", "/" + robot);
+    tf2_ros::Buffer targetTf(node->get_clock());
+    tf2_ros::TransformListener targetListener(targetTf, node, false);
     tf2_ros::TransformBroadcaster tf(node);
     tf2_ros::StaticTransformBroadcaster staticTf(node);
     geometry_msgs::msg::TransformStamped world;
@@ -123,6 +127,10 @@ int main(int argc, char **argv) {
     control->activate(Mode::Position, control->state().actual);
     spin(.3);
     assert((control->state().mode == Mode::Position) && lin.back().mode == Command::POSITION);
+    const auto setpoint = targetTf.lookupTransform("world", "ghost/base_link", tf2::TimePointZero);
+    assert(std::abs(setpoint.transform.translation.x - 8) < 1e-4);
+    assert(std::abs(setpoint.transform.translation.y - 1) < 1e-4);
+    assert(std::abs(setpoint.transform.rotation.z - std::sqrt(.5)) < 1e-4);
     // map (1,2,-1) -> world (8,1,-1), including the world/map yaw.
     assert(std::abs(lin.back().setpoint_vect.x - 8) < 1e-4);
     assert(std::abs(lin.back().setpoint_vect.y - 1) < 1e-4);
@@ -197,6 +205,9 @@ int main(int argc, char **argv) {
     mission->start("/trees/test.xml");
     spin(.4);
     assert(running && mission->state().busy && control->state().blocked);
+    const auto beforeAutonomyTf = targetTf.lookupTransform("map", "ghost/base_link", tf2::TimePointZero).header.stamp;
+    spin(.15);
+    assert(targetTf.lookupTransform("map", "ghost/base_link", tf2::TimePointZero).header.stamp != beforeAutonomyTf);
     assert(control->state().mode == Mode::Disabled);
     auto feedback = std::make_shared<Execute::Feedback>();
     feedback->stack.stack = {"Root", "Dive"};

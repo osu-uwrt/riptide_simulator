@@ -135,15 +135,17 @@ void registerUwrtMotion(Registry &registry, const RuntimeFactory &runtime) {
         ProviderFactory{Kind::Motion,
                         [](const YAML::Node &cfg) {
                             keys(cfg,
-                                 {"base_frame", "command_frame", "linear_topic", "angular_topic", "kill_topic",
-                                  "kill_state_topic", "mode_service", "kill_switch_id", "sender_prefix", "pose_timeout",
-                                  "ui_timeout", "request_timeout", "heartbeat_period"},
+                                 {"base_frame", "command_frame", "setpoint_frame", "linear_topic", "angular_topic",
+                                  "kill_topic", "kill_state_topic", "mode_service", "kill_switch_id", "sender_prefix",
+                                  "pose_timeout", "ui_timeout", "request_timeout", "heartbeat_period"},
                                  "uwrt.motion");
                             required(cfg, {"base_frame", "command_frame", "linear_topic", "angular_topic", "kill_topic",
                                            "kill_state_topic", "mode_service", "kill_switch_id"});
                             const auto id = cfg["kill_switch_id"].as<int>();
                             if (id < 1 || id > 255)
                                 throw std::invalid_argument("kill_switch_id must be 1..255");
+                            if (cfg["setpoint_frame"])
+                                required(cfg, {"setpoint_frame"});
                             positive(cfg, "pose_timeout", 1);
                             positive(cfg, "ui_timeout", .75);
                             positive(cfg, "request_timeout", 3);

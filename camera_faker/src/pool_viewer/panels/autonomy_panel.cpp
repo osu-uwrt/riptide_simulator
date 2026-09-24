@@ -29,8 +29,10 @@ class AutonomyPanel final : public Panel {
         if (ImGui::BeginCombo("##tree", selected.empty() ? "Select a tree"
                                                          : std::filesystem::path(selected).filename().c_str())) {
             ImGui::SetNextItemWidth(-1);
+            if (ImGui::IsWindowAppearing())
+                ImGui::SetKeyboardFocusHere();
             if (ImGui::InputTextWithHint("##tree_search", "Search trees", filter.InputBuf,
-                                         IM_ARRAYSIZE(filter.InputBuf)))
+                                         IM_ARRAYSIZE(filter.InputBuf), ImGuiInputTextFlags_AutoSelectAll))
                 filter.Build();
             for (const auto &tree : s.trees)
                 if (filter.PassFilter(tree.c_str())) {

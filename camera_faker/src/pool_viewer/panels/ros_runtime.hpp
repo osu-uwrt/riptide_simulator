@@ -3,6 +3,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
 #include <glm/gtc/quaternion.hpp>
 #include <mutex>
 #include <thread>
@@ -60,7 +61,8 @@ class RosMotion : public Motion {
     std::mutex mutex;
     MotionState value;
     Pose commandFromFixed{1};
-    std::string baseFrame, commandFrame;
+    std::string baseFrame, commandFrame, setpointFrame;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> setpointTf;
     bool session = false;
     uint64_t generation = 0;
     int64_t poseStamp = -1;

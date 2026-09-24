@@ -6,6 +6,7 @@ providers:
     options:
       base_frame: "{namespace}/base_link"
       command_frame: world
+      setpoint_frame: ghost/base_link
       linear_topic: controller/linear
       angular_topic: controller/angular
       kill_topic: command/software_kill

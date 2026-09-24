@@ -118,11 +118,13 @@ void registerStandardMotion(Registry &registry, const RuntimeFactory &runtime) {
         ProviderFactory{Kind::Motion,
                         [](const YAML::Node &cfg) {
                             keys(cfg,
-                                 {"base_frame", "command_frame", "pose_topic", "enable_service", "enabled_topic",
-                                  "pose_timeout", "ui_timeout", "request_timeout", "heartbeat_period"},
+                                 {"base_frame", "command_frame", "setpoint_frame", "pose_topic", "enable_service",
+                                  "enabled_topic", "pose_timeout", "ui_timeout", "request_timeout", "heartbeat_period"},
                                  "ros.pose");
                             required(cfg,
                                      {"base_frame", "command_frame", "pose_topic", "enable_service", "enabled_topic"});
+                            if (cfg["setpoint_frame"])
+                                required(cfg, {"setpoint_frame"});
                             positive(cfg, "pose_timeout", 1);
                             positive(cfg, "ui_timeout", .75);
                             positive(cfg, "request_timeout", 3);

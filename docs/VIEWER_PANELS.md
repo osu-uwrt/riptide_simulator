@@ -157,8 +157,8 @@ Ownership links use `{motion: provider_id, autonomy: provider_id}`.
 
 | Registered type | Required options | Optional options |
 | --- | --- | --- |
-| Provider `uwrt.motion` | `base_frame`, `command_frame`, `linear_topic`, `angular_topic`, `kill_topic`, `kill_state_topic`, `mode_service`, `kill_switch_id` (1–255) | `sender_prefix`, motion timing options below |
-| Provider `ros.pose` | `base_frame`, `command_frame`, `pose_topic`, `enable_service`, `enabled_topic` | motion timing options below |
+| Provider `uwrt.motion` | `base_frame`, `command_frame`, `linear_topic`, `angular_topic`, `kill_topic`, `kill_state_topic`, `mode_service`, `kill_switch_id` (1–255) | `setpoint_frame`, `sender_prefix`, motion timing options below |
+| Provider `ros.pose` | `base_frame`, `command_frame`, `pose_topic`, `enable_service`, `enabled_topic` | `setpoint_frame`, motion timing options below |
 | Provider `uwrt.autonomy` | `action`, `list_service`, `stack_topic` | `request_timeout` (3 s), `stack_timeout` (5 s) |
 | Panel `motion` | none | `dive_z`; legacy `dive_max_depth_z` accepted but no longer limits Dive |
 | Panel `autonomy` | none | none |
@@ -286,3 +286,8 @@ Motion, Mapping, Actuators, Autonomy and pose overlays stay unloaded, including 
 providers. Run tracking and Simulation settings remain available. Standalone launches
 load robot panels by default; `operator_panels:=false` disables them explicitly. The
 RViz choice always takes precedence.
+
+Optional motion `setpoint_frame` publishes the commanded pose in TF after a command is
+received, including during autonomy and with robot handles hidden. Talos uses
+`ghost/base_link`, matching the RViz setpoint frame. The name supports `{namespace}`
+substitution; omit it when another node already publishes that frame.

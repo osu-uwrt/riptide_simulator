@@ -70,6 +70,12 @@ RosMotion::RosMotion(std::shared_ptr<RosRuntime> runtime, const YAML::Node &cfg,
       commandFrame(expand(cfg["command_frame"].as<std::string>(), ctx)), poseTimeout(cfg["pose_timeout"].as<double>(1)),
       uiTimeout(cfg["ui_timeout"].as<double>(.75)), requestTimeout(cfg["request_timeout"].as<double>(3)) {
     value.frame = ctx.fixedFrame;
+    if (cfg["setpoint_frame"]) {
+        setpointFrame = expand(cfg["setpoint_frame"].as<std::string>(), ctx);
+        if (setpointFrame == ctx.fixedFrame || setpointFrame == baseFrame || setpointFrame == commandFrame)
+            throw std::invalid_argument("setpoint_frame must be distinct from motion reference frames");
+        setpointTf = std::make_unique<tf2_ros::TransformBroadcaster>(this->runtime->node);
+    }
 }
 MotionState RosMotion::state() {
     std::lock_guard<std::mutex> lock(mutex);
@@ -195,6 +201,22 @@ void RosMotion::tick() {
         killLocked("Pose stale; enable again");
     else if (value.pending && std::chrono::duration<double>(now - pendingSince).count() > requestTimeout)
         killLocked("Control request timed out");
+    // Setpoint telemetry is independent of manual ownership and gizmo visibility.
+    if (setpointTf && value.hasCommand && value.fresh && finitePose(value.commanded)) {
+        geometry_msgs::msg::TransformStamped target;
+        target.header.stamp = runtime->node->now();
+        target.header.frame_id = context.fixedFrame;
+        target.child_frame_id = setpointFrame;
+        target.transform.translation.x = value.commanded[3].x;
+        target.transform.translation.y = value.commanded[3].y;
+        target.transform.translation.z = value.commanded[3].z;
+        const auto q = glm::normalize(glm::quat_cast(value.commanded));
+        target.transform.rotation.w = q.w;
+        target.transform.rotation.x = q.x;
+        target.transform.rotation.y = q.y;
+        target.transform.rotation.z = q.z;
+        setpointTf->sendTransform(target);
+    }
     if (session)
         report();
 }
