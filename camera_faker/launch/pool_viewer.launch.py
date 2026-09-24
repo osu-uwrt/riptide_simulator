@@ -41,6 +41,14 @@ def generate_launch_description():
         DeclareLaunchArgument("launcher_model", default_value=""),
         DeclareLaunchArgument("claw_model", default_value=""),
         DeclareLaunchArgument("status_lights_config", default_value=""),
+        DeclareLaunchArgument(
+            "panels_config",
+            default_value="",
+            description="Composition YAML; empty uses robot profile",
+        ),
+        DeclareLaunchArgument("operator_panels", default_value="auto",
+                              description="Load robot control panels: auto disables them when with_rviz is true"),
+        DeclareLaunchArgument("tools_config", default_value=str(package / "config/viewer_tools.yaml")),
         DeclareLaunchArgument("thruster_visuals_config", default_value=""),
         DeclareLaunchArgument("depth_preview", default_value="false"),
         DeclareLaunchArgument(
@@ -52,6 +60,7 @@ def generate_launch_description():
         DeclareLaunchArgument("task_config", default_value=""),
         DeclareLaunchArgument("lighting", default_value="outdoor"),
         DeclareLaunchArgument("robot", default_value="talos"),
+        DeclareLaunchArgument("fixed_frame", default_value="map"),
         DeclareLaunchArgument(
             "demo",
             default_value="false",
@@ -118,6 +127,11 @@ def viewer(context):
     def selected(key):
         return LC(key).perform(context) or defaults.get(key, "")
 
+    operator_panels = LC("operator_panels").perform(context).lower()
+    with_rviz = context.launch_configurations.get("with_rviz", "false").lower() in ("true", "1")
+    if operator_panels not in ("auto", "true", "false", "1", "0"):
+        raise ValueError("operator_panels must be auto, true, or false")
+    operators_enabled = not with_rviz and operator_panels not in ("false", "0")
     camera_params = {}
     compute = LC("camera_compute").perform(context)
     if compute:
@@ -139,10 +153,14 @@ def viewer(context):
                 camera_params,
                 {
                     "robot": meta["namespace"],
+                    "fixed_frame": ParameterValue(LC("fixed_frame"), value_type=str),
                     "robot_model": ParameterValue(LC("robot_model"), value_type=str),
                     "payload_model": ParameterValue(selected("payload_model"), value_type=str),
                     "launcher_model": ParameterValue(selected("launcher_model"), value_type=str),
                     "claw_model": ParameterValue(selected("claw_model"), value_type=str),
+                    "panels_config": ParameterValue(selected("panels_config"), value_type=str),
+                    "operator_panels": operators_enabled,
+                    "tools_config": ParameterValue(LC("tools_config"), value_type=str),
                     "status_lights_config": ParameterValue(selected("status_lights_config"), value_type=str),
                     "thruster_visuals_config": ParameterValue(selected("thruster_visuals_config"), value_type=str),
                     "task_config": str(path / "task.yaml"),

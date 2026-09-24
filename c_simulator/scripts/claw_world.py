@@ -8,9 +8,22 @@ Prop mass, drag and friction are tuning priors; travel stalls at contact.
 
 from pathlib import Path
 import math
+import os
 import numpy as np
 import pybullet as pb
 from pybullet_utils.bullet_client import BulletClient
+
+
+class HeadlessBulletClient(BulletClient):
+    """Keep per-world client routing without parsing an empty CLI options string."""
+
+    def __init__(self):
+        # BulletClient always supplies options="", which Bullet prints as argv[0]=.
+        # Omitting options bypasses its CLI parser and preserves all physics logs.
+        self._shapes = {}
+        self._pid = os.getpid()
+        self._client = -1
+        self._client = pb.connect(pb.DIRECT)
 
 
 def rotation(q):
@@ -80,7 +93,7 @@ class ClawWorld:
                 raise ValueError("Invalid claw " + key)
         if cfg["max_gap"] <= cfg["min_gap"]:
             raise ValueError("Invalid claw travel")
-        self.b = BulletClient(connection_mode=pb.DIRECT)
+        self.b = HeadlessBulletClient()
         self.b.setGravity(0, 0, -9.81)
         self.b.setPhysicsEngineParameter(numSolverIterations=60, deterministicOverlappingPairs=1)
         self.events = []

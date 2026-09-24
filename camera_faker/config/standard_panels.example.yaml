@@ -1,0 +1,19 @@
+# Example only: the robot must implement these standard ROS interfaces.
+schema_version: 1
+providers:
+  vehicle:
+    type: ros.pose
+    options:
+      base_frame: "{namespace}/base_link"
+      command_frame: "{fixed_frame}"
+      pose_topic: control/pose
+      enable_service: control/enable
+      enabled_topic: control/enabled
+panels:
+  - id: motion
+    type: motion
+    provider: vehicle
+overlays:
+  - id: target
+    type: pose_gizmo
+    provider: vehicle

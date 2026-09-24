@@ -73,6 +73,7 @@ def generate_launch_description():
                         AnyLaunchDescriptionSource(camera_launch),
                         condition=IfCondition(LC("with_camera_faker")),
                         launch_arguments=[
+                            ("with_rviz", LC("with_rviz")),
                             ("robot", LC("robot")),
                             ("year", LC("year")),
                             ("scenario", LC("scenario")),

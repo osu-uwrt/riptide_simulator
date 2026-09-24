@@ -35,6 +35,7 @@ struct Object {
     bool robot = false, tag = false, castsShadow = true;
     glm::vec4 tint{1};
     glm::mat4 robotMount{1};
+    bool poolBoundary = false;
     float radiance = -1; // Negative uses the existing task LED radiance.
 };
 struct Target {
@@ -88,13 +89,52 @@ struct PointCloud {
 struct Look {
     WaterOptics water;
     float caustics = 1.f, exposure = 1.f;
-    bool surface = true, shadows = true, tag = true;
+    bool surface = true, shadows = true, tag = true, surfaceReflections = true;
     bool outdoor = false;
+    bool poolWalls = true; // Per-render visibility; sensor Look remains unchanged.
     float sunAzimuth = 225.f, sunElevation = 55.f;
     float directLight = 1.f, ambientLight = .7f, glare = .5f;
     glm::vec3 sunDirection() const {
         float a = glm::radians(sunAzimuth), e = glm::radians(sunElevation);
         return {cos(e) * cos(a), cos(e) * sin(a), sin(e)};
+    }
+};
+struct ObserverSettings {
+    bool water = true, walls = true, reflections = false, shadows = true;
+    int lighting = 0; // 0 follows scene, 1 indoor, 2 outdoor, 3 sterile
+    float exposure = 1, brightness = 1, ambient = 1;
+    void resetLighting() {
+        shadows = true;
+        lighting = 0;
+        exposure = brightness = ambient = 1;
+    }
+    Look apply(Look scene) const {
+        scene.poolWalls = walls;
+        scene.surfaceReflections = reflections;
+        scene.shadows = scene.shadows && shadows;
+        scene.exposure *= exposure;
+        scene.directLight *= brightness;
+        scene.ambientLight *= ambient;
+        if (lighting)
+            scene.outdoor = lighting == 2;
+        if (lighting == 3) {
+            // Ambient-only observer preset; independent of scene/sensor lighting.
+            scene.outdoor = false;
+            scene.shadows = false;
+            scene.directLight = 0;
+            scene.ambientLight = .8f * ambient;
+            scene.exposure = .8f * exposure;
+            scene.caustics = 0;
+            scene.glare = 0;
+        }
+        if (!water) {
+            scene.surface = false;
+            scene.caustics = 0;
+            scene.water.absorption = glm::vec3(0);
+            scene.water.scattering = 0;
+            scene.water.distanceScale = 0;
+        }
+        return scene;
     }
 };
 class Renderer {
@@ -117,7 +157,7 @@ class Renderer {
     void shadows(const Look &look);
     // Overlays are drawn only when asked, so sensor renders never contain them.
     void render(Frame &frame, const View &camera, const Look &look, float time, bool showRobot = true,
-                bool reflect = false, bool overlays = false);
+                bool reflect = false, bool overlays = false, const glm::vec3 *focus = nullptr);
     // Overlay point cloud: six floats per point (xyz metres, rgb in [0,1]) in
     // the frame that `transform` maps into the map frame.
     void pointCloud(int slot, const std::vector<float> &xyzrgb, const glm::mat4 &transform, const glm::vec3 &highlight);
@@ -132,7 +172,8 @@ class Renderer {
     std::map<std::string, std::vector<std::shared_ptr<Mesh>>> cache;
     std::map<std::string, GLuint> textures;
     GLuint sceneProgram = 0, waterProgram = 0, postProgram = 0, shadowProgram = 0, pointProgram = 0, quad = 0;
-    GLuint bloomProgram = 0;
+    GLuint bloomProgram = 0, focusProgram = 0;
+    std::shared_ptr<Mesh> focusDisc;
     std::vector<PointCloud> pointClouds;
     YAML::Node world;
     Target shadow, reflection;

@@ -83,6 +83,25 @@ std::shared_ptr<Mesh> cube() {
         }
     return std::make_shared<Mesh>(v, idx);
 }
+std::shared_ptr<Mesh> disc() {
+    std::vector<Vertex> vertices;
+    std::vector<unsigned> indices;
+    constexpr int rings = 16, segments = 32;
+    for (int y = 0; y <= rings; ++y)
+        for (int x = 0; x <= segments; ++x) {
+            const float latitude = glm::pi<float>() * y / rings, longitude = glm::two_pi<float>() * x / segments;
+            glm::vec3 p(std::sin(latitude) * std::cos(longitude), std::sin(latitude) * std::sin(longitude),
+                        std::cos(latitude));
+            vertices.push_back({p * glm::vec3(1, 1, .12f), glm::normalize(p / glm::vec3(1, 1, .12f)), {0, 0}});
+        }
+    for (int y = 0; y < rings; ++y)
+        for (int x = 0; x < segments; ++x) {
+            unsigned a = y * (segments + 1) + x, b = a + segments + 1;
+            for (unsigned i : {a, b, a + 1, a + 1, b, b + 1})
+                indices.push_back(i);
+        }
+    return std::make_shared<Mesh>(vertices, indices);
+}
 } // namespace
 Mesh::Mesh(const std::vector<Vertex> &v, const std::vector<unsigned> &i) : count(i.size()) {
     for (const auto index : i)
@@ -320,6 +339,7 @@ void Renderer::buildPool() {
         return poolToMap * pose({x, y, z + world["water_level"].as<float>(0)});
     };
     box("Pool floor", at(length / 2, width / 2, -depth - .12f), {length, width, .24f}, {.68, .85, .87}, 1);
+    const auto boundaryStart = objects.size();
     box("Near wall", at(length / 2, -.15f, (deck - depth) / 2), {length, .3f, depth + deck}, {.68, .85, .87}, 1);
     box("Far wall", at(length / 2, width + .15f, (deck - depth) / 2), {length, .3f, depth + deck}, {.68, .85, .87}, 1);
     box("End wall", at(-.15f, width / 2, (deck - depth) / 2), {.3f, width, depth + deck}, {.68, .85, .87}, 1);
@@ -334,6 +354,8 @@ void Renderer::buildPool() {
         box("Coping", at(length / 2, y, deck + .02f), {length, .22f, .055f}, {.9, .91, .86});
     for (float x : {-.10f, length + .10f})
         box("Coping", at(x, width / 2, deck + .02f), {.22f, width, .055f}, {.9, .91, .86});
+    for (size_t i = boundaryStart; i < objects.size(); ++i)
+        objects[i].poolBoundary = true;
     // Lighting is procedural; no building geometry obstructs pool or sensor
     // views.
     auto surface = std::make_shared<Mesh>(std::vector<Vertex>{{{0, 0, 0}, {0, 0, 1}, {0, 0}},
@@ -355,6 +377,8 @@ Renderer::Renderer(const std::string &shaders, const std::string &meshes, const 
     postProgram = program(shaders, "post");
     bloomProgram = program(shaders, "bloom");
     pointProgram = program(shaders, "points");
+    focusProgram = program(shaders, "focus");
+    focusDisc = disc();
     YAML::Node task;
     if (!taskConfig.empty()) {
         task = YAML::LoadFile(taskConfig);
@@ -651,7 +675,7 @@ Renderer::~Renderer() {
     water.meshes.clear();
     for (auto &t : textures)
         glDeleteTextures(1, &t.second);
-    for (GLuint p : {sceneProgram, waterProgram, shadowProgram, postProgram, pointProgram, bloomProgram})
+    for (GLuint p : {sceneProgram, waterProgram, shadowProgram, postProgram, pointProgram, bloomProgram, focusProgram})
         glDeleteProgram(p);
     for (auto &pc : pointClouds) {
         if (pc.vbo)
@@ -706,7 +730,7 @@ void Renderer::shadows(const Look &look) {
     glUseProgram(shadowProgram);
     uniform(shadowProgram, "lightMatrix", lightMatrix);
     for (const auto &o : objects) {
-        if (!o.castsShadow || (o.tag && !look.tag))
+        if (!o.castsShadow || (o.tag && !look.tag) || (o.poolBoundary && !look.poolWalls))
             continue;
         uniform(shadowProgram, "model", o.transform);
         // Off-screen objects can still cast visible shadows. Cull against the
@@ -768,7 +792,7 @@ void Renderer::drawScene(const View &camera, const Look &look, float time, bool 
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         }
         for (const auto &o : objects) {
-            if ((o.robot && !showRobot) || (o.tag && !look.tag))
+            if ((o.robot && !showRobot) || (o.tag && !look.tag) || (o.poolBoundary && !look.poolWalls))
                 continue;
             // Keep overhead spectator views clear; the ceiling remains in sensor
             // views/reflections.
@@ -858,7 +882,7 @@ void Renderer::drawPoints(const View &camera, const Look &look) {
     glDisable(GL_PROGRAM_POINT_SIZE);
 }
 void Renderer::render(Frame &f, const View &camera, const Look &look, float time, bool showRobot, bool reflect,
-                      bool overlays) {
+                      bool overlays, const glm::vec3 *focus) {
     glEnable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
@@ -866,7 +890,8 @@ void Renderer::render(Frame &f, const View &camera, const Look &look, float time
     const bool surfaceVisible =
         look.surface &&
         Frustum(camera.projection * camera.view * water.transform).intersects(water.meshes.front()->bounds);
-    const bool reflectionActive = reflect && surfaceVisible && camera.eye.z > world["water_level"].as<float>(0);
+    const bool reflectionActive =
+        reflect && look.surfaceReflections && surfaceVisible && camera.eye.z > world["water_level"].as<float>(0);
     if (reflectionActive) {
         reflection.resize(std::max(160, f.opaque.width / 2), std::max(100, f.opaque.height / 2));
         glBindFramebuffer(GL_FRAMEBUFFER, reflection.fbo);
@@ -916,6 +941,7 @@ void Renderer::render(Frame &f, const View &camera, const Look &look, float time
         integer(waterProgram, "reflectionColor", 1);
         integer(waterProgram, "sceneDepth", 2);
         integer(waterProgram, "hasReflection", reflectionActive);
+        integer(waterProgram, "surfaceReflections", look.surfaceReflections);
         bindTexture(f.opaque.color, 0);
         bindTexture(reflection.color, 1);
         bindTexture(f.opaque.depth, 2);
@@ -923,6 +949,25 @@ void Renderer::render(Frame &f, const View &camera, const Look &look, float time
         glDepthMask(GL_FALSE);
         water.meshes.front()->draw();
         glDepthMask(GL_TRUE);
+    }
+    if (focus) {
+        // A shaded world-space disc, depth-tested against the scene. Draw only
+        // in this observer pass, after water, with no shadow or sensor effects.
+        glUseProgram(focusProgram);
+        uniform(focusProgram, "view", camera.view);
+        uniform(focusProgram, "projection", camera.projection);
+        uniform(focusProgram, "center", *focus);
+        uniform(focusProgram, "radius", glm::distance(camera.eye, *focus) * .012f);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
+        focusDisc->draw();
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
     }
     // Filter the HDR bright pass before tone mapping. A continuous low-resolution
     // blur avoids the replicated bars produced by sparse full-resolution rings.

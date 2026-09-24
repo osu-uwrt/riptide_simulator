@@ -181,7 +181,23 @@ ROS_DOMAIN_ID=176 python3 src/riptide_simulator/camera_faker/test/ros_camera_dem
 
 ## Viewer
 
-- Orbit: left-drag to rotate, scroll to zoom, right-drag to pan.
+- Orbit: left-drag to rotate, scroll to zoom, right/middle/Shift-left-drag to pan.
+  Pan or F under the cursor turns Follow off while preserving the orbit selection. F accepts scene geometry and empty background. The 3D
+  focus disk appears only during rotation, zooming, or panning with Follow off. Selecting another
+  orbit target enables Follow; dragging robot controls preserves it. The Pool Viewer menu
+  toggles observer water, pool walls, and surface reflections
+  independently of the sensor cameras. Toggle robot handles with **Robot controls** in
+  the Motion panel. Surface reflections default off. Pool Viewer also
+  adjusts observer-only shadows, lighting mode, exposure, brightness, and ambient light,
+  with Reset lighting restoring the viewer defaults. The Sterile preset uses darker,
+  ambient-only lighting without shadows or direct light; camera images remain unchanged.
+- Run tracking and Simulation settings are pool-toolbar tools. Simulation settings sits
+  beside Scene settings. Run tracking opens sized to its contents, bounded by the application
+  window, and can be resized. Simulation settings
+  changes `real_time_factor` with numeric speed, Pause/Resume (preserving speed), and 1x controls,
+  and contains Sync sim / Reset sim. When launched
+  with RViz, robot-control panels and their providers stay unloaded; these simulator
+  tools remain available.
 - Free camera starts at the current viewport's position and orientation. Left-click
   the viewport to capture the mouse, then move the mouse
   to look. WASD moves horizontally, Space rises, Shift descends, and Ctrl moves
@@ -194,7 +210,7 @@ ROS_DOMAIN_ID=176 python3 src/riptide_simulator/camera_faker/test/ros_camera_dem
   adds sun azimuth/elevation and glare controls, including water highlights and
   bloom. Start in outdoor mode with `lighting:=outdoor`.
 - Adjust water tint, distance-dependent haze and RGB absorption in **Water appearance**.
-  Lighting controls retain animated caustics, exposure, surface rendering,
+  Scene settings → Lighting contains animated caustics, surface rendering,
   shadows, and calibration-board visibility. These settings also affect sensor
   RGB, so vision can be tested across different appearances.
 - The course map has a larger inset and an **Expand** button. In the expanded
@@ -202,16 +218,17 @@ ROS_DOMAIN_ID=176 python3 src/riptide_simulator/camera_faker/test/ros_camera_dem
   choose **Fit pool**.
 - The **Depth sensor** tab adjusts noise and range live. **Show both depth maps**
   switches both camera cards; promoting a camera also shows its selected depth/RGB view.
-- The **Tasks & claw** tab shows ammunition, task events and scores, with
-  arm/fire/drop/reload controls when the task simulator is connected.
-  **Reset all tasks** removes released torpedoes/markers, resets lights, table
+- The **Actuators** panel shows robot actuator status and ammunition, with
+  arm/fire/drop/reload controls when robot actuator status is available.
+  Simulation-only magnet status, recent events and jaw readings live in Run tracking.
+  Its **Reset run & tasks** removes released torpedoes/markers, resets lights, table
   props and scores, and reloads/disarms the actuators without moving the robot.
-- **Run score** starts/stops an individual-run timer and a RoboSub 2026 point
-  ledger. The gate selects the scored role; **Detailed scorecard** shows awards
+- The pool-toolbar **Run tracking** button starts/stops an individual-run timer and a RoboSub 2026 point
+  ledger. The gate selects the scored role; its window shows awards
   and manual referee adjustments. **Focus → Octagon** inspects the new floating
   PVC ring and its signs. See [scoring rules and controls](../c_simulator/docs/SCORING.md).
-- Capture writes the window and separate FFC/DFC RGB images to `/tmp`; the exact
-  path is printed in the ROS log. `screenshot_path` overrides it.
+- `screenshot_path` saves a window image; deterministic capture examples are below.
+  The interactive toolbar has no Capture button.
 
 The scene uses the existing 50 × 22.86 × 2.1336 m pool dimensions, lane geometry,
 RoboSub meshes, original vinyl textures, and shared marker offsets. Task poses
@@ -324,7 +341,7 @@ the claw supports rigid grasp/carry/release and basket delivery (see TASKS.md).
 
 The bin's old square placeholders are clear-cover Polycase ML-22F approximations
 with 16 bright LED lenses, visible electronics, screws and cable glands. Both
-sensor faces tilt up 45 degrees. **Tasks & claw → Inspect lights**, or **Focus →
+sensor faces tilt up 45 degrees. **Run tracking → Inspect scene → Inspect lights**, or **Focus →
 Light 1 / Light 2**, gives a close view. A printed stick and magnet follow the
 robot's configured magnet frame.
 
@@ -572,7 +589,7 @@ its viewer when finished.
 
 ### Claw interaction
 
-The **Tasks & claw** tab adds Open/Close/Stop claw alongside torpedoes and markers.
+The **Actuators** panel adds Open/Close/Stop claw alongside torpedoes and markers.
 Use Stop to set a narrower approach gap near the table corner posts.
 Enable the vehicle in RViz and arm actuators first. **Inspect claw** shows the
 ribbed CAD pads and moving racks. All four table props move in the viewer and
@@ -614,3 +631,7 @@ rates and does not change the EKF. The CAD mesh offset comes from the vehicle
 The viewer publishes `simulator/<robot>/origin` at this CAD origin. Select it and
 `<robot>/origin` in the TF tree to compare them; the ROS-estimated and
 simulated world poses remain visible independently.
+
+## Composable operator panels
+
+Motion and autonomy are configurable viewer extensions. See [the usage and extension guide](../docs/VIEWER_PANELS.md) and [the architecture plan](../docs/COMPOSABLE_VIEWER_PLAN.md). Talos opts in through its robot profile; other robots can supply their own composition and protocol providers.

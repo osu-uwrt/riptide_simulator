@@ -1,3 +1,7 @@
+#include "pool_viewer/viewer_input.hpp"
+#include "pool_viewer/panel_layout.hpp"
+#include "pool_viewer/panels/composition.hpp"
+#include "pool_viewer/panels/ros_providers.hpp"
 #include "pool_viewer/camera_processor.hpp"
 #include "pool_viewer/detection_pose.hpp"
 #include "pool_viewer/renderer.hpp"
@@ -26,7 +30,6 @@
 #include <opencv2/imgproc.hpp>
 #include <random>
 #include <rclcpp/rclcpp.hpp>
-#include <riptide_msgs2/msg/actuator_status.hpp>
 #include <riptide_msgs2/msg/led_command.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
@@ -42,7 +45,6 @@
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <std_srvs/srv/trigger.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -131,7 +133,7 @@ class PoolViewer : public rclcpp::Node {
         showTf = declare_parameter<bool>("show_tf", false);
         demo = declare_parameter<bool>("demo", false);
         hidden = declare_parameter<bool>("headless", false);
-        scorecardOpen = declare_parameter<bool>("show_scorecard", false);
+        showScorecard = declare_parameter<bool>("show_scorecard", false);
         exitFrames = declare_parameter<int>("exit_after_frames", 0);
         screenshot = declare_parameter<std::string>("screenshot_path", "");
         detections = declare_parameter<bool>("detections", false);
@@ -292,7 +294,8 @@ class PoolViewer : public rclcpp::Node {
             c.physicsMount = cameraProfile["truth_tf_owner"].as<std::string>("viewer") == "physics";
             c.name = name;
             c.cameraProcessor = std::make_unique<pool::CameraProcessor>(cameraCompute);
-            RCLCPP_INFO(get_logger(), "%s camera processing: %s", name.c_str(), c.cameraProcessor->description().c_str());
+            RCLCPP_INFO(get_logger(), "%s camera processing: %s", name.c_str(),
+                        c.cameraProcessor->description().c_str());
             c.depthPreview = depthPreview;
             c.frame = robot + "/" + name + "_left_camera_optical_frame";
             c.truthFrame = "simulator/" + c.frame;
@@ -398,8 +401,8 @@ class PoolViewer : public rclcpp::Node {
             throw std::runtime_error("Invalid lighting intensity or sun elevation");
         initializeWindow();
         statusLights = pool::StatusLights(declare_parameter<std::string>("status_lights_config", ""));
-        thrusterVisuals = pool::ThrusterVisuals(
-            declare_parameter<std::string>("thruster_visuals_config", ""), vehicle["thrusters"].size());
+        thrusterVisuals = pool::ThrusterVisuals(declare_parameter<std::string>("thruster_visuals_config", ""),
+                                                vehicle["thrusters"].size());
         renderer = std::make_unique<pool::Renderer>(
             declare_parameter<std::string>("shader_folder", ""),
             declare_parameter<std::string>("riptide_mesh_folder", ""),
@@ -424,17 +427,28 @@ class PoolViewer : public rclcpp::Node {
                     using Command = riptide_msgs2::msg::LedCommand;
                     pool::LightMode mode;
                     switch (msg.mode) {
-                    case Command::MODE_SOLID: mode = pool::LightMode::Solid; break;
-                    case Command::MODE_SLOW_FLASH: mode = pool::LightMode::SlowFlash; break;
-                    case Command::MODE_FAST_FLASH: mode = pool::LightMode::FastFlash; break;
-                    case Command::MODE_BREATH: mode = pool::LightMode::Breath; break;
-                    case Command::SINGLETON_FLASH: mode = pool::LightMode::Flash; break;
-                    default: return;
+                    case Command::MODE_SOLID:
+                        mode = pool::LightMode::Solid;
+                        break;
+                    case Command::MODE_SLOW_FLASH:
+                        mode = pool::LightMode::SlowFlash;
+                        break;
+                    case Command::MODE_FAST_FLASH:
+                        mode = pool::LightMode::FastFlash;
+                        break;
+                    case Command::MODE_BREATH:
+                        mode = pool::LightMode::Breath;
+                        break;
+                    case Command::SINGLETON_FLASH:
+                        mode = pool::LightMode::Flash;
+                        break;
+                    default:
+                        return;
                     }
                     if (msg.target > Command::TARGET_ALL)
                         return;
-                    statusLights.command(glm::vec3(msg.red, msg.green, msg.blue) / 255.f,
-                                         mode, msg.target, now().seconds());
+                    statusLights.command(glm::vec3(msg.red, msg.green, msg.blue) / 255.f, mode, msg.target,
+                                         now().seconds());
                 });
         } else if (statusLights.input == "std_msgs/msg/ColorRGBA") {
             colorSubscription = create_subscription<std_msgs::msg::ColorRGBA>(
@@ -446,11 +460,11 @@ class PoolViewer : public rclcpp::Node {
                 });
         }
         if (!get_parameter("task_config").as_string().empty()) {
-            const auto task = YAML::LoadFile(get_parameter("task_config").as_string());
+            taskDocument.reset(YAML::LoadFile(get_parameter("task_config").as_string()));
+            const auto &task = taskDocument;
             ui = task["ui"] ? YAML::Clone(task["ui"]) : YAML::Node(YAML::NodeType::Map);
             equipmentConfig = task["equipment"] ? YAML::Clone(task["equipment"]) : YAML::Clone(task);
             worldConfig = task["world"] ? YAML::Clone(task["world"]) : YAML::Node(YAML::NodeType::Map);
-            scoringEnabled = task["scoring_enabled"].as<bool>(true);
             mechanismControls = task["mechanism_controls"] ? YAML::Clone(task["mechanism_controls"])
                                                            : YAML::Node(YAML::NodeType::Sequence);
             for (const auto &control : mechanismControls) {
@@ -458,13 +472,10 @@ class PoolViewer : public rclcpp::Node {
                 mechanismCommands[topic] = create_publisher<std_msgs::msg::Bool>(topic, 10);
             }
             if (ui) {
-                scoreTitle = ui["title"].as<std::string>("Run score");
                 if (ui["focus"])
                     focusNames = ui["focus"].as<std::vector<std::string>>();
                 if (ui["demo_targets"])
                     demoNames = ui["demo_targets"].as<std::vector<std::string>>();
-                for (const auto &option : ui["run_options"])
-                    runOptions[option["key"].as<std::string>()] = option["default"];
             }
             if (task["magnet_lights"]) {
                 magnetMount *= pool::pose(pool::vector3(task["magnet_lights"]["robot_tip_offset"]));
@@ -495,7 +506,6 @@ class PoolViewer : public rclcpp::Node {
             if (!payloadMounts.empty())
                 payloadFocus /= float(payloadMounts.size());
         }
-        taskArm = create_publisher<std_msgs::msg::Bool>("command/actuator/arm", 10);
         magnetSubscription = create_subscription<visualization_msgs::msg::MarkerArray>(
             "simulator/magnet_lights", 10, [this](const visualization_msgs::msg::MarkerArray &msg) {
                 if (demo)
@@ -507,8 +517,6 @@ class PoolViewer : public rclcpp::Node {
                         renderer->magnetLight(m.ns, green);
                     }
             });
-        taskClaw = create_publisher<std_msgs::msg::Bool>("command/actuator/claw", 10);
-        taskClawTimed = create_publisher<std_msgs::msg::Float32>("command/actuator/claw_move_s", 10);
         clawSubscription = create_subscription<std_msgs::msg::Float64MultiArray>(
             "simulator/claw_joints", 10, [this](const std_msgs::msg::Float64MultiArray &msg) {
                 if (!demo && msg.data.size() == 2 && std::isfinite(msg.data[0]) && std::isfinite(msg.data[1]))
@@ -532,28 +540,10 @@ class PoolViewer : public rclcpp::Node {
                     taskObjects[m.ns + "_frame"] = {matrix(t), attached};
                 }
             });
-        taskTorpedo = create_publisher<std_msgs::msg::Empty>("command/actuator/torpedo", 10);
-        taskDropper = create_publisher<std_msgs::msg::Empty>("command/actuator/dropper", 10);
-        taskReload = create_publisher<std_msgs::msg::Empty>("command/actuator/notify_reload", 10);
-        taskReset = create_publisher<std_msgs::msg::Empty>("simulator/reset_tasks", 10);
-        syncClient = create_client<std_srvs::srv::Trigger>("sync_sim_to_estimate");
-        resetStartClient = create_client<std_srvs::srv::Trigger>("reset_sim_to_start");
         // Same marker array RViz shows, resolved at each marker's acquisition time.
         detectionSub = create_subscription<visualization_msgs::msg::MarkerArray>(
             "yolo_orientation/visualization_marker_array", 10,
             [this](const visualization_msgs::msg::MarkerArray &msg) { receiveDetections(msg); });
-        runCommand = create_publisher<std_msgs::msg::String>("simulator/run_command", 10);
-        runSubscription = create_subscription<std_msgs::msg::String>(
-            "simulator/run_score", 10, [this](const std_msgs::msg::String &msg) {
-                try {
-                    // Node assignment merges YAML memory pools, retaining every
-                    // previous snapshot. Rebind so the old tree can be freed.
-                    runScore.reset(YAML::Load(msg.data));
-                    lastRunScore = Clock::now();
-                } catch (const YAML::Exception &e) {
-                    RCLCPP_WARN(get_logger(), "Invalid run score: %s", e.what());
-                }
-            });
         payloadSubscription = create_subscription<visualization_msgs::msg::MarkerArray>(
             "simulator/projectiles", 10, [this](const visualization_msgs::msg::MarkerArray &msg) {
                 if (demo)
@@ -578,27 +568,6 @@ class PoolViewer : public rclcpp::Node {
                     releasedPayloads.push_back(glm::scale(matrix(t), glm::vec3(m.scale.x, m.scale.y, m.scale.z)));
                 }
             });
-        actuatorSubscription = create_subscription<riptide_msgs2::msg::ActuatorStatus>(
-            "state/actuator/status", 10, [this](const riptide_msgs2::msg::ActuatorStatus &msg) {
-                actuatorStatus = msg;
-                lastActuator = Clock::now();
-            });
-        eventSubscription = create_subscription<std_msgs::msg::String>(
-            "simulator/task_events", 10, [this](const std_msgs::msg::String &msg) {
-                try {
-                    auto event = YAML::Load(msg.data);
-                    if (event["kind"].as<std::string>() == "tasks" && event["result"].as<std::string>() == "reset")
-                        taskEvents.clear();
-                    taskEvents.push_front(event["kind"].as<std::string>() + " / " + event["result"].as<std::string>() +
-                                          " / " + event["target"].as<std::string>());
-                } catch (const std::exception &) {
-                    taskEvents.push_front(msg.data);
-                }
-                if (taskEvents.size() > 5)
-                    taskEvents.pop_back();
-            });
-        scoreSubscription = create_subscription<std_msgs::msg::String>(
-            "simulator/task_score", 10, [this](const std_msgs::msg::String &msg) { taskScore = msg.data; });
         const auto scene = YAML::LoadFile(get_parameter("scene_config").as_string());
         // The mesh is authored at the robot's CAD origin. A second scene offset
         // would disagree with the URDF and move the mesh around base_link in yaw.
@@ -613,8 +582,33 @@ class PoolViewer : public rclcpp::Node {
             previewPose(previewTask);
         focus(declare_parameter<std::string>("initial_focus", "Vehicle"));
         status = demo ? "SCENE PREVIEW" : "WAITING FOR PHYSICS";
+        const auto panelsPath = declare_parameter<std::string>("panels_config", "");
+        const auto toolsPath = declare_parameter<std::string>("tools_config", "");
+        const bool operatorsEnabled = declare_parameter<bool>("operator_panels", true);
+        pool::panels::Registry registry;
+        pool::panels::registerPanels(registry);
+        panelRos.registerFactories(registry);
+        pool::panels::Context context{robot, mapFrame, demo, get_parameter("use_sim_time").as_bool()};
+        context.documents.emplace("task", YAML::Clone(taskDocument));
+        context.focus = [this](const std::string &name) { focus(name); };
+        if (showScorecard)
+            context.initialWindows.push_back("run");
+        if (operatorsEnabled && !panelsPath.empty())
+            panels = std::make_unique<pool::panels::Composition>(YAML::LoadFile(panelsPath), context, registry);
+        if (!toolsPath.empty()) {
+            viewerTools = std::make_unique<pool::panels::Composition>(YAML::LoadFile(toolsPath), context, registry);
+            for (const auto &entry : viewerTools->providers())
+                if (auto run = std::dynamic_pointer_cast<pool::panels::Run>(entry.second)) {
+                    runTracking = run;
+                    break;
+                }
+        }
+        panelRos.start();
     }
     ~PoolViewer() override {
+        panelRos.stop();
+        panels.reset();
+        viewerTools.reset();
         // All GL objects must be released while the context still exists.
         for (auto &c : cameras) {
             if (c.pending.valid())
@@ -648,6 +642,10 @@ class PoolViewer : public rclcpp::Node {
             callbackMs =
                 .92 * callbackMs + .08 * std::chrono::duration<double, std::milli>(callbacksEnd - frameStart).count();
             glfwPollEvents();
+            if (panels)
+                panels->touch();
+            if (viewerTools)
+                viewerTools->touch();
             updatePose();
             captureTf();
             captureDetections();
@@ -685,7 +683,7 @@ class PoolViewer : public rclcpp::Node {
                 }
                 const auto demand = cameraDemand(c);
                 const bool visible = !hidden || exitFrames > 0;
-                const bool save = !screenshot.empty() || capture;
+                const bool save = !screenshot.empty();
                 const bool cloudDue = cloudEnabled && t >= c.nextCloud;
                 // The overlay samples the full-resolution render like a subscriber.
                 const bool overlayCloud = cloudDue && overlayWants(c);
@@ -773,10 +771,8 @@ class PoolViewer : public rclcpp::Node {
             glClear(GL_COLOR_BUFFER_BIT);
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             ++frames;
-            if ((exitFrames > 0 && frames == exitFrames) || capture) {
+            if (exitFrames > 0 && frames == exitFrames)
                 saveScreenshot();
-                capture = false;
-            }
             glfwSwapBuffers(window);
             if (exitFrames > 0 && frames >= exitFrames)
                 break;
@@ -788,7 +784,6 @@ class PoolViewer : public rclcpp::Node {
   private:
     GLFWwindow *window = nullptr;
     std::string robot, mapFrame, status, screenshot, lastCapture;
-    rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr syncClient, resetStartClient;
     rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr detectionSub;
     // Latest vision observations keyed by ns/id. Each one is placed once at its
     // header stamp and stays fixed in the map frame for the detector's lifetime.
@@ -811,7 +806,6 @@ class PoolViewer : public rclcpp::Node {
     };
     std::vector<PlacedDetection> placedDetections;
     std::string detectionStatus;
-    std::string syncStatus;
     std::unique_ptr<pool::Renderer> renderer;
     pool::StatusLights statusLights;
     pool::ThrusterVisuals thrusterVisuals;
@@ -822,12 +816,23 @@ class PoolViewer : public rclcpp::Node {
     std::unique_ptr<tf2_ros::TransformListener> listener;
     std::unique_ptr<tf2_ros::StaticTransformBroadcaster> broadcaster;
     std::deque<Camera> cameras;
-    YAML::Node ui, runOptions, equipmentConfig, mechanismControls, worldConfig;
+    YAML::Node ui, equipmentConfig, mechanismControls, worldConfig;
+    YAML::Node taskDocument{YAML::NodeType::Map};
     std::map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> mechanismCommands;
     std::vector<std::string> focusNames{"Course", "Vehicle"}, demoNames;
-    std::string focusName = "Vehicle", scoreTitle = "Run score";
-    bool scoringEnabled = true;
+    std::string focusName = "Vehicle";
     pool::Frame overview;
+    pool::panels::RosProviders panelRos;
+    std::unique_ptr<pool::panels::Composition> panels, viewerTools;
+    bool sceneSettingsOpen = false;
+    pool::ObserverSettings observerSettings;
+    bool orbitInteracting = false;
+    Clock::time_point orbitZoomUntil{};
+    int orbitDragButton = -1;
+    bool orbitPanDrag = false;
+    float cameraSidebarWidth = 0, viewportToolbarHeight = 80;
+    bool cameraSidebarVisible = true, cameraSidebarResized = false;
+    pool::PanelEdge panelEdge, cameraEdge;
     pool::View viewportView;
     pool::Look look;
     using PayloadSlot = std::pair<std::string, int>;
@@ -853,36 +858,23 @@ class PoolViewer : public rclcpp::Node {
     float yaw = -2.45f, pitch = .57f, distance = 19, freeYaw = .5f, freePitch = -.2f, freeRoll = 0;
     bool mouseCaptured = false;
     double lastMouseX = 0, lastMouseY = 0;
-    bool demo = false, hidden = false, cloudEnabled = true, capture = false, labels = true, follow = false;
+    bool demo = false, hidden = false, cloudEnabled = true, labels = true, follow = false;
     int mode = 0, exitFrames = 0, cloudStride = 8, selectedFocus = 0, selectedDemo = 0;
     double renderRate = 30, cloudRate = 5, frameMs = 33.3;
     int previewWidth = 480;
     bool profile = false;
     double callbackMs = 0, nextProfile = 0;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr taskArm, taskClaw;
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr taskClawTimed;
     rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr clawSubscription;
     rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr objectSubscription;
     rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr magnetSubscription;
-    rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr taskTorpedo, taskDropper, taskReload, taskReset;
     rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr payloadSubscription;
-    rclcpp::Subscription<riptide_msgs2::msg::ActuatorStatus>::SharedPtr actuatorSubscription;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr eventSubscription, scoreSubscription;
-    riptide_msgs2::msg::ActuatorStatus actuatorStatus;
-    Clock::time_point lastActuator{};
-    std::deque<std::string> taskEvents;
-    std::string taskScore = "No task results yet";
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr runCommand;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr runSubscription;
     YAML::Node runScore;
-    Clock::time_point lastRunScore{};
-    int intendedRole = 0;
-    bool headingCoin = true, roleCoin = true, scorecardOpen = false;
-    float manualPoints = 0.f;
+    std::shared_ptr<pool::panels::Run> runTracking;
+    bool showScorecard = false;
     pool::DepthNoise depthModel;
     rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr depthSettingsCallback;
     bool largeMap = false;
-    bool focusMap = false, focusScorecard = false;
+    bool focusMap = false;
     float mapZoom = 1;
     ImVec2 mapPan{0, 0};
     ImFont *normalFont = nullptr, *smallFont = nullptr, *titleFont = nullptr, *numberFont = nullptr;
@@ -921,6 +913,8 @@ class PoolViewer : public rclcpp::Node {
         } else
             normalFont = smallFont = titleFont = numberFont = io.Fonts->AddFontDefault();
         ImGui::StyleColorsDark();
+        ImGui::GetStyle().Colors[ImGuiCol_ScrollbarBg].w = 0;
+        ImGui::GetStyle().Colors[ImGuiCol_ScrollbarGrab].w = 0;
         auto &s = ImGui::GetStyle();
         s.WindowPadding = {18, 16};
         s.FramePadding = {10, 7};
@@ -1240,9 +1234,13 @@ class PoolViewer : public rclcpp::Node {
             if (focusNames[i] == name)
                 selectedFocus = int(i);
         mode = 0;
-        follow = name == "Vehicle";
+        follow = name != "Course";
     }
-    pool::View overviewView(float aspect, float dt, bool hovered) {
+    // Detach camera tracking while retaining the selected orbit preset.
+    void detachOrbit() {
+        follow = false;
+    }
+    pool::View overviewView(float aspect, float dt, bool hovered, float viewportHeight) {
         auto &io = ImGui::GetIO();
         if (mouseCaptured &&
             (mode != 1 || ImGui::IsKeyPressed(ImGuiKey_Escape) || !glfwGetWindowAttrib(window, GLFW_FOCUSED))) {
@@ -1280,21 +1278,40 @@ class PoolViewer : public rclcpp::Node {
             if (glm::length(motion) > 0)
                 freeEye += glm::normalize(motion) * dt * (io.KeyCtrl ? 8.f : 2.5f);
         }
-        if (mode == 0 && hovered) {
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-                yaw -= io.MouseDelta.x * .004f;
-                pitch = glm::clamp(pitch + io.MouseDelta.y * .004f, -1.3f, 1.5f);
+        orbitInteracting = false;
+        if (mode != 0 || !glfwGetWindowAttrib(window, GLFW_FOCUSED) ||
+            (orbitDragButton >= 0 && !ImGui::IsMouseDown(orbitDragButton)))
+            orbitDragButton = -1;
+        if (mode == 0) {
+            if (hovered && orbitDragButton < 0)
+                for (int button : {ImGuiMouseButton_Left, ImGuiMouseButton_Right, ImGuiMouseButton_Middle})
+                    if (ImGui::IsMouseClicked(button)) {
+                        orbitDragButton = button;
+                        orbitPanDrag = button != ImGuiMouseButton_Left || io.KeyShift;
+                    }
+            orbitInteracting = orbitDragButton >= 0;
+            if (orbitDragButton >= 0 && !ImGui::IsMouseClicked(orbitDragButton)) {
+                if (orbitPanDrag && (io.MouseDelta.x != 0 || io.MouseDelta.y != 0)) {
+                    detachOrbit();
+                    target += pool::orbitPan(viewportView.view, viewportView.projection, distance, viewportHeight,
+                                             {io.MouseDelta.x, io.MouseDelta.y});
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+                } else if (!orbitPanDrag) {
+                    yaw -= io.MouseDelta.x * .005f;
+                    pitch = glm::clamp(pitch + io.MouseDelta.y * .005f, -1.55f, 1.55f);
+                }
             }
-            distance = glm::clamp(distance * std::exp(-io.MouseWheel * .1f), .15f, 75.f);
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
-                target += glm::vec3(-sin(yaw), cos(yaw), 0) * io.MouseDelta.x * distance * .0015f;
-                target += glm::vec3(cos(yaw), sin(yaw), 0) * io.MouseDelta.y * distance * .0015f;
+            if (hovered && io.MouseWheel != 0) {
+                distance = glm::clamp(distance * std::exp(-io.MouseWheel * .1f), .15f, 75.f);
+                orbitZoomUntil = Clock::now() + std::chrono::milliseconds(140);
             }
         }
+        orbitInteracting = mode == 0 && (orbitInteracting || Clock::now() < orbitZoomUntil);
         if (follow)
-            target = focusName == "Payloads" ? glm::vec3(body * glm::vec4(payloadFocus, 1))
-                     : focusName == "Claw"   ? glm::vec3(body * clawMount * glm::vec4(0, 0, .06f, 1))
-                                             : glm::vec3(body[3]);
+            target = focusName == "Payloads"                ? glm::vec3(body * glm::vec4(payloadFocus, 1))
+                     : focusName == "Claw"                  ? glm::vec3(body * clawMount * glm::vec4(0, 0, .06f, 1))
+                     : renderer->landmarks.count(focusName) ? glm::vec3(renderer->landmarks.at(focusName)[3])
+                                                            : glm::vec3(body[3]);
         if (mode >= 2) {
             const auto &c = cameras[mode - 2];
             return c.depthPreview && c.depthTexture ? c.depthView : c.imageView;
@@ -1311,8 +1328,57 @@ class PoolViewer : public rclcpp::Node {
                                                 std::sin(pitch));
             at = target;
         }
-        return {eye, glm::lookAt(eye, at, up),
-                glm::perspective(glm::radians(53.f), aspect, .05f, 100.f)};
+        return {eye, glm::lookAt(eye, at, up), glm::perspective(glm::radians(53.f), aspect, .05f, 100.f)};
+    }
+    void focusAtCursor(const pool::View &view, ImVec2 origin, float width, float height) {
+        if (mode != 0)
+            return;
+        const auto mouse = ImGui::GetIO().MousePos;
+        const glm::vec2 cursor(mouse.x - origin.x, mouse.y - origin.y), size(width, height);
+        pool::OverlayFocusPicker picker(view.projection * view.view, size, cursor);
+        if (showTf)
+            for (const auto &[name, frame] : displayedFrames)
+                for (int axis = 0; axis < 3; ++axis)
+                    picker.segment(glm::vec3(frame[3]), glm::vec3(frame[3] + frame[axis] * tfAxisLength),
+                                   glm::vec3(frame[3]));
+        if (detections)
+            for (const auto &placed : placedDetections) {
+                const auto &m = placed.marker;
+                if (m.color.a <= 0)
+                    continue;
+                using visualization_msgs::msg::Marker;
+                if (m.type == Marker::CUBE)
+                    picker.quad(placed.pose, {m.scale.x * .5f, m.scale.y * .5f});
+                else if (m.type == Marker::ARROW)
+                    picker.segment(glm::vec3(placed.pose[3]), glm::vec3(placed.pose * glm::vec4(m.scale.x, 0, 0, 1)),
+                                   glm::vec3(placed.pose[3]));
+            }
+        glm::vec3 point;
+        if (!picker.result(point)) {
+            const auto uv = cursor / size;
+            if (uv.x < 0 || uv.x >= 1 || uv.y < 0 || uv.y >= 1)
+                return;
+            GLint previous = 0;
+            glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previous);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, overview.opaque.fbo);
+            float depth = 1;
+            glReadPixels(int(uv.x * overview.opaque.width),
+                         overview.opaque.height - 1 - int(uv.y * overview.opaque.height), 1, 1, GL_DEPTH_COMPONENT,
+                         GL_FLOAT, &depth);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, previous);
+            if (!pool::depthPoint(view.projection * view.view, uv, depth, point) &&
+                !pool::focusPlanePoint(view.projection * view.view, view.eye, target, uv, point))
+                return;
+        }
+        const auto offset = view.eye - point;
+        const float nextDistance = glm::length(offset);
+        if (!std::isfinite(nextDistance) || nextDistance < 1e-4f)
+            return;
+        target = point;
+        distance = nextDistance;
+        detachOrbit();
+        yaw = std::atan2(offset.y, offset.x);
+        pitch = glm::clamp(std::asin(offset.z / distance), -1.55f, 1.55f);
     }
     void pill(const std::string &text, ImVec4 tint) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(tint.x * .15f, tint.y * .15f, tint.z * .15f, 1));
@@ -1328,9 +1394,10 @@ class PoolViewer : public rclcpp::Node {
     void cameraCard(Camera &c, float width, float maxHeight) {
         ImGui::PushID(c.name.c_str());
         ImGui::BeginChild("camera", {width, 0}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
+        ImGui::AlignTextToFramePadding();
         ImGui::TextColored(cyan, "%s", c.name == "ffc" ? "01  FORWARD CAMERA" : "02  DOWNWARD CAMERA");
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 48);
-        if (ImGui::SmallButton(c.depthPreview ? "DEPTH" : "RGB"))
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 62);
+        if (ImGui::Button(c.depthPreview ? "DEPTH" : "RGB", {62, 0}))
             c.depthPreview = !c.depthPreview;
         ImGui::PushFont(smallFont);
         ImGui::TextColored(muted, "ZED X MINI  /  %d x %d", c.k.width, c.k.height);
@@ -1518,22 +1585,23 @@ class PoolViewer : public rclcpp::Node {
                 mapPan.y += io.MouseDelta.y;
             }
         }
-        const float scale = std::min((width - 36) / 50, (height - 36) / 22.86f) * (interactive ? mapZoom : 1.f);
+        const float length = worldConfig["length"].as<float>(50.f), poolWidth = worldConfig["width"].as<float>(22.86f);
+        const float scale = std::min((width - 36) / length, (height - 36) / poolWidth) * (interactive ? mapZoom : 1.f);
         const ImVec2 center(a.x + width / 2 + (interactive ? mapPan.x : 0),
                             a.y + height / 2 + (interactive ? mapPan.y : 0));
         auto poolXY = [&](glm::vec2 p) {
-            return ImVec2(center.x + (p.x - 25) * scale, center.y - (p.y - 11.43f) * scale);
+            return ImVec2(center.x + (p.x - length / 2) * scale, center.y - (p.y - poolWidth / 2) * scale);
         };
         auto xy = [&](glm::vec3 p) { return poolXY(glm::vec2(renderer->mapToPool * glm::vec4(p, 1))); };
         auto *d = ImGui::GetWindowDrawList();
         d->AddRectFilled(a, {a.x + width, a.y + height}, IM_COL32(9, 24, 32, 255), 5);
         d->PushClipRect(a, {a.x + width, a.y + height}, true);
-        d->AddRectFilled(poolXY({0, 22.86f}), poolXY({50, 0}), IM_COL32(13, 40, 50, 255));
-        for (int i = 0; i <= 50; i += 5)
-            d->AddLine(poolXY({float(i), 0}), poolXY({float(i), 22.86f}), IM_COL32(35, 64, 74, 255));
-        for (int i = 0; i <= 20; i += 5)
-            d->AddLine(poolXY({0, float(i)}), poolXY({50, float(i)}), IM_COL32(35, 64, 74, 255));
-        d->AddRect(poolXY({0, 22.86f}), poolXY({50, 0}), IM_COL32(94, 154, 166, 255), 0, 0, 2);
+        d->AddRectFilled(poolXY({0, poolWidth}), poolXY({length, 0}), IM_COL32(13, 40, 50, 255));
+        for (int i = 0; i <= length; i += 5)
+            d->AddLine(poolXY({float(i), 0}), poolXY({float(i), poolWidth}), IM_COL32(35, 64, 74, 255));
+        for (int i = 0; i <= poolWidth; i += 5)
+            d->AddLine(poolXY({0, float(i)}), poolXY({length, float(i)}), IM_COL32(35, 64, 74, 255));
+        d->AddRect(poolXY({0, poolWidth}), poolXY({length, 0}), IM_COL32(94, 154, 166, 255), 0, 0, 2);
         for (size_t i = 1; i < trail.size(); ++i)
             d->AddLine(xy(trail[i - 1]), xy(trail[i]), IM_COL32(53, 134, 143, 200), 1.5f);
         int index = 0;
@@ -1561,13 +1629,16 @@ class PoolViewer : public rclcpp::Node {
         d->PopClipRect();
     }
     void minimap(float width) {
-        ImGui::BeginChild("map", {width, 225}, ImGuiChildFlags_Borders);
+        ImGui::BeginChild("map", {width, 0}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
+        ImGui::AlignTextToFramePadding();
         heading("COURSE MAP");
         ImGui::SameLine();
-        if (ImGui::SmallButton("Expand"))
+        if (ImGui::Button("Expand"))
             largeMap = focusMap = true;
         const auto available = ImGui::GetContentRegionAvail();
-        mapCanvas(available.x, std::max(120.f, available.y), false);
+        // Scale both canvas dimensions with the sidebar so height cannot cap the map's growth.
+        const float aspect = worldConfig["width"].as<float>(22.86f) / worldConfig["length"].as<float>(50.f);
+        mapCanvas(available.x, std::max(120.f, 36.f + (available.x - 36.f) * aspect), false);
         ImGui::EndChild();
     }
     void captureTf() {
@@ -1755,35 +1826,6 @@ class PoolViewer : public rclcpp::Node {
         if (!detectionStatus.empty())
             draw->AddText(smallFont, 12, {position.x + 14, position.y + 101}, color(white), detectionStatus.c_str());
     }
-    // Asks physics_simulator to teleport the plant to the EKF's base_link pose.
-    // The viewer spins on the UI thread, so the reply lands here without locks.
-    void requestSyncToEstimate() {
-        if (!syncClient->service_is_ready()) {
-            syncStatus = "Sync: physics simulator service unavailable";
-            return;
-        }
-        syncStatus = "Sync: requested";
-        syncClient->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>(),
-                                       [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
-                                           const auto reply = future.get();
-                                           syncStatus = std::string(reply->success ? "Sync: " : "Sync failed: ") +
-                                                        reply->message;
-                                       });
-    }
-    // Asks physics_simulator to put the plant back at its start pose, at rest.
-    void requestResetToStart() {
-        if (!resetStartClient->service_is_ready()) {
-            syncStatus = "Reset: physics simulator service unavailable";
-            return;
-        }
-        syncStatus = "Reset: requested";
-        resetStartClient->async_send_request(
-            std::make_shared<std_srvs::srv::Trigger::Request>(),
-            [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
-                const auto reply = future.get();
-                syncStatus = std::string(reply->success ? "Reset: " : "Reset failed: ") + reply->message;
-            });
-    }
     void drawTfTree() {
         if (ImGui::Button("Show all"))
             tfTree.selectAll(true);
@@ -1893,8 +1935,6 @@ class PoolViewer : public rclcpp::Node {
         draw->AddText(smallFont, 12, {position.x + 14, position.y + 50}, color(white), caption.c_str());
         if (!tfDifference.empty())
             draw->AddText(smallFont, 12, {position.x + 14, position.y + 67}, color(white), tfDifference.c_str());
-        if (!syncStatus.empty())
-            draw->AddText(smallFont, 12, {position.x + 14, position.y + 84}, color(white), syncStatus.c_str());
         draw->PopClipRect();
     }
     std::string runTime() const {
@@ -1903,190 +1943,18 @@ class PoolViewer : public rclcpp::Node {
         std::snprintf(value, sizeof(value), "%02d:%04.1f", int(seconds) / 60, std::fmod(seconds, 60.));
         return value;
     }
-    void sendRunCommand(const YAML::Node &command) {
-        auto quote = [](const std::string &value) {
-            std::string result = "\"";
-            for (unsigned char c : value) {
-                if (c == '"' || c == '\\') {
-                    result += '\\';
-                    result += c;
-                } else if (c < 32) {
-                    char escape[7];
-                    std::snprintf(escape, sizeof(escape), "\\u%04x", c);
-                    result += escape;
-                } else
-                    result += c;
-            }
-            return result + '"';
-        };
-        std_msgs::msg::String msg;
-        msg.data = "{";
-        bool first = true;
-        for (const auto &entry : command) {
-            if (!first)
-                msg.data += ",";
-            first = false;
-            const auto key = entry.first.as<std::string>(), value = entry.second.as<std::string>();
-            msg.data += quote(key) + ":";
-            bool numeric = key == "points";
-            for (const auto &option : ui["run_options"])
-                if (option["key"].as<std::string>() == key)
-                    numeric = option["type"].as<std::string>() == "number";
-            msg.data += (value == "true" || value == "false" || numeric) ? value : quote(value);
-        }
-        msg.data += "}";
-        runCommand->publish(msg);
-    }
-    void drawRunControls(bool showDetailsButton = true) {
-        const bool connected = !demo && std::chrono::duration<double>(Clock::now() - lastRunScore).count() < 1.;
-        const bool running = runScore && runScore["running"] && runScore["running"].as<bool>();
-        const double total = runScore && runScore["total"] ? runScore["total"].as<double>() : 0.;
-        ImGui::TextColored(cyan, "%s   |   %.1f points", runTime().c_str(), total);
-        if (showDetailsButton) {
-            ImGui::SameLine();
-            if (ImGui::Button("Detailed scorecard"))
-                scorecardOpen = focusScorecard = true;
-        }
-        ImGui::BeginDisabled(!connected);
-        ImGui::BeginDisabled(running);
-        if (ui)
-            for (const auto &option : ui["run_options"]) {
-                const auto key = option["key"].as<std::string>(), label = option["label"].as<std::string>(),
-                           type = option["type"].as<std::string>();
-                if (type == "bool") {
-                    bool value = runOptions[key].as<bool>();
-                    if (ImGui::Checkbox(label.c_str(), &value))
-                        runOptions[key] = value;
-                } else if (type == "number") {
-                    float value = runOptions[key].as<float>();
-                    if (ImGui::InputFloat(label.c_str(), &value) && std::isfinite(value))
-                        runOptions[key] =
-                            glm::clamp(value, option["min"].as<float>(-1e9f), option["max"].as<float>(1e9f));
-                } else if (type == "choice") {
-                    int selected = 0;
-                    std::string labels;
-                    int i = 0;
-                    for (const auto &choice : option["choices"]) {
-                        if (choice["value"].as<std::string>() == runOptions[key].as<std::string>())
-                            selected = i;
-                        labels += choice["label"].as<std::string>();
-                        labels += '\0';
-                        ++i;
-                    }
-                    labels += '\0';
-                    ImGui::SetNextItemWidth(210);
-                    if (ImGui::Combo(label.c_str(), &selected, labels.c_str()))
-                        runOptions[key] = option["choices"][selected]["value"];
-                }
-            }
-        if (ImGui::Button("Start run")) {
-            YAML::Node cmd;
-            cmd["action"] = "start";
-            for (const auto &option : runOptions)
-                cmd[option.first.as<std::string>()] = option.second;
-            sendRunCommand(cmd);
-        }
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip(
-                "Clear tasks and score, reload/disarm, and start a fresh timer. Vehicle position stays unchanged.");
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        ImGui::BeginDisabled(!running);
-        if (ImGui::Button("Stop run")) {
-            YAML::Node cmd;
-            cmd["action"] = "stop";
-            sendRunCommand(cmd);
-        }
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        if (ImGui::Button("Reset run & tasks"))
-            taskReset->publish(std_msgs::msg::Empty{});
-        for (const auto &control : ui["actions"]) {
-            ImGui::SameLine();
-            if (ImGui::Button(control["label"].as<std::string>().c_str())) {
-                YAML::Node command = YAML::Clone(control["command"]);
-                sendRunCommand(command);
-            }
-        }
-        ImGui::EndDisabled();
-        if (!connected)
-            ImGui::TextDisabled("Start the live simulator to score a run.");
-        if (runScore && runScore["intended_role"]) {
-            const std::string intended = runScore["intended_role"].as<std::string>();
-            const std::string actual =
-                runScore["role"].IsNull() ? "Awaiting gate passage" : runScore["role"].as<std::string>();
-            ImGui::Text("Assigned: %s  |  Scored role: %s", intended.c_str(), actual.c_str());
-            ImGui::TextWrapped("%s", runScore["message"].as<std::string>().c_str());
-            const auto reason = runScore["ended_reason"].as<std::string>();
-            if (!reason.empty())
-                ImGui::TextColored(ImVec4(1, .6f, .3f, 1), "%s", reason.c_str());
-        }
-        ImGui::TextDisabled("Timer uses simulation time; pauses with physics. Stop is manual.");
-    }
-    void drawScorecard() {
-        if (!scorecardOpen)
-            return;
-        ImGui::SetNextWindowSize({580, 780}, ImGuiCond_FirstUseEver);
-        if (focusScorecard) {
-            ImGui::SetNextWindowFocus();
-            ImGui::SetNextWindowCollapsed(false);
-            focusScorecard = false;
-        }
-        if (ImGui::Begin(scoreTitle.c_str(), &scorecardOpen)) {
-            drawRunControls(false);
-            ImGui::Separator();
-            if (runScore && runScore["rows"]) {
-                if (ImGui::BeginTable("Awards", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
-                    ImGui::TableSetupColumn("Award", ImGuiTableColumnFlags_WidthStretch);
-                    ImGui::TableSetupColumn("Points", ImGuiTableColumnFlags_WidthFixed, 80);
-                    ImGui::TableHeadersRow();
-                    for (const auto &row : runScore["rows"]) {
-                        ImGui::TableNextRow();
-                        ImGui::TableNextColumn();
-                        ImGui::TextUnformatted(row["label"].as<std::string>().c_str());
-                        ImGui::TableNextColumn();
-                        ImGui::Text("%d", row["points"].as<int>());
-                    }
-                    ImGui::EndTable();
-                }
-                ImGui::Text("Manual adjustment: %.1f", runScore["adjustment"].as<double>(0));
-                ImGui::Text("TOTAL: %.1f", runScore["total"].as<double>());
-                for (const auto &field : ui["score_fields"]) {
-                    const auto key = field["key"].as<std::string>();
-                    if (runScore[key])
-                        ImGui::Text("%s: %s", field["label"].as<std::string>().c_str(),
-                                    runScore[key].as<std::string>().c_str());
-                }
-            }
-            ImGui::Separator();
-            if (ui["manual_adjustment"].as<bool>(false)) {
-                ImGui::TextWrapped("Manual adjustment (signed points; replaces the prior adjustment):");
-                ImGui::SetNextItemWidth(150);
-                ImGui::InputFloat("##manual_points", &manualPoints, 50, 100, "%.1f");
-                ImGui::SameLine();
-                ImGui::BeginDisabled(demo || std::chrono::duration<double>(Clock::now() - lastRunScore).count() >= 1. ||
-                                     !std::isfinite(manualPoints));
-                if (ImGui::Button("Apply adjustment")) {
-                    YAML::Node cmd;
-                    cmd["action"] = "adjustment";
-                    cmd["points"] = manualPoints;
-                    sendRunCommand(cmd);
-                }
-                ImGui::EndDisabled();
-            }
-            if (ui["score_note"])
-                ImGui::TextWrapped("%s", ui["score_note"].as<std::string>().c_str());
-        }
-        ImGui::End();
-    }
     void drawInterface(float time, float dt) {
+        if (runTracking)
+            runScore.reset(runTracking->state().score);
         auto &io = ImGui::GetIO();
         float W = io.DisplaySize.x, H = io.DisplaySize.y;
         ImGui::SetNextWindowPos({0, 0});
         ImGui::SetNextWindowSize({W, H});
         ImGui::Begin("Riptide", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                         ImGuiWindowFlags_NoBringToFrontOnFocus);
+                         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoScrollbar |
+                         ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::SetScrollY(0);
         ImGui::PushFont(titleFont);
         ImGui::TextUnformatted("RIPTIDE");
         ImGui::PopFont();
@@ -2094,19 +1962,82 @@ class PoolViewer : public rclcpp::Node {
         ImGui::TextColored(muted, " / ");
         ImGui::SameLine();
         ImGui::TextUnformatted("ROBOSUB SIMULATION");
-        ImGui::SameLine(W - 395);
+        const float statusWidth = ImGui::CalcTextSize(status.c_str()).x + 2 * ImGui::GetStyle().FramePadding.x;
+        ImGui::SameLine(W - 18 - statusWidth);
         pill(status, demo ? ImVec4(.94, .73, .35, 1) : (!cameras.empty() && cameras[0].ready) ? cyan : muted);
-        ImGui::SameLine();
-        if (ImGui::Button("Capture"))
-            capture = true;
         ImGui::Separator();
-        const float side = glm::clamp(W * .265f, 305.f, 405.f), left = W - side - 56, contentHeight = H - 112;
-        ImGui::BeginChild("left", {left, contentHeight}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
-        ImGui::BeginChild("toolbar", {left, 46}, ImGuiChildFlags_None);
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(cyan, "POOL VIEW");
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(134);
+        const auto contentOrigin = ImGui::GetCursorScreenPos();
+        const float contentHeight = H - contentOrigin.y - 12;
+        const bool configuredPanels = panels && !panels->empty();
+        bool hasPanels = configuredPanels && panels->sidebarVisible();
+        float panelWidth = configuredPanels ? panels->width(W) : 0;
+        if (!cameraSidebarResized)
+            cameraSidebarWidth = glm::clamp(W * .29f, 335.f, 445.f);
+        const float sidebarBudget = W - 36 - (configuredPanels ? 16 : 0) - 16 - 360;
+        const float maxPanelWidth =
+            std::max(300.f, std::min(600.f, sidebarBudget - (cameraSidebarVisible ? cameraSidebarWidth : 0)));
+        panelWidth = glm::clamp(panelWidth, 300.f, maxPanelWidth);
+        if (configuredPanels) {
+            const float previousPanelWidth = panelWidth;
+            if (panelEdge.draw(contentOrigin, contentHeight, hasPanels, panelWidth, maxPanelWidth) != hasPanels)
+                panels->toggleSidebar();
+            panels->setWidth(panelWidth, panelWidth != previousPanelWidth);
+            hasPanels = panels->sidebarVisible();
+        }
+        const float sidebar = configuredPanels ? (hasPanels ? panelWidth : 0) + 16 : 0;
+        const float maxCameraWidth = std::max(300.f, std::min(600.f, sidebarBudget - (hasPanels ? panelWidth : 0)));
+        cameraSidebarWidth = glm::clamp(cameraSidebarWidth, 300.f, maxCameraWidth);
+        const float previousCameraWidth = cameraSidebarWidth;
+        ImGui::PushID("camera_sidebar");
+        cameraSidebarVisible = cameraEdge.draw({W - 18, contentOrigin.y}, contentHeight, cameraSidebarVisible,
+                                               cameraSidebarWidth, maxCameraWidth, true);
+        ImGui::PopID();
+        if (cameraSidebarWidth != previousCameraWidth)
+            cameraSidebarResized = true;
+        const float side = cameraSidebarVisible ? cameraSidebarWidth : 0;
+        const float left = W - 36 - sidebar - side - 16;
+        if (hasPanels) {
+            ImGui::SetCursorScreenPos(contentOrigin);
+            panels->drawSidebar(contentHeight);
+        }
+        ImGui::SetCursorScreenPos({contentOrigin.x + sidebar, contentOrigin.y});
+        ImGui::BeginChild("left", {left, contentHeight}, ImGuiChildFlags_None,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGui::SetScrollY(0);
+        ImGui::BeginChild("toolbar", {left, viewportToolbarHeight}, ImGuiChildFlags_None,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        if (ImGui::Button("Scene settings"))
+            sceneSettingsOpen = !sceneSettingsOpen;
+        if (viewerTools)
+            viewerTools->drawToolsToolbar("settings");
+        pool::sameLineIfFits(ImGui::CalcTextSize("Pool Viewer").x + 2 * ImGui::GetStyle().FramePadding.x);
+        if (ImGui::Button("Pool Viewer"))
+            ImGui::OpenPopup("observer_visibility");
+        if (ImGui::BeginPopup("observer_visibility")) {
+            ImGui::Checkbox("Water", &observerSettings.water);
+            ImGui::Checkbox("Pool walls", &observerSettings.walls);
+            ImGui::Checkbox("Surface reflections", &observerSettings.reflections);
+            ImGui::SeparatorText("Viewer lighting");
+            ImGui::BeginDisabled(observerSettings.lighting == 3);
+            ImGui::Checkbox("Shadows", &observerSettings.shadows);
+            ImGui::EndDisabled();
+            ImGui::SetNextItemWidth(160);
+            ImGui::Combo("Lighting", &observerSettings.lighting, "Scene lighting\0Indoor\0Outdoor\0Sterile\0");
+            ImGui::SetNextItemWidth(160);
+            ImGui::SliderFloat("Exposure", &observerSettings.exposure, .4f, 2.f, "%.2fx");
+            ImGui::BeginDisabled(observerSettings.lighting == 3);
+            ImGui::SetNextItemWidth(160);
+            ImGui::SliderFloat("Brightness", &observerSettings.brightness, 0.f, 4.f, "%.2fx");
+            ImGui::EndDisabled();
+            ImGui::SetNextItemWidth(160);
+            ImGui::SliderFloat("Ambient", &observerSettings.ambient, 0.f, 3.f, "%.2fx");
+            if (ImGui::Button("Reset lighting", {-1, 30}))
+                observerSettings.resetLighting();
+            ImGui::EndPopup();
+        }
+        if (configuredPanels)
+            panels->drawToolbar();
+        ImGui::SetNextItemWidth(110);
         int oldMode = mode;
         std::string views = "Orbit";
         views += '\0';
@@ -2129,8 +2060,8 @@ class PoolViewer : public rclcpp::Node {
             const glm::vec3 up(cameraPose[1]);
             freeRoll = std::atan2(glm::dot(up, right), glm::dot(up, glm::cross(right, forward)));
         }
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(132);
+        pool::sameLineIfFits(left > 640 ? 132 : 110);
+        ImGui::SetNextItemWidth(left > 640 ? 132 : 110);
         std::string focuses;
         for (const auto &name : focusNames) {
             focuses += name;
@@ -2139,11 +2070,17 @@ class PoolViewer : public rclcpp::Node {
         focuses += '\0';
         if (ImGui::Combo("##focus", &selectedFocus, focuses.c_str()))
             focus(focusNames.at(selectedFocus));
-        ImGui::SameLine();
+        pool::sameLineIfFits(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x +
+                             ImGui::CalcTextSize("Follow").x);
+        if (focusName == "Course")
+            follow = false;
+        ImGui::BeginDisabled(focusName == "Course");
         ImGui::Checkbox("Follow", &follow);
-        ImGui::SameLine();
+        ImGui::EndDisabled();
+        pool::sameLineIfFits(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x +
+                             ImGui::CalcTextSize("Labels").x);
         ImGui::Checkbox("Labels", &labels);
-        ImGui::SameLine();
+        pool::sameLineIfFits(ImGui::CalcTextSize("TF").x + 2 * ImGui::GetStyle().FramePadding.x);
         if (ImGui::Button("TF"))
             ImGui::OpenPopup("TF display");
         tfTreeOpen = false;
@@ -2161,26 +2098,15 @@ class PoolViewer : public rclcpp::Node {
             ImGui::EndPopup();
         }
         if (!demo) {
-            ImGui::SameLine();
+            pool::sameLineIfFits(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x +
+                                 ImGui::CalcTextSize("Detections").x);
             ImGui::Checkbox("Detections", &detections);
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Camera detections use the simulator pose at image capture.\n"
                                   "Each observation stays fixed in the simulated world.");
-            ImGui::SameLine();
-            if (ImGui::Button("Sync sim to ROS"))
-                requestSyncToEstimate();
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Move the simulated vehicle to the EKF's current base_link pose.\n"
-                                  "Velocities are kept and the EKF is not touched, so the\n"
-                                  "\"ROS vs sim\" difference drops to zero from the plant's side.");
-            ImGui::SameLine();
-            if (ImGui::Button("Reset to start"))
-                requestResetToStart();
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Move the simulated vehicle back to its start pose, at rest with\n"
-                                  "thrusters cleared, and re-seed the EKF there like set_sim_pose.\n"
-                                  "Start is the launch pose, or the last explicit set_sim_pose.");
         }
+        if (viewerTools)
+            viewerTools->drawToolsToolbar();
         if (demo && !demoNames.empty()) {
             ImGui::SameLine();
             std::string choices;
@@ -2192,15 +2118,24 @@ class PoolViewer : public rclcpp::Node {
             if (ImGui::Combo("##previewtask", &selectedDemo, choices.c_str()))
                 previewPose(demoNames.at(selectedDemo));
         }
+        viewportToolbarHeight = std::max(80.f, ImGui::GetCursorPosY());
         ImGui::EndChild();
-        float viewHeight = std::max(230.f, contentHeight - 391);
+        float viewHeight = std::max(1.f, ImGui::GetContentRegionAvail().y);
         ImVec2 position = ImGui::GetCursorScreenPos();
         bool hovered = ImGui::IsMouseHoveringRect(position, {position.x + left, position.y + viewHeight});
         // Dropdowns can overlap the viewport. Selecting Free camera must not also
         // consume that click as a mouse-capture request.
         hovered = hovered && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && mode == oldMode &&
                   !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId);
-        auto view = overviewView(left / viewHeight, dt, hovered);
+        pool::panels::Viewport panelView{viewportView.projection,
+                                         viewportView.view,
+                                         viewportView.eye,
+                                         {position.x, position.y},
+                                         {left, viewHeight},
+                                         hovered && mode == 0,
+                                         bool(glfwGetWindowAttrib(window, GLFW_FOCUSED))};
+        const bool dragging = panels && mode == 0 && panels->input(panelView);
+        auto view = overviewView(left / viewHeight, dt, hovered && !dragging, viewHeight);
         viewportView = view;
         // Keep sensor aspect ratios when their view is promoted to the large
         // viewport.
@@ -2213,8 +2148,17 @@ class PoolViewer : public rclcpp::Node {
         overview.resize(std::max(16, int(iw)), std::max(16, int(ih)));
         renderer->pointSize = cloudPointSize;
         renderer->pointHighlight = cloudHighlight;
-        if (mode < 2)
-            renderer->render(overview, view, look, time, true, true, cloudOverlay != 0 && !demo);
+        if (mode < 2) {
+            const auto observerLook = observerSettings.apply(look);
+            // Sensor shadows were rendered before FFC/DFC. Only regenerate for
+            // an observer lighting direction override, after all sensor renders.
+            if (observerLook.shadows && observerLook.outdoor != look.outdoor)
+                renderer->shadows(observerLook);
+            renderer->render(overview, view, observerLook, time, true, true, cloudOverlay != 0 && !demo,
+                             orbitInteracting && !follow ? &target : nullptr);
+            if (mode == 0 && hovered && !dragging && !io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F))
+                focusAtCursor(view, position, left, viewHeight);
+        }
         const GLuint mainTexture = mode < 2 ? overview.final.color
                                             : (cameras[mode - 2].depthPreview && cameras[mode - 2].depthTexture
                                                    ? cameras[mode - 2].depthTexture
@@ -2223,6 +2167,12 @@ class PoolViewer : public rclcpp::Node {
         ImGui::Image(textureID(mainTexture), {iw, ih}, {0, 1}, {1, 0});
         drawTf(view, {position.x + (left - iw) / 2, position.y + (viewHeight - ih) / 2}, iw, ih);
         drawDetections(view, {position.x + (left - iw) / 2, position.y + (viewHeight - ih) / 2}, iw, ih);
+        if (panels && mode == 0) {
+            panelView.projection = view.projection;
+            panelView.view = view.view;
+            panelView.eye = view.eye;
+            panels->drawOverlays(panelView);
+        }
         auto *d = ImGui::GetWindowDrawList();
         d->AddRect(position, {position.x + left, position.y + viewHeight}, IM_COL32(38, 62, 72, 255), 5, 0, 1);
         d->AddRectFilled({position.x + 14, position.y + 14}, {position.x + 237, position.y + 43},
@@ -2255,194 +2205,103 @@ class PoolViewer : public rclcpp::Node {
                     d->AddText(smallFont, 12, {pos.x + 16, pos.y - 28}, color(white), key.c_str());
                 }
         }
-        const char *controls = mode == 1 ? "CLICK  mouse look    WASD  move    SPACE / SHIFT  up / "
-                                           "down    CTRL  fast    ESC  release"
-                                         : "LEFT DRAG  orbit     SCROLL  zoom     RIGHT DRAG  pan";
+        const char *controls = mode == 1
+                                   ? "CLICK  mouse look    WASD  move    SPACE / SHIFT  up / "
+                                     "down    CTRL  fast    ESC  release"
+                                   : "LEFT DRAG  orbit   RIGHT / MIDDLE DRAG  pan   SCROLL  zoom   F  focus cursor";
         d->AddRectFilled({position.x, position.y + viewHeight - 30}, {position.x + left, position.y + viewHeight},
                          IM_COL32(6, 18, 26, 205));
         d->AddText(smallFont, 12, {position.x + 14, position.y + viewHeight - 21}, color(white), controls);
-        ImGui::SetCursorScreenPos({position.x, position.y + viewHeight + 12});
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 8));
-        ImGui::BeginChild("readouts", {left, 76}, ImGuiChildFlags_Borders);
-        const auto p = glm::vec3(body[3]);
-        const float headingDegrees = std::fmod(glm::degrees(std::atan2(body[0].y, body[0].x)) + 360, 360);
-        ImGui::Columns(4, nullptr, false);
-        const std::array<std::pair<std::string, std::string>, 4> values = {
-            {{"VEHICLE", robot},
-             {"DEPTH", fixed(-p.z, 2) + " m"},
-             {"HEADING", fixed(headingDegrees, 1) + " deg"},
-             {"VIEW RATE", fixed(1000 / std::max(frameMs, 1.), 0) + " fps"}}};
-        for (const auto &v : values) {
-            heading(v.first.c_str());
-            ImGui::PushFont(numberFont);
-            ImGui::TextUnformatted(v.second.c_str());
+        ImGui::EndChild();
+        if (sceneSettingsOpen) {
+            ImGui::SetNextWindowPos({sidebar + 18, 180}, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize({std::min(left, 800.f), 390}, ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Scene settings", &sceneSettingsOpen)) {
+                const float left = ImGui::GetContentRegionAvail().x;
+                ImGui::BeginChild("environment", {left, 0}, ImGuiChildFlags_None);
+                if (mechanismControls.size()) {
+                    for (const auto &control : mechanismControls) {
+                        ImGui::BeginDisabled(demo);
+                        if (ImGui::Button(control["label"].as<std::string>().c_str())) {
+                            std_msgs::msg::Bool msg;
+                            msg.data = control["value"].as<bool>(true);
+                            mechanismCommands.at(control["topic"].as<std::string>())->publish(msg);
+                        }
+                        ImGui::EndDisabled();
+                    }
+                }
+                if (ImGui::BeginTabBar("Environment tabs")) {
+                    if (ImGui::BeginTabItem("Lighting")) {
+                        heading("UNDERWATER OPTICS");
+                        ImGui::Checkbox("Calibration board", &look.tag);
+                        ImGui::SetNextItemWidth(left * .17f);
+                        ImGui::SliderFloat("Caustics", &look.caustics, 0, 1, "%.2f");
+                        ImGui::SameLine();
+                        ImGui::Checkbox("Surface", &look.surface);
+                        ImGui::SameLine();
+                        ImGui::Checkbox("Shadows", &look.shadows);
+                        ImGui::Separator();
+                        int profile = look.outdoor ? 1 : 0;
+                        ImGui::SetNextItemWidth(120);
+                        if (ImGui::Combo("Lighting", &profile, "Indoor\0Outdoor\0")) {
+                            look.outdoor = profile == 1;
+                            look.directLight = look.outdoor ? 1.4f : 1.f;
+                            look.ambientLight = look.outdoor ? .6f : .9f;
+                        }
+                        ImGui::SameLine();
+                        ImGui::SetNextItemWidth(130);
+                        ImGui::SliderFloat("Brightness", &look.directLight, 0, 4, "%.2f");
+                        ImGui::SameLine();
+                        ImGui::SetNextItemWidth(125);
+                        ImGui::SliderFloat("Ambient", &look.ambientLight, 0, 2, "%.2f");
+                        if (look.outdoor) {
+                            ImGui::SetNextItemWidth(160);
+                            ImGui::SliderFloat("Sun azimuth", &look.sunAzimuth, 0, 360, "%.0f deg");
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(140);
+                            ImGui::SliderFloat("Elevation", &look.sunElevation, 5, 89, "%.0f deg");
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(120);
+                            ImGui::SliderFloat("Glare", &look.glare, 0, 2, "%.2f");
+                        } else
+                            ImGui::TextDisabled("Diffuse indoor lighting. Switch to Outdoor to "
+                                                "adjust sun and glare.");
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Water appearance")) {
+                        drawWaterControls();
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Depth sensor")) {
+                        drawDepthControls(left);
+                        ImGui::EndTabItem();
+                    }
+                    ImGui::EndTabBar();
+                }
+                ImGui::EndChild();
+            }
+            ImGui::End();
+        }
+        if (cameraSidebarVisible) {
+            ImGui::SetCursorScreenPos({W - 18 - side, contentOrigin.y});
+            ImGui::BeginChild("right", {side, contentHeight}, ImGuiChildFlags_None);
+            const float cardWidth = ImGui::GetContentRegionAvail().x;
+            for (auto &camera : cameras)
+                cameraCard(camera, cardWidth, cardWidth);
+            minimap(cardWidth);
+            ImGui::PushFont(smallFont);
+            ImGui::TextWrapped("%s", demo ? "Scene preview. Start your normal robot "
+                                            "simulation to stream live cameras."
+                                          : "Images follow physics TF. Observer "
+                                            "controls do not move the vehicle.");
             ImGui::PopFont();
-            ImGui::NextColumn();
+            ImGui::EndChild();
         }
-        ImGui::Columns(1);
-        ImGui::EndChild();
-        ImGui::BeginChild("environment", {left, 239}, ImGuiChildFlags_Borders);
-        if (mechanismControls.size()) {
-            for (const auto &control : mechanismControls) {
-                ImGui::BeginDisabled(demo);
-                if (ImGui::Button(control["label"].as<std::string>().c_str())) {
-                    std_msgs::msg::Bool msg;
-                    msg.data = control["value"].as<bool>(true);
-                    mechanismCommands.at(control["topic"].as<std::string>())->publish(msg);
-                }
-                ImGui::EndDisabled();
-            }
-        }
-        if (ImGui::BeginTabBar("Environment tabs")) {
-            if (ImGui::BeginTabItem("Lighting")) {
-                heading("UNDERWATER OPTICS");
-                ImGui::SetNextItemWidth(left * .17f);
-                ImGui::SliderFloat("Caustics", &look.caustics, 0, 1, "%.2f");
-                ImGui::SameLine();
-                ImGui::Checkbox("Surface", &look.surface);
-                ImGui::SameLine();
-                ImGui::Checkbox("Shadows", &look.shadows);
-                ImGui::Separator();
-                int profile = look.outdoor ? 1 : 0;
-                ImGui::SetNextItemWidth(120);
-                if (ImGui::Combo("Lighting", &profile, "Indoor\0Outdoor\0")) {
-                    look.outdoor = profile == 1;
-                    look.directLight = look.outdoor ? 1.4f : 1.f;
-                    look.ambientLight = look.outdoor ? .6f : .9f;
-                }
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(130);
-                ImGui::SliderFloat("Brightness", &look.directLight, 0, 4, "%.2f");
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(125);
-                ImGui::SliderFloat("Ambient", &look.ambientLight, 0, 2, "%.2f");
-                if (look.outdoor) {
-                    ImGui::SetNextItemWidth(160);
-                    ImGui::SliderFloat("Sun azimuth", &look.sunAzimuth, 0, 360, "%.0f deg");
-                    ImGui::SameLine();
-                    ImGui::SetNextItemWidth(140);
-                    ImGui::SliderFloat("Elevation", &look.sunElevation, 5, 89, "%.0f deg");
-                    ImGui::SameLine();
-                    ImGui::SetNextItemWidth(120);
-                    ImGui::SliderFloat("Glare", &look.glare, 0, 2, "%.2f");
-                } else
-                    ImGui::TextDisabled("Diffuse indoor lighting. Switch to Outdoor to "
-                                        "adjust sun and glare.");
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Water appearance")) {
-                drawWaterControls();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Depth sensor")) {
-                drawDepthControls(left);
-                ImGui::EndTabItem();
-            }
-            if (scoringEnabled && ImGui::BeginTabItem("Run score")) {
-                drawRunControls();
-                ImGui::EndTabItem();
-            }
-            if (ui["mechanism_panel"].as<std::string>("") == "payload_claw" && ImGui::BeginTabItem("Tasks & claw")) {
-                if (ImGui::SmallButton("Inspect launcher"))
-                    focus("Payloads");
-                ImGui::SameLine();
-                if (ImGui::SmallButton("Inspect claw"))
-                    focus("Claw");
-                ImGui::SameLine();
-                if (ImGui::SmallButton("Inspect lights"))
-                    focus("magnet_target1");
-                const bool connected = !demo && std::chrono::duration<double>(Clock::now() - lastActuator).count() < 1.;
-                ImGui::TextUnformatted(connected ? "Enable the vehicle in RViz, then arm the actuators."
-                                                 : "Start the live simulator to operate the actuators. Scene preview "
-                                                   "sends no commands.");
-                ImGui::BeginDisabled(!connected);
-                if (ImGui::Button(actuatorStatus.actuators_armed ? "Disarm" : "Arm actuators")) {
-                    std_msgs::msg::Bool command;
-                    command.data = !actuatorStatus.actuators_armed;
-                    taskArm->publish(command);
-                }
-                ImGui::SameLine();
-                ImGui::BeginDisabled(!actuatorStatus.actuators_armed);
-                if (ImGui::Button("Fire torpedo"))
-                    taskTorpedo->publish(std_msgs::msg::Empty{});
-                ImGui::SameLine();
-                if (ImGui::Button("Drop marker"))
-                    taskDropper->publish(std_msgs::msg::Empty{});
-                ImGui::SameLine();
-                if (ImGui::Button("Open claw")) {
-                    std_msgs::msg::Bool command;
-                    command.data = true;
-                    taskClaw->publish(command);
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Close claw")) {
-                    std_msgs::msg::Bool command;
-                    command.data = false;
-                    taskClaw->publish(command);
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Stop claw")) {
-                    std_msgs::msg::Float32 command;
-                    command.data = 0;
-                    taskClawTimed->publish(command);
-                }
-                ImGui::EndDisabled();
-                ImGui::SameLine();
-                if (ImGui::Button("Reload / disarm"))
-                    taskReload->publish(std_msgs::msg::Empty{});
-                if (ImGui::Button("Reset all tasks"))
-                    taskReset->publish(std_msgs::msg::Empty{});
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip(
-                        "Clear released payloads and scores, reset lights and table props, reload and disarm.");
-                ImGui::EndDisabled();
-                ImGui::Text("Remaining: %u torpedoes / %u markers",
-                            demo ? 2u : unsigned(actuatorStatus.torpedo_available_count),
-                            demo ? 2u : unsigned(actuatorStatus.dropper_available_count));
-                ImGui::SameLine();
-                ImGui::Text(" / Jaw gap: %.0f mm", 1000 * (clawMinGap + clawJoints[0] + clawJoints[1]));
-                ImGui::TextWrapped("%s", taskScore.c_str());
-                for (const auto &light : magnetStates)
-                    ImGui::TextColored(light.second ? ImVec4(.2f, 1.f, .3f, 1.f) : ImVec4(1.f, .3f, .25f, 1.f),
-                                       "%s: %s", light.first.c_str(), light.second ? "GREEN" : "RED");
-                for (const auto &event : taskEvents)
-                    ImGui::TextDisabled("%s", event.c_str());
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
-        ImGui::EndChild();
-        ImGui::PopStyleVar();
-        ImGui::EndChild();
-        ImGui::SameLine();
-        ImGui::BeginChild("right", {side, contentHeight}, ImGuiChildFlags_None);
-        const float previewHeight = std::max(90.f, (contentHeight - 605.f) / 2.f);
-        for (auto &camera : cameras)
-            cameraCard(camera, side, previewHeight);
-        minimap(side);
-        ImGui::PushFont(smallFont);
-        ImGui::TextColored(muted, "RENDER PROFILE");
-        ImGui::PopFont();
-        ImGui::SetNextItemWidth(side - 85);
-        ImGui::SliderFloat("Exposure", &look.exposure, .4f, 2.0f, "%.2f");
-        ImGui::Checkbox("Calibration board", &look.tag);
-        ImGui::PushFont(smallFont);
-        ImGui::TextWrapped("%s", demo ? "Scene preview. Start your normal robot "
-                                        "simulation to stream live cameras."
-                                      : "Images follow physics TF. Observer "
-                                        "controls do not move the vehicle.");
-        ImGui::PopFont();
-        ImGui::EndChild();
-        ImGui::Separator();
-        ImGui::PushFont(smallFont);
-        ImGui::TextColored(muted, "OPENGL 3.3   /   %zu triangles   /   %s", renderer->triangles,
-                           reinterpret_cast<const char *>(glGetString(GL_RENDERER)));
-        ImGui::SameLine();
-        if (!lastCapture.empty())
-            ImGui::TextColored(cyan, "   Saved capture");
-        ImGui::PopFont();
         ImGui::End();
-        drawScorecard();
+        if (panels)
+            panels->drawWindows();
+        if (viewerTools)
+            viewerTools->drawWindows();
     }
     void saveScreenshot() {
         int w, h;

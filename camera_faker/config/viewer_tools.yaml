@@ -1,0 +1,30 @@
+schema_version: 1
+providers:
+  run:
+    type: sim.run
+    options:
+      profile: task
+      command_topic: simulator/run_command
+      score_topic: simulator/run_score
+      task_score_topic: simulator/task_score
+      events_topic: simulator/task_events
+      lights_topic: simulator/magnet_lights
+      joints_topic: simulator/claw_joints
+      reset_topic: simulator/reset_tasks
+  simulation:
+    type: ros.simulation_rate
+    options:
+      node: physics_simulator
+      parameter: real_time_factor
+      max_rate: 10
+      sync_service: sync_sim_to_estimate
+      reset_service: reset_sim_to_start
+tools:
+  - id: run
+    type: run
+    provider: run
+    options: {profile: task}
+  - id: simulation
+    slot: settings
+    type: simulation
+    provider: simulation

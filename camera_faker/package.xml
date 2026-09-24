@@ -9,12 +9,16 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_action</depend>
+  <depend>action_msgs</depend>
+  <depend>rcl_interfaces</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>std_srvs</depend>
   <depend>riptide_msgs2</depend>
+  <depend>chameleon_tf_msgs</depend>
   <exec_depend>c_simulator</exec_depend>
   <exec_depend>riptide_meshes</exec_depend>
   <exec_depend>riptide_descriptions2</exec_depend>

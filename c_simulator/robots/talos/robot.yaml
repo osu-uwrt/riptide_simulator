@@ -24,6 +24,7 @@ cameras:
   topic_root: dfc/zed_node
   truth_tf_owner: viewer
 viewer:
+  panels_config: config/viewer.yaml
   thruster_visuals_config: package://camera_faker/models/talos3/thrusters.yaml
   status_lights_config: config/status_lights.yaml
   payload_model: package://camera_faker/models/payloads/projectile.glb

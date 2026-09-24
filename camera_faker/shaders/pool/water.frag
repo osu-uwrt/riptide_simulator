@@ -9,7 +9,7 @@ uniform vec3 poolSize;
 uniform vec2 resolution;
 uniform float time,directLight,ambientLight,glare;
 uniform int outdoor;
-uniform int hasReflection;
+uniform int hasReflection,surfaceReflections;
 uniform mat4 mapToPool;
 void main(){
   vec2 p=world.xy;
@@ -25,9 +25,10 @@ void main(){
   float fresnel=.02+.98*pow(1-abs(dot(n,v)),5);
   vec3 reflected=hasReflection==1?texture(reflectionColor,clamp(uv+offset*1.5,vec2(.001),vec2(.999))).rgb:(outdoor==1?vec3(.30,.48,.68):vec3(.13,.16,.18))*ambientLight;
   if(eye.z<waterLevel){n=-n;fresnel=clamp(fresnel+.18,0.,.9);reflected=waterTint;}
+  if(surfaceReflections==0 && eye.z>=waterLevel)fresnel=0.;
   vec3 color=mix(below,reflected,fresnel);
   vec3 sun=normalize(sunDirection);
-  color+=vec3(1.,.94,.8)*pow(max(dot(reflect(-sun,n),v),0.),220.)*glare*directLight*15.;
+  if(surfaceReflections==1 || eye.z<waterLevel)color+=vec3(1.,.94,.8)*pow(max(dot(reflect(-sun,n),v),0.),220.)*glare*directLight*15.;
   // Narrow bright edge at the pool wall is a visual meniscus, not a collision surface.
   vec2 q=(mapToPool*vec4(world,1)).xy;
   float edge=min(min(q.x,poolSize.x-q.x),min(q.y,poolSize.y-q.y));

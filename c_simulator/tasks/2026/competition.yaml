@@ -64,7 +64,13 @@ ui:
     table:
       depth: 0.55
       camera: dfc
-  mechanism_panel: payload_claw
+  run_inspections:
+  - {label: Inspect launcher, target: Payloads}
+  - {label: Inspect claw, target: Claw}
+  - {label: Inspect lights, target: magnet_target1}
+  status_fields:
+  - {key: intended_role, label: Assigned role}
+  - {key: role, label: Scored role}
 required_frames:
 - torpedo
 - bin_vinyl1

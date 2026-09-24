@@ -1,0 +1,72 @@
+schema_version: 1
+sidebar_width_fraction: 0.29
+providers:
+  motion:
+    type: uwrt.motion
+    options:
+      base_frame: "{namespace}/base_link"
+      command_frame: world
+      linear_topic: controller/linear
+      angular_topic: controller/angular
+      kill_topic: command/software_kill
+      kill_state_topic: state/kill
+      mode_service: setTeleop
+      kill_switch_id: 1
+  mission:
+    type: uwrt.autonomy
+    options:
+      action: autonomy/run_tree
+      list_service: autonomy/list_trees
+      stack_topic: autonomy/tree_stack
+  mapping:
+    type: uwrt.mapping
+    options:
+      calibration_action: map/model_tf
+      reset_service: mapping/reset_mapping
+      target_service: mapping_target
+      status_topic: state/mapping
+  actuators:
+    type: uwrt.actuators
+    options:
+      status_topic: state/actuator/status
+      commands:
+        - {id: arm, label: Arm actuators, armed_label: Disarm, topic: command/actuator/arm, type: bool, toggle_armed: true}
+        - {id: torpedo, label: Fire torpedo, topic: command/actuator/torpedo, type: empty, requires_armed: true}
+        - {id: dropper, label: Drop marker, topic: command/actuator/dropper, type: empty, requires_armed: true}
+        - {id: open_claw, label: Open claw, topic: command/actuator/claw, type: bool, value: true, requires_armed: true}
+        - {id: close_claw, label: Close claw, topic: command/actuator/claw, type: bool, value: false, requires_armed: true}
+        - {id: stop_claw, label: Stop claw, topic: command/actuator/claw_move_s, type: float32, value: 0, requires_armed: true}
+        - {id: reload, label: Reload / disarm, topic: command/actuator/notify_reload, type: empty}
+panels:
+  - id: control
+    type: motion
+    title: Motion
+    provider: motion
+    options:
+      dive_z: -0.75
+  - id: mapping
+    type: mapping
+    title: Mapping
+    provider: mapping
+    open: false
+    options: {parent_frame: world, tag_frame: estimated_origin_frame, samples: 10}
+  - id: actuators
+    type: actuators
+    title: Actuators
+    provider: actuators
+    open: false
+  - id: mission
+    type: autonomy
+    title: Autonomy
+    provider: mission
+overlays:
+  - id: target
+    type: pose_gizmo
+    title: Robot controls
+    provider: motion
+    options:
+      size_metres: 0.3
+      hit_pixels: 20
+ownership:
+  - motion: motion
+    autonomy: mission
