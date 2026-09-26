@@ -432,8 +432,14 @@ class TaskSimulator(Node):
             p = self.truth.pose.pose
             body = frame([p.position.x, p.position.y, p.position.z], quat_rotation(p.orientation))
             if self.claw and self.run.eligible:
-                self.run.basket_contents = self.claw.basket_contents()
+                contents = self.claw.basket_contents()
+                if contents != self.run.basket_contents:
+                    self.get_logger().info(f"Basket contents changed: {contents}")
+                self.run.basket_contents = contents
             self.judge.update(body, course_dt, self.claw.held if self.claw else None)
+            for line in self.judge.turn_log:
+                self.get_logger().info(line)
+            self.judge.turn_log.clear()
             self.update_role()
         elif self.judge:
             self.judge.previous = None

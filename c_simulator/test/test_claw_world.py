@@ -80,6 +80,17 @@ class ClawContactTest(unittest.TestCase):
             self.w.command(True);self.assertIsNone(self.w.held)
             self.step(3.)
             self.assertIn((key,'success',basket),self.w.events)
+    def test_stacked_props_in_one_basket_both_count(self):
+        # A second prop dropped onto the first rests on it, not on the basket.
+        for key in ('bandage','pill'):
+            self.body[:3,:3]=np.eye(3);self.body[:3,3]=[0,0,1];self.step(.3)
+            self.grasp(key);self.move(self.body[:3,3]+[0,0,.3])
+            self.move(self.frames['helmet'][:3,3]+[0,0,.25],3.)
+            self.w.command(True);self.step(3.)
+            self.assertIn((key,'success','helmet'),self.w.events)
+        stacked=self.w.b.getContactPoints(self.w.props['pill']['id'],self.w.props['bandage']['id'])
+        self.assertTrue(stacked,'pill did not land on the bandage; test no longer covers stacking')
+        self.assertEqual(self.w.basket_contents(),{'bandage':'helmet','pill':'helmet'})
     def test_correct_basket_and_surface(self):
         self.grasp('pill');self.move(self.body[:3,3]+[0,0,.3])
         self.move(np.array([self.body[0,3],self.body[1,3],.1]),3.)

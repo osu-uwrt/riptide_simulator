@@ -61,7 +61,10 @@ scoring:
   surface_dwell: 0.5
   facing_tolerance_deg: 15.0
   facing_dwell: 0.5
-  turn_tolerance_deg: 15.0
+  turn_tolerance_deg: 30.0 # a rotation this far short of N full turns still counts as N
+  turn_dwell: 1.0 # heading held within turn_settle_deg this long judges the turns so far (a stop does not reset them)
+  turn_settle_deg: 10.0
+  turn_reversal_deg: 15.0 # backing off the furthest heading by more than this restarts the count
 table_collision:
   slab_size:
   - 0.635

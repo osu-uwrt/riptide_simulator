@@ -315,7 +315,7 @@ class ClawWorld:
         t[:3, 3] -= t[:3, :3] @ p["center"]
         return t
 
-    def basket_destination(self, key):
+    def basket_destination(self, key, _resting=()):
         p = self.props[key]
         if key == self.held:
             return None
@@ -330,6 +330,15 @@ class ClawWorld:
             ):
                 if self.b.getContactPoints(p["id"], self.statics[basket]):
                     return basket
+                # Stacked: resting on another prop that is itself in this basket.
+                resting = (*_resting, key)
+                for other, o in self.props.items():
+                    if (
+                        other not in resting
+                        and self.b.getContactPoints(p["id"], o["id"])
+                        and self.basket_destination(other, resting) == basket
+                    ):
+                        return basket
         return None
 
     def basket_contents(self):

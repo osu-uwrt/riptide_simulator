@@ -42,8 +42,14 @@ are needed for the existing contact models.
 Detailed references: [physics](c_simulator/docs/PHYSICS.md),
 [Talos mechanisms](c_simulator/docs/TASKS.md), and
 [2026 scoring](c_simulator/docs/SCORING.md).
-The [architecture plan](docs/REUSABILITY_PLAN.md) includes longer-term work;
-use the guides above for the current implementation.
+The [architecture and migration plan](docs/REUSABILITY_PLAN.md) describes a complete
+refactor in a new project folder, with a standalone runtime, independent viewer,
+optional ROS/UWRT integrations, and engineering quality gates. Old package/API
+compatibility does not constrain the new design. The viewer supports simulation and live
+robot visualization, with a path toward replacing RViz workflows and viewing
+recorded data. Training integrations are out of scope; explicit stepping and
+reset contracts keep that future use possible. Use the guides above for the
+current implementation.
 
 ## Time and reset
 

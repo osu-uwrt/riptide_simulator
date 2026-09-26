@@ -278,6 +278,7 @@ class CourseJudge:
     def __init__(self, score, cfg, frames, vertices):
         self.score, self.cfg, self.frames = score, cfg, frames
         self.vertices = np.asarray(vertices)
+        self.turn_log = []  # drained by the node; survives judge resets
         self.reset()
 
     def reset(self):
@@ -286,12 +287,37 @@ class CourseJudge:
         self.gate_entry_side = None
         self.submerged = False
         self.surface_dwell = 0.0
-        self.restore_yaw = 0.0
         self.facing_dwell = 0.0
         self.facing = None
         self.previous_count = 0
-        self.turn_dwell = 0.0
+        self.reset_turns()
         self.gate_crossing = None
+
+    def reset_turns(self):
+        self.restore_yaw = self.settle_yaw = self.spin_start = self.spin_peak = 0.0
+        self.turn_dwell = 0.0
+        self.turn_judged = False
+        self.turn_tracking = False
+
+    def judge_turns(self, reason):
+        """Judge the one-direction rotation so far (start to furthest heading).
+        Stops keep it going; only a reversal ends it (see update)."""
+        travel = abs(self.spin_peak - self.spin_start)
+        if travel < math.radians(30):
+            return
+        tolerance = math.radians(self.cfg["turn_tolerance_deg"])
+        turns = int((travel + tolerance) // (2 * math.pi))
+        before = self.score.points["basket_count"]
+        self.score.basket_turns(turns)
+        after = self.score.points["basket_count"]
+        self.log_turn(
+            f"{reason}: rotation {math.degrees(travel):.0f} deg -> {turns} "
+            f"turn(s) for {len(self.score.basket_contents)} object(s); basket_count "
+            + (f"{before} -> {after}" if after != before else f"stays {after}")
+        )
+
+    def log_turn(self, message):
+        self.turn_log.append("Basket turns: " + message)
 
     def local(self, key, body):
         return np.linalg.inv(self.frames[key]) @ body
@@ -379,25 +405,47 @@ class CourseJudge:
         restore_near = np.linalg.norm(self.local("table", body)[:3, 3]) <= c["attempt_radius"]
         if restore_near and s.eligible:
             count = len(s.basket_contents)
-            if count != self.previous_count:
-                self.restore_yaw = self.turn_dwell = 0.0
+            if not self.turn_tracking:
+                self.reset_turns()
+                self.previous_count = count
+                self.log_turn(f"entered table area with {count} object(s) in baskets")
+            elif count != self.previous_count:
+                self.log_turn(
+                    f"basket count {self.previous_count} -> {count}; discarding "
+                    f"{math.degrees(abs(self.spin_peak - self.spin_start)):.0f} deg of rotation"
+                )
+                self.reset_turns()
                 self.previous_count = count
             elif self.previous is not None:
                 yaw = math.atan2(body[1, 0], body[0, 0])
                 last = math.atan2(self.previous[1, 0], self.previous[0, 0])
-                change = math.atan2(math.sin(yaw - last), math.cos(yaw - last))
-                self.restore_yaw += change
-                self.turn_dwell = (
-                    self.turn_dwell + dt if abs(change) <= math.radians(5) * dt else 0.0
-                )
-            angle = abs(self.restore_yaw)
-            turns = int(round(angle / (2 * math.pi)))
-            if self.turn_dwell >= c["facing_dwell"] and abs(
-                angle - turns * 2 * math.pi
-            ) <= math.radians(c["turn_tolerance_deg"]):
-                s.basket_turns(turns)
-        else:
-            self.restore_yaw = self.turn_dwell = 0.0
+                self.restore_yaw += math.atan2(math.sin(yaw - last), math.cos(yaw - last))
+                if abs(self.restore_yaw - self.spin_start) > abs(self.spin_peak - self.spin_start):
+                    self.spin_peak = self.restore_yaw
+                # Backing off the furthest heading by more than turn_reversal_deg
+                # ends the rotation at that peak; the count restarts from there.
+                elif abs(self.spin_peak - self.restore_yaw) > math.radians(c["turn_reversal_deg"]):
+                    self.judge_turns("rotation reversed")
+                    self.log_turn(
+                        f"direction reversed after {math.degrees(abs(self.spin_peak - self.spin_start)):.0f}"
+                        " deg of rotation; count restarts"
+                    )
+                    self.spin_start, self.spin_peak = self.spin_peak, self.restore_yaw
+                # Stopped = heading held within turn_settle_deg for turn_dwell (a
+                # time window, so stale ground-truth ticks never read as a stop).
+                if abs(self.restore_yaw - self.settle_yaw) <= math.radians(c["turn_settle_deg"]):
+                    self.turn_dwell += dt
+                else:
+                    self.settle_yaw, self.turn_dwell = self.restore_yaw, 0.0
+                    self.turn_judged = False
+            self.turn_tracking = True
+            if self.turn_dwell >= c["turn_dwell"] and not self.turn_judged:
+                self.turn_judged = True
+                self.judge_turns("rotation stopped")  # judged, but the count continues
+        elif self.turn_tracking:
+            if s.eligible:
+                self.judge_turns("left table area")
+            self.reset_turns()
         if at_surface and s.eligible:
             self.surface_dwell += dt
             if self.surface_dwell >= c["surface_dwell"]:

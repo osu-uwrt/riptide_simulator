@@ -258,7 +258,7 @@ class GeometryTest(unittest.TestCase):
         self.move(10,0,-.19,dt=.6)
         for angle in np.linspace(0,4*math.pi,121):self.move(10,0,-.19,angle)
         self.assertEqual(self.s.points['basket_count'],0)
-        self.move(10,0,-.19,0,dt=.6)
+        self.move(10,0,-.19,0,dt=1.2)
         self.assertEqual(self.s.points['basket_count'],1000)
 
     def test_only_partial_footprint_inside_is_a_breach_not_full_credit(self):
@@ -272,9 +272,84 @@ class GeometryTest(unittest.TestCase):
         self.gate();self.s.basket_contents={'plug':'warning'}
         self.move(10,0,-1)
         for angle in np.linspace(0,2*math.pi,61):self.move(10,0,-1,angle)
-        self.move(10,0,-1,0,dt=.6)
+        self.move(10,0,-1,0,dt=1.2)
         self.assertEqual(self.s.points['basket_count'],1000)
         self.assertEqual(self.s.points['surface'],0)
+
+    def test_reorienting_before_turn_signal_does_not_offset_count(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet'}
+        self.move(10,0,-1,dt=.6)
+        for angle in np.linspace(0,math.pi/2,16):self.move(10,0,-1,angle)
+        self.move(10,0,-1,math.pi/2,dt=2)
+        for angle in np.linspace(math.pi/2,math.pi/2+4*math.pi,121):
+            # 100 Hz clock ticks can repeat a stale ground-truth pose mid-spin
+            self.move(10,0,-1,angle,dt=.02);self.move(10,0,-1,angle,dt=.01)
+        self.assertEqual(self.s.points['basket_count'],0)
+        self.move(10,0,-1,math.pi/2,dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],1000)
+
+    def test_slow_lead_limited_spin_is_not_split(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet','bandage':'helmet'}
+        self.move(10,0,-1,dt=1.2)
+        angle=0.
+        while angle<6*math.pi:
+            # ~11 deg/s average with brief hesitations, like the sim's spin
+            for _ in range(3):self.move(10,0,-1,angle,dt=.1)
+            angle=min(6*math.pi,angle+math.radians(4))
+        self.assertEqual(self.s.points['basket_count'],0)
+        self.move(10,0,-1,angle,dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],1000)
+
+    def spin(self,start,stop,step=math.radians(4)):
+        for angle in np.arange(start,stop,np.sign(stop-start)*step):self.move(10,0,-1,angle)
+        self.move(10,0,-1,stop)
+
+    def test_continuous_turns_ignore_reorientation_and_allow_shortfall(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet','bandage':'helmet'}
+        self.move(10,0,-1,dt=1.2)
+        self.spin(0,-math.radians(150))                       # face the sign the other way
+        self.spin(-math.radians(150),-math.radians(150)+6*math.pi-math.radians(25))
+        self.assertEqual(self.s.points['basket_count'],0)
+        self.move(10,0,-1,-math.radians(150)+6*math.pi-math.radians(25),dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],1000)   # 25 deg short still counts
+        self.assertTrue(any('reversed' in line for line in self.j.turn_log))
+        self.assertTrue(any('basket_count 0 -> 1000' in line for line in self.j.turn_log))
+
+    def test_stops_keep_the_count_going(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet','bandage':'helmet'}
+        self.move(10,0,-1,dt=1.2)
+        self.spin(0,2*math.pi)
+        self.move(10,0,-1,2*math.pi,dt=2)
+        self.spin(2*math.pi,6*math.pi)
+        self.move(10,0,-1,6*math.pi,dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],1000)
+
+    def test_reversal_past_threshold_restarts_the_count(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet','bandage':'helmet'}
+        self.move(10,0,-1,dt=1.2)
+        self.spin(0,2*math.pi)
+        self.spin(2*math.pi,2*math.pi-math.radians(20))
+        self.spin(2*math.pi-math.radians(20),6*math.pi-math.radians(20))
+        self.move(10,0,-1,6*math.pi-math.radians(20),dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],500)    # 2 turns after the reversal
+        self.assertTrue(any('count restarts' in line for line in self.j.turn_log))
+
+    def test_small_backoff_does_not_restart_the_count(self):
+        self.gate();self.s.basket_contents={'plug':'warning','pill':'helmet','bandage':'helmet'}
+        self.move(10,0,-1,dt=1.2)
+        self.spin(0,2*math.pi)
+        self.spin(2*math.pi,2*math.pi-math.radians(10))
+        self.spin(2*math.pi-math.radians(10),6*math.pi)
+        self.move(10,0,-1,6*math.pi,dt=1.2)
+        self.assertEqual(self.s.points['basket_count'],1000)
+
+    def test_turns_are_judged_on_leaving_table_area(self):
+        self.gate();self.s.basket_contents={'plug':'warning'}
+        self.move(10,0,-1)
+        self.spin(0,2*math.pi)
+        for x in np.arange(10,14,.2):self.move(x,0,-1,2*math.pi,dt=.02)  # exits before a 1 s stop
+        self.assertEqual(self.s.points['basket_count'],1000)
+        self.assertTrue(any('left table area' in line for line in self.j.turn_log))
 
     def test_teleport_cannot_sweep_through_slalom_for_points(self):
         self.gate()

@@ -108,10 +108,14 @@ For surfacing, the entire projected envelope must be inside the octagon. The top
 of the envelope must reach water level for 0.5 s after previously submerging.
 This models surfacing at the waterline, not lifting the entire robot out of the
 water. Facing means horizontal bow bearing within 15 degrees of the sign for
-0.5 s. Basket signaling counts net full yaw turns within the table's 3 m task
-buffer, underwater or at the surface, with a 15-degree turn tolerance and a
-stationary-heading dwell. Leaving that buffer or changing the basket count
-starts a new rotation measurement. Zero turns does not
+0.5 s. Basket signaling counts completed turns of one rotation in a single direction
+within the table's 3 m task buffer, underwater or at the surface. Stops do not
+break the rotation; backing off its furthest heading by more than 15 degrees
+(a reversal) ends it and restarts the count from there. The turns so far are
+judged, with a 30-degree shortfall allowance, whenever the heading holds within
+10 degrees for 1 s, at a reversal, and when the vehicle leaves the buffer; the
+best award stands. Changing the basket count discards the rotation in
+progress. Each step is logged by the task simulator as `Basket turns: ...`. Zero turns does not
 earn the near-count award. These tolerances are simulator conventions, exposed
 under `scoring` in the task YAML, not additional official rules.
 
