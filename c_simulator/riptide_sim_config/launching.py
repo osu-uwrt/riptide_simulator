@@ -13,6 +13,16 @@ def arguments():
         DeclareLaunchArgument("year", default_value="2026"),
         DeclareLaunchArgument("scenario", default_value="default"),
         DeclareLaunchArgument("resolved_config", default_value=""),
+        DeclareLaunchArgument(
+            "sim_mass",
+            default_value="",
+            description="Simulated vehicle mass [kg]; controllers keep the vehicle YAML's mass",
+        ),
+        DeclareLaunchArgument(
+            "sim_com",
+            default_value="",
+            description="Simulated COM 'x,y,z' in the vehicle YAML (CAD) frame; controllers keep its com",
+        ),
     ] + [
         DeclareLaunchArgument(key, default_value="")
         for key in (
@@ -53,6 +63,8 @@ def run(context):
                         "random_seed",
                         "sensor_noise",
                         "collisions",
+                        "sim_mass",
+                        "sim_com",
                     )
                     if values.get(k)
                 },

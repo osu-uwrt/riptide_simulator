@@ -249,6 +249,18 @@ def resolve(
         raise ValueError(f"{rp}: expected one efficiency per thruster")
     for key in ("com", "base_link"):
         finite_vector(vehicle[key], 3, f"{rp}: {key}")
+    # Plant-only mass properties. mass/com stay nominal because controllers load this
+    # snapshot as their model; only the simulator reads the sim_plant_* keys.
+    if o.get("sim_mass"):
+        vehicle["sim_plant_mass"] = float(o["sim_mass"])
+        if not math.isfinite(vehicle["sim_plant_mass"]) or vehicle["sim_plant_mass"] <= 0:
+            raise ValueError("sim_mass must be finite and positive")
+    if o.get("sim_com"):
+        com = o["sim_com"]
+        if isinstance(com, str):
+            com = [float(v) for v in com.strip("[] ").replace(",", " ").split()]
+        vehicle["sim_plant_com"] = [float(v) for v in com]
+        finite_vector(vehicle["sim_plant_com"], 3, "sim_com")
     for i, thruster in enumerate(vehicle["thrusters"]):
         finite_vector(thruster["pose"], 6, f"{rp}: thrusters[{i}].pose")
     for value in hydro["thruster_efficiencies"]:

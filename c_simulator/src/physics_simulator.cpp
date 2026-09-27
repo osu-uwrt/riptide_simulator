@@ -203,6 +203,9 @@ class PhysicsSimNode : public rclcpp::Node {
         }
         dvlSigma = declare_parameter<double>("dvl_noise_stddev", robot.getDVLSigma());
         dvlVariance = declare_parameter<double>("dvl_variance", std::max(1e-9, dvlSigma * dvlSigma));
+        // The real DVL loses bottom lock when tilted away from the floor. Beyond
+        // this tilt (rad) the simulated one goes silent too; 0 never loses lock.
+        declare_parameter<double>("dvl_max_tilt", 0.0);
         imuGravity = declare_parameter<double>("imu_gravity", GRAVITY);
         imuYawDrift = declare_parameter<double>("imu_yaw_drift", robot.getIMUDrift());
         if (!std::isfinite(dvlSigma) || dvlSigma < 0 || !std::isfinite(dvlVariance) || dvlVariance <= 0 ||
@@ -694,7 +697,8 @@ class PhysicsSimNode : public rclcpp::Node {
             }
             if (task["claw"]) {
                 const auto vehicle = YAML::LoadFile(get_parameter("vehicle_config").as_string());
-                const auto c = vehicle["com"].as<std::vector<double>>();
+                const auto c =
+                    (vehicle["sim_plant_com"] ? vehicle["sim_plant_com"] : vehicle["com"]).as<std::vector<double>>();
                 taskContacts = std::make_unique<TaskContacts>(task, (collisionFolder / "tasks").string(),
                                                               v3d(c[0], c[1], c[2]), resolve);
                 auto addBox = [&](collisionBox &box, bool attached) {
@@ -844,6 +848,11 @@ class PhysicsSimNode : public rclcpp::Node {
     void publishFakeDVLData() {
         if (robot.dvlTransformAvailable()) {
             vXd state = robot.getState();
+            const double maxTilt = get_parameter("dvl_max_tilt").as_double();
+            const v3d down = state2quat(state) * (robot.getDVLQuat() * v3d(0, 0, -1)); // DVL boresight, world
+            if (maxTilt > 0 && std::acos(std::clamp(-down.z(), -1., 1.)) > maxTilt)
+                return; // no bottom lock
+
             const v3d angularVel = state.segment(10, 3);
             const v3d linearVel = state.segment(7, 3);
 

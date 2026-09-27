@@ -114,6 +114,11 @@ def generate_launch_description():
             default_value="false",
             description="Draw yolo_orientation markers at the true camera pose their image was rendered from",
         ),
+        DeclareLaunchArgument(
+            "mpc_path",
+            default_value="false",
+            description="Draw the riptide_mpc predicted path (controller/mpc/predicted_path) at the true vehicle",
+        ),
     ]
     return LaunchDescription(profile_arguments() + arguments + [OpaqueFunction(function=viewer)])
 
@@ -184,6 +189,7 @@ def viewer(context):
                     "exit_after_frames": ParameterValue(LC("exit_after_frames"), value_type=int),
                     "screenshot_path": ParameterValue(LC("screenshot_path"), value_type=str),
                     "detections": ParameterValue(LC("detections"), value_type=bool),
+                    "mpc_path": ParameterValue(LC("mpc_path"), value_type=bool),
                     "point_cloud.overlay": ParameterValue(
                         LC("point_cloud_overlay"), value_type=int
                     ),

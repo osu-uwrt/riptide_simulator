@@ -100,8 +100,19 @@ void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_conf
             throw std::invalid_argument("Expected flat 36-element or nested 6x6 matrix");
         return m;
     };
-    mass = vehicle_config["mass"].as<double>();
-    const v3d r_com = std2v3d(vehicle_config["com"].as<std::vector<double>>());
+    // sim_plant_* (resolver sim_mass/sim_com) let the plant differ from the nominal
+    // mass properties that controllers load from the same vehicle YAML.
+    const v3d nominalCom = std2v3d(vehicle_config["com"].as<std::vector<double>>());
+    mass = vehicle_config["sim_plant_mass"].as<double>(vehicle_config["mass"].as<double>());
+    const v3d r_com = vehicle_config["sim_plant_com"]
+                          ? std2v3d(vehicle_config["sim_plant_com"].as<std::vector<double>>())
+                          : nominalCom;
+    // Hydro centers are relative to the nominal COM; keep them fixed on the hull.
+    const v3d comShift = r_com - nominalCom;
+    if (vehicle_config["sim_plant_mass"] || vehicle_config["sim_plant_com"])
+        RCLCPP_WARN(node->get_logger(),
+                    "Plant mass properties override: mass %.3f kg (nominal %.3f), COM shift [%.4f, %.4f, %.4f] m", mass,
+                    vehicle_config["mass"].as<double>(), comShift.x(), comShift.y(), comShift.z());
     const auto inertia = hydro["rigid_body_inertia3x3"].as<std::vector<double>>();
     if (inertia.size() != 9)
         throw std::invalid_argument("Expected row-major 3x3 rigid inertia");
@@ -118,9 +129,9 @@ void Robot::storeConfigData(YAML::Node vehicle_config, YAML::Node simulator_conf
     for (int i = 0; i < 6; ++i)
         qd[i] = quadratic[i];
     marineDynamics.configureDamping(matrix6(hydro["linear_damping6x6"]), qd,
-                                    std2v3d(hydro["damping_center_relative"].as<std::vector<double>>()));
+                                    std2v3d(hydro["damping_center_relative"].as<std::vector<double>>()) - comShift);
     marineDynamics.configureHydrostatics(hydro["water_density"].as<double>(), hydro["displaced_volume"].as<double>(),
-                                         std2v3d(hydro["cob_relative"].as<std::vector<double>>()),
+                                         std2v3d(hydro["cob_relative"].as<std::vector<double>>()) - comShift,
                                          std2v3d(hydro["buoyancy_radii"].as<std::vector<double>>()), GRAVITY,
                                          hydro["water_level"].as<double>(0));
     waterCurrentWorld = std2v3d(hydro["current_velocity"].as<std::vector<double>>());

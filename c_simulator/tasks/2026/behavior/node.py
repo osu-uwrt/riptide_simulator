@@ -193,7 +193,7 @@ class TaskSimulator(Node):
                 vertices.extend(
                     rotation(rpy) @ (size * np.array(sign))
                     + xyz
-                    + np.asarray(vehicle["com"])
+                    + np.asarray(vehicle.get("sim_plant_com", vehicle["com"]))
                     - self.base
                     for sign in itertools.product((-1, 1), repeat=3)
                 )

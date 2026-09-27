@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <nav_msgs/msg/path.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <random>
@@ -56,6 +57,11 @@ namespace {
 glm::mat4 matrix(const geometry_msgs::msg::Transform &t) {
     const auto &q = t.rotation;
     return glm::translate(glm::mat4(1), glm::vec3(t.translation.x, t.translation.y, t.translation.z)) *
+           glm::mat4_cast(glm::normalize(glm::quat(q.w, q.x, q.y, q.z)));
+}
+glm::mat4 matrix(const geometry_msgs::msg::Pose &p) {
+    const auto &q = p.orientation;
+    return glm::translate(glm::mat4(1), glm::vec3(p.position.x, p.position.y, p.position.z)) *
            glm::mat4_cast(glm::normalize(glm::quat(q.w, q.x, q.y, q.z)));
 }
 geometry_msgs::msg::Transform transform(const glm::mat4 &m) {
@@ -137,6 +143,7 @@ class PoolViewer : public rclcpp::Node {
         exitFrames = declare_parameter<int>("exit_after_frames", 0);
         screenshot = declare_parameter<std::string>("screenshot_path", "");
         detections = declare_parameter<bool>("detections", false);
+        showMpcPath = declare_parameter<bool>("mpc_path", false);
         renderRate = declare_parameter<double>("render_rate", 30.);
         previewWidth = declare_parameter<int>("camera_preview_width", 480);
         profile = declare_parameter<bool>("profile", false);
@@ -649,6 +656,7 @@ class PoolViewer : public rclcpp::Node {
             updatePose();
             captureTf();
             captureDetections();
+            captureMpcPath();
             thrusterVisuals.advance(now().seconds());
             for (const auto &rotor : thrusterVisuals.rotors)
                 renderer->thrusterRotor(rotor.id, rotor.transform());
@@ -805,7 +813,14 @@ class PoolViewer : public rclcpp::Node {
         visualization_msgs::msg::Marker marker;
     };
     std::vector<PlacedDetection> placedDetections;
-    std::string detectionStatus;
+    // MPC prediction (controller/mpc/predicted_path). Subscribed only while shown:
+    // the controller skips building it without subscribers.
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr mpcPathSub;
+    nav_msgs::msg::Path mpcPathMessage;
+    bool mpcPathPending = false;
+    Clock::time_point mpcPathReceived{};
+    std::vector<glm::mat4> mpcPath; // world poses, re-rooted at the simulator vehicle
+    bool showMpcPath = false;
     std::unique_ptr<pool::Renderer> renderer;
     pool::StatusLights statusLights;
     pool::ThrusterVisuals thrusterVisuals;
@@ -1353,6 +1368,9 @@ class PoolViewer : public rclcpp::Node {
                     picker.segment(glm::vec3(placed.pose[3]), glm::vec3(placed.pose * glm::vec4(m.scale.x, 0, 0, 1)),
                                    glm::vec3(placed.pose[3]));
             }
+        if (showMpcPath)
+            for (std::size_t i = 1; i < mpcPath.size(); ++i)
+                picker.segment(glm::vec3(mpcPath[i - 1][3]), glm::vec3(mpcPath[i][3]), glm::vec3(mpcPath[i - 1][3]));
         glm::vec3 point;
         if (!picker.result(point)) {
             const auto uv = cursor / size;
@@ -1724,7 +1742,6 @@ class PoolViewer : public rclcpp::Node {
     // Missing render history falls back only to timestamped simulator TF.
     void captureDetections() {
         placedDetections.clear();
-        detectionStatus.clear();
         // Subscription callbacks run even when the overlay is hidden. Expire
         // their markers independently of drawing so unique IDs cannot pile up.
         const auto now = Clock::now();
@@ -1737,7 +1754,6 @@ class PoolViewer : public rclcpp::Node {
         }
         if (demo || !detections)
             return;
-        int boxes = 0, unresolved = 0;
         for (auto &[key, entry] : detectionMarkers) {
             const auto &m = entry.marker;
             std::string sourceFrame = m.header.frame_id;
@@ -1758,14 +1774,7 @@ class PoolViewer : public rclcpp::Node {
             const bool placed = entry.placement.place(m, mapFrame, *buffer, sourceFrame, acquisitionPose);
             if (placed)
                 placedDetections.push_back({entry.placement.world(), m});
-            else
-                ++unresolved;
-            if (m.type == visualization_msgs::msg::Marker::CUBE)
-                ++boxes;
         }
-        detectionStatus = "Detections: " + std::to_string(boxes) + " boxes";
-        if (unresolved)
-            detectionStatus += ", " + std::to_string(unresolved) + " waiting for timestamped TF";
     }
     void drawDetections(const pool::View &view, ImVec2 position, float width, float height) {
         if (!detections || demo)
@@ -1823,8 +1832,81 @@ class PoolViewer : public rclcpp::Node {
             }
         }
         draw->PopClipRect();
-        if (!detectionStatus.empty())
-            draw->AddText(smallFont, 12, {position.x + 14, position.y + 101}, color(white), detectionStatus.c_str());
+    }
+    // The controller steers its estimate (EKF frame), so the true vehicle follows
+    // the same motion relative to itself: place the prediction relative to the
+    // estimated base_link, then re-root that at the simulator base_link.
+    void captureMpcPath() {
+        const bool wanted = showMpcPath && !demo;
+        if (wanted && !mpcPathSub) {
+            mpcPathSub = create_subscription<nav_msgs::msg::Path>(
+                "controller/mpc/predicted_path", 10, [this](const nav_msgs::msg::Path &msg) {
+                    mpcPathMessage = msg;
+                    mpcPathPending = true;
+                    mpcPathReceived = Clock::now();
+                });
+        } else if (!wanted && mpcPathSub) {
+            mpcPathSub.reset();
+            mpcPathPending = false;
+            mpcPath.clear();
+        }
+        if (!wanted)
+            return;
+        const double age = std::chrono::duration<double>(Clock::now() - mpcPathReceived).count();
+        if (mpcPathPending) {
+            // Solves are stamped at compute time; TF can trail that by a few ms.
+            // Retry at the stamp briefly, then settle for the latest transforms.
+            const rclcpp::Time stamp =
+                age > .2 ? rclcpp::Time(0, 0, RCL_ROS_TIME) : rclcpp::Time(mpcPathMessage.header.stamp);
+            try {
+                const auto estimated =
+                    matrix(buffer->lookupTransform(robot + "/base_link", mpcPathMessage.header.frame_id, stamp)
+                               .transform);
+                const auto truth =
+                    matrix(buffer->lookupTransform(mapFrame, "simulator/" + robot + "/base_link", stamp).transform);
+                mpcPath.clear();
+                for (const auto &pose : mpcPathMessage.poses)
+                    mpcPath.push_back(truth * estimated * matrix(pose.pose));
+                mpcPathPending = false;
+            } catch (const tf2::TransformException &) {
+            }
+        }
+        if (age > .5)
+            mpcPath.clear(); // controller disabled or gone
+    }
+    void drawMpcPath(const pool::View &view, ImVec2 position, float width, float height) {
+        if (!showMpcPath || demo)
+            return;
+        auto *draw = ImGui::GetWindowDrawList();
+        draw->PushClipRect(position, {position.x + width, position.y + height}, true);
+        const auto vp = view.projection * view.view;
+        auto project = [&](glm::vec4 world, ImVec2 &pixel) {
+            const auto clip = vp * world;
+            if (clip.w <= 0 || clip.z < -clip.w || clip.z > clip.w)
+                return false;
+            pixel = {position.x + (clip.x / clip.w * .5f + .5f) * width,
+                     position.y + (.5f - clip.y / clip.w * .5f) * height};
+            return true;
+        };
+        const ImU32 line = IM_COL32(255, 170, 60, 230), heading = IM_COL32(255, 225, 150, 230);
+        ImVec2 previous;
+        bool previousVisible = false;
+        for (std::size_t i = 0; i < mpcPath.size(); ++i) {
+            ImVec2 pixel;
+            const bool visible = project(mpcPath[i][3], pixel);
+            if (visible && previousVisible)
+                draw->AddLine(previous, pixel, line, 2.f);
+            if (visible) {
+                draw->AddCircleFilled(pixel, 2.5f, line);
+                // Body +X every few stages and at the end shows the planned heading.
+                ImVec2 nose;
+                if ((i % 5 == 0 || i + 1 == mpcPath.size()) && project(mpcPath[i] * glm::vec4(.15f, 0, 0, 1), nose))
+                    draw->AddLine(pixel, nose, heading, 1.5f);
+            }
+            previous = pixel;
+            previousVisible = visible;
+        }
+        draw->PopClipRect();
     }
     void drawTfTree() {
         if (ImGui::Button("Show all"))
@@ -2104,6 +2186,12 @@ class PoolViewer : public rclcpp::Node {
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Camera detections use the simulator pose at image capture.\n"
                                   "Each observation stays fixed in the simulated world.");
+            pool::sameLineIfFits(ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x +
+                                 ImGui::CalcTextSize("MPC path").x);
+            ImGui::Checkbox("MPC path", &showMpcPath);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("riptide_mpc predicted trajectory over its horizon.\n"
+                                  "Drawn relative to the simulator vehicle, so localization drift does not offset it.");
         }
         if (viewerTools)
             viewerTools->drawToolsToolbar();
@@ -2167,6 +2255,7 @@ class PoolViewer : public rclcpp::Node {
         ImGui::Image(textureID(mainTexture), {iw, ih}, {0, 1}, {1, 0});
         drawTf(view, {position.x + (left - iw) / 2, position.y + (viewHeight - ih) / 2}, iw, ih);
         drawDetections(view, {position.x + (left - iw) / 2, position.y + (viewHeight - ih) / 2}, iw, ih);
+        drawMpcPath(view, {position.x + (left - iw) / 2, position.y + (viewHeight - ih) / 2}, iw, ih);
         if (panels && mode == 0) {
             panelView.projection = view.projection;
             panelView.view = view.view;
