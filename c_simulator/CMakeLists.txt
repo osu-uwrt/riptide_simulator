@@ -78,8 +78,18 @@ install(DIRECTORY launch collision_files config
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(FILES ../config.yaml DESTINATION share/${PROJECT_NAME}/config RENAME simulation.yaml)
-install(FILES ../scene_info.yaml DESTINATION share/${PROJECT_NAME}/config)
+# Shared sim configs live one level up; the robot checkout may not carry them.
+foreach(shared_config config.yaml scene_info.yaml)
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../${shared_config})
+    if(shared_config STREQUAL "config.yaml")
+      install(FILES ../${shared_config} DESTINATION share/${PROJECT_NAME}/config RENAME simulation.yaml)
+    else()
+      install(FILES ../${shared_config} DESTINATION share/${PROJECT_NAME}/config)
+    endif()
+  else()
+    message(WARNING "../${shared_config} not found; skipping install (only the sim smoke tests need it)")
+  endif()
+endforeach()
 install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS scripts/task_simulator.py DESTINATION lib/${PROJECT_NAME})
 install(FILES scripts/payload_model.py scripts/claw_world.py scripts/magnet_light_model.py scripts/run_score.py DESTINATION lib/${PROJECT_NAME})
