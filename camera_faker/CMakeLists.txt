@@ -34,7 +34,7 @@ find_package(OpenCV REQUIRED)
 # CUDA is optional at build time and probed again at runtime. CPU-only hosts
 # need neither the toolkit nor an NVIDIA driver.
 option(POOL_ENABLE_NVJPEG "Use nvJPEG for compressed camera images when available" ON)
-option(POOL_ENABLE_CUDA "Build CUDA camera processing when a toolkit is available" ON)
+option(POOL_ENABLE_CUDA "Build CUDA camera processing when a toolkit is available" OFF)
 if(POOL_ENABLE_CUDA)
   include(CheckLanguage)
   check_language(CUDA)
