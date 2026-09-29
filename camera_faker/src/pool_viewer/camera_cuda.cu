@@ -371,7 +371,10 @@ std::unique_ptr<CameraBackend> makeCudaCameraBackend() {
         try {
             cudaDeviceProp properties{};
             check(cudaGetDeviceProperties(&properties, device), "inspect CUDA device");
-            if (properties.computeMode == cudaComputeModeProhibited)
+            // cudaDeviceProp::computeMode was removed in CUDA 13; the attribute query works on all versions.
+            int computeMode = cudaComputeModeDefault;
+            check(cudaDeviceGetAttribute(&computeMode, cudaDevAttrComputeMode, device), "inspect CUDA compute mode");
+            if (computeMode == cudaComputeModeProhibited)
                 continue;
             return std::make_unique<CudaCamera>(device, properties.name);
         } catch (const std::exception &error) {

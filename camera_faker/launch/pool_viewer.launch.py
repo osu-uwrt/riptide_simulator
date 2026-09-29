@@ -1,5 +1,7 @@
 """OpenGL RoboSub viewer. Physics continues to run in c_simulator."""
 
+import os
+from glob import glob
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory as share, PackageNotFoundError
@@ -118,6 +120,15 @@ def generate_launch_description():
     return LaunchDescription(profile_arguments() + arguments + [OpaqueFunction(function=viewer)])
 
 
+def nvidia_render_env():
+    """Render on the NVIDIA GPU via PRIME offload when its driver and GLX library are present."""
+    if not os.path.exists("/proc/driver/nvidia/version") or not glob("/usr/lib/*/libGLX_nvidia.so.0"):
+        return {}
+    # Values already set in the environment win, so a user can still force a GPU.
+    env = {"__NV_PRIME_RENDER_OFFLOAD": "1", "__GLX_VENDOR_LIBRARY_NAME": "nvidia"}
+    return {key: value for key, value in env.items() if key not in os.environ}
+
+
 def viewer(context):
     path, meta = run(context)
     package = Path(share("camera_faker"))
@@ -148,6 +159,7 @@ def viewer(context):
             name="pool_viewer",
             namespace="/" + meta["namespace"],
             output="screen",
+            additional_env=nvidia_render_env(),
             parameters=([selected("camera_settings")] if selected("camera_settings") else [])
             + [
                 camera_params,
